@@ -1,13 +1,7 @@
 import open3d as o3d
 import numpy as np
 
-def plot_surf(vert_file, face_file):
-    """
-    Takes the output of msms and dump the diffusion nets operators in dump dir
-    :param vert_file:
-    :param face_file:
-    :return:
-    """
+def parse_verts(vert_file, face_file, keep_normals=False):
     with open(vert_file, 'r') as f:
         # Parse the file and ensure it looks sound
         lines = f.readlines()
@@ -19,7 +13,8 @@ def plot_surf(vert_file, face_file):
         lines = [line.split() for line in no_header]
         lines = np.array(lines).astype(np.float)
         verts = lines[:, :3]
-        normals = lines[:, 3:6]
+        if keep_normals:
+            normals = lines[:, 3:6]
 
     with open(face_file, 'r') as f:
         # Parse the file and ensure it looks sound
@@ -34,28 +29,59 @@ def plot_surf(vert_file, face_file):
         faces = lines[:, :3]
         faces -= 1
 
-    verts = np.ascontiguousarray(verts)
-    faces = np.ascontiguousarray(faces)
-    # pre_normals = torch.from_numpy(np.ascontiguousarray(normals))
-    # normals = None
+    if keep_normals:
+        return verts, faces, keep_normals
+    else:
+        return verts, faces
 
-    print(f'found {len(verts)} vertices')
-    print(f'found {len(faces)} triangles')
+def mesh_simplification(vert_file, face_file, out_name, vert_number=1e3, maximum_error=np.inf):
+    """
+    Takes the output of msms and dump the diffusion nets operators in dump dir
+    :param vert_file:
+    :param face_file:
+    :return:
+    """
+    verts, faces = parse_verts(vert_file, face_file)
 
-
+    ## create the Mesh
     mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts),o3d.utility.Vector3iVector(faces))
+    # compute normal for rendering
     mesh.compute_triangle_normals()
     mesh.compute_vertex_normals()
-    o3d.visualization.draw_geometries([mesh])
-    o3d.io.write_triangle_mesh("mesh.ply", mesh)
+    ## normal check
+    # print(computed_normals.shape)
+    # print(pre_normals.shape)
+    # print(pre_normals[0])
+    # print(computed_normals[0])
+    # print(torch.dot(pre_normals[0], computed_normals[0]))
+    ## visualization
+    # o3d.visualization.draw_geometries([mesh])
 
-    mesh_reduced = mesh.simplify_quadric_decimation(len(faces)//60,maximum_error=5)
-    o3d.visualization.draw_geometries([mesh,mesh_reduced])
-    o3d.io.write_triangle_mesh("mesh_low.ply", mesh_reduced)
-    print(f'found {len(mesh_reduced.vertices)} vertices')
-    print(f'found {len(mesh_reduced.triangles)} triangles')
+    ## mesh simplification
+    faces_num = len(faces) * (int(vert_number) / len(verts))
+    mesh_reduced = mesh.simplify_quadric_decimation(int(faces_num),maximum_error=maximum_error)
+    ## visualization
+    # o3d.visualization.draw_geometries([mesh,mesh_reduced])
+    ## save to ply
+    o3d.io.write_triangle_mesh(f"{out_name}_mesh.ply", mesh_reduced, write_vertex_normals=True)
+
+    print(f'vertices: {len(verts)} -> {len(mesh_reduced.vertices)} ')
+    print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
 if __name__=="__main__":
     vert_path = "data/example_files/test.vert"
     faces_path = "data/example_files/test.face"
-    plot_surf(vert_path,faces_path)
+
+    mesh_simplification(vert_path, faces_path, "data/example_files/example", vert_number=1e3, maximum_error=5)
+
+    verts, faces = parse_verts(vert_path, faces_path)
+    mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts), o3d.utility.Vector3iVector(faces))
+    # compute normal for rendering
+    mesh.compute_triangle_normals()
+    mesh.compute_vertex_normals()
+    o3d.visualization.draw_geometries([mesh])
+
+    mesh_reduced = o3d.io.read_triangle_mesh("data/example_files/example_mesh.ply")
+    mesh_reduced.compute_triangle_normals()
+    # mesh_reduced.compute_vertex_normals()
+    o3d.visualization.draw_geometries([mesh_reduced])
