@@ -2,6 +2,13 @@ import open3d as o3d
 import numpy as np
 
 def parse_verts(vert_file, face_file, keep_normals=False):
+    """
+    Generate the vertices and faces (and optionally the normals) from .vert and .face files
+    :param vert_file:
+    :param face_file:
+    :param keep_normals:
+    :return:
+    """
     with open(vert_file, 'r') as f:
         # Parse the file and ensure it looks sound
         lines = f.readlines()
@@ -36,9 +43,12 @@ def parse_verts(vert_file, face_file, keep_normals=False):
 
 def mesh_simplification(vert_file, face_file, out_name, vert_number=1e3, maximum_error=np.inf):
     """
-    Takes the output of msms and dump the diffusion nets operators in dump dir
+    Generate a .ply of a simplified mesh from .vert and .face files
     :param vert_file:
     :param face_file:
+    :param out_name:
+    :param vert_number:
+    :param maximum_error:
     :return:
     """
     verts, faces = parse_verts(vert_file, face_file)
