@@ -49,9 +49,11 @@ def plot_surf(vert_file, face_file):
     o3d.visualization.draw_geometries([mesh])
     o3d.io.write_triangle_mesh("mesh.ply", mesh)
 
-    mesh_reduced = mesh.simplify_quadric_decimation(len(faces)//10)
-    o3d.visualization.draw_geometries([mesh_reduced])
+    mesh_reduced = mesh.simplify_quadric_decimation(len(faces)//60,maximum_error=5)
+    o3d.visualization.draw_geometries([mesh,mesh_reduced])
     o3d.io.write_triangle_mesh("mesh_low.ply", mesh_reduced)
+    print(f'found {len(mesh_reduced.vertices)} vertices')
+    print(f'found {len(mesh_reduced.triangles)} triangles')
 
 if __name__=="__main__":
     vert_path = "data/example_files/test.vert"
