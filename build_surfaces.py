@@ -71,28 +71,35 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
     :return:
     """
     ply_file = f"{dump_surf}_mesh.ply"
+    features_file = f"{dump_surf}_features.npy"
+    temp_pdb = dump_surf + '.pdb'
+    df_utils.df_to_pdb(df, out_file_name=temp_pdb)
+
     # if they are missing, compute the surface from the df. Get a temp PDB, parse it with msms and simplify it
     if not os.path.exists(ply_file) or recompute:
         # t_0 = time.perf_counter()
-        temp_pdb = dump_surf + '.pdb'
         vert_file = dump_surf + '.vert'
         face_file = dump_surf + '.face'
-        df_utils.df_to_pdb(df, out_file_name=temp_pdb)
         surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number)
         mesh = surface_utils.mesh_simplification(vert_file=vert_file,
                                                  face_file=face_file,
                                                  out_name=dump_surf,
                                                  vert_number=min_number,
                                                  maximum_error=max_error)
-        vertices = np.asarray(mesh.vertices, np.float64)
-        features = point_cloud_utils.get_features(temp_pdb, vertices)
-
-        os.remove(temp_pdb)
+        # print('time to process msms and simplify mesh: ', time.perf_counter() - t_0)
         os.remove(vert_file)
         os.remove(face_file)
-        # print('time to process msms and simplify mesh: ', time.perf_counter() - t_0)
-    # t_0 = time.perf_counter()
+
     vertices, faces = surface_utils.read_face_and_triangles(ply_file=ply_file)
+    # t_0 = time.perf_counter()
+    if not os.path.exists(features_file) or recompute:
+        features = point_cloud_utils.get_features(temp_pdb, vertices)
+        np.save(features_file, features)
+    # print('time get_features: ', time.perf_counter() - t_0)
+    os.remove(temp_pdb)
+
+
+    # t_0 = time.perf_counter()
     operators = surf_to_operators(vertices=vertices, faces=faces, dump_dir=dump_operator, recompute=recompute)
     # print('time to process diffnets : ', time.perf_counter() - t_0)
     return
@@ -204,8 +211,8 @@ if __name__ == '__main__':
 
     df = pd.read_csv('data/example_files/4kt3.csv')
     process_df(df=df,
-               dump_surf='',
-               dump_operator='')
+               dump_surf='data/example_files/4kt3',
+               dump_operator='data/example_files/4kt3')
     # compute_operators_all(data_dir='data/DIPS-split/data/train/')
 
     # A first run gave us 100k pdb in the DB.
