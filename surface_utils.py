@@ -130,6 +130,7 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
 
     # save to ply
     o3d.io.write_triangle_mesh(f"{out_name}_mesh.ply", mesh_reduced, write_vertex_normals=True)
+    return mesh_reduced
 
     # visualization, you need to compute normals for rendering
     # mesh.compute_triangle_normals()

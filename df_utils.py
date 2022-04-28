@@ -19,6 +19,7 @@ def structure_to_df(structure, discard_het=True):
     resname = list()
     residue_list = list()
     name = list()
+    elements = list()
     serial_number = list()
     coords = list()
     for i, atom in enumerate(structure.get_atoms()):
@@ -28,6 +29,7 @@ def structure_to_df(structure, discard_het=True):
             resname.append(residue.get_resname())
             residue_list.append(residue.id[1])
             name.append(atom.get_name())
+            elements.append(atom.element)
             coord = atom.get_coord()
             serial_number.append(i + 1)
             coords.append(coord)
@@ -35,6 +37,7 @@ def structure_to_df(structure, discard_het=True):
     resname = np.asarray(resname)
     residue = np.asarray(residue_list)
     name = np.asarray(name)
+    elements = np.asarray(elements)
     serial_number = np.asarray(serial_number)
     coords = np.asarray(coords)
     df = pd.DataFrame({'chain': chain,
@@ -42,6 +45,7 @@ def structure_to_df(structure, discard_het=True):
                        'residue': residue,
                        'name': name,
                        'serial_number': serial_number,
+                       'element': elements,
                        'x': coords[:, 0],
                        'y': coords[:, 1],
                        'z': coords[:, 2]})
@@ -86,11 +90,11 @@ def df_to_pdb(df, out_file_name):
 
         with open(out_file_name, 'w') as f:
             for splitted_line in lists:
-                serial_number, name, resname, chain, residue, x, y, z, x = splitted_line
+                serial_number, name, resname, chain, residue, x, y, z, element = splitted_line
                 # if float(serial_number) > 90:
                 #     iguh
                 line = f"ATOM   {serial_number:>4} {format_name(name)} {resname:>3} {chain} {residue:>3}     " \
-                       f"{format_float(x)} {format_float(y)} {format_float(z)}  1.00 61.66           {name[0]}"
+                       f"{format_float(x)} {format_float(y)} {format_float(z)}  1.00 61.66           {element}"
                 if to_print:
                     print(line)
                 f.write(line + "\n")
@@ -103,7 +107,8 @@ def df_to_pdb(df, out_file_name):
     x = df['x']
     y = df['y']
     z = df['z']
-    lists = zip(serial_number, name, resname, chain, residue, x, y, z, x)
+    elements = df['element']
+    lists = zip(serial_number, name, resname, chain, residue, x, y, z, elements)
     lists_to_pdb(lists, out_file_name)
 
 

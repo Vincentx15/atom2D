@@ -9,6 +9,7 @@ from diffusion_net import geometry
 from atom3d.datasets import LMDBDataset
 
 import df_utils
+import point_cloud_utils
 import surface_utils
 import utils
 
@@ -78,11 +79,14 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
         face_file = dump_surf + '.face'
         df_utils.df_to_pdb(df, out_file_name=temp_pdb)
         surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number)
-        surface_utils.mesh_simplification(vert_file=vert_file,
-                                          face_file=face_file,
-                                          out_name=dump_surf,
-                                          vert_number=min_number,
-                                          maximum_error=max_error)
+        mesh = surface_utils.mesh_simplification(vert_file=vert_file,
+                                                 face_file=face_file,
+                                                 out_name=dump_surf,
+                                                 vert_number=min_number,
+                                                 maximum_error=max_error)
+        vertices = np.asarray(mesh.vertices, np.float64)
+        features = point_cloud_utils.get_features(temp_pdb, vertices)
+
         os.remove(temp_pdb)
         os.remove(vert_file)
         os.remove(face_file)
@@ -195,15 +199,14 @@ if __name__ == '__main__':
     #                   face_file='data/example_files/test.face',
     #                   dump_dir='data/processed_data/operators')
 
-    # df = pd.read_csv('data/example_files/4kt3.csv')
-
     # np.random.seed(0)
     # torch.manual_seed(0)
 
-    # process_df(df=df,
-    #            dump_surf='data/processed_data/geometry/4kt3',
-    #            dump_operator='data/processed_data/operator/')
-    compute_operators_all(data_dir='data/DIPS-split/data/train/')
+    df = pd.read_csv('data/example_files/4kt3.csv')
+    process_df(df=df,
+               dump_surf='',
+               dump_operator='')
+    # compute_operators_all(data_dir='data/DIPS-split/data/train/')
 
     # A first run gave us 100k pdb in the DB.
     # 87300/87303 processed
