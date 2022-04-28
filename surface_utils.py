@@ -27,7 +27,10 @@ def pdb_to_surf(pdb, out_name, density=1.):
         subprocess.run(cline.split(), stdout=f)
     cline = f"msms -if {temp_xyzr_name} -of {out_name} -density {density}"
     with open(temp_log_name, "w") as f:
-        subprocess.run(cline.split(), stdout=f)
+        try:
+            subprocess.run(cline.split(), stdout=f, stderr=f, timeout=8)
+        except TimeoutError:
+            pass
     os.remove(temp_xyzr_name)
     os.remove(temp_log_name)
     pass
@@ -124,19 +127,24 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
         #       f'{vert_number - len(mesh_reduced.vertices)} missing')
     assert len(mesh_reduced.vertices) >= vert_number
     # print(f'Simplified from {len(verts)} to {len(mesh_reduced.vertices)}')
-    # visualization, you need to compute normals for rendering
-    # mesh.compute_triangle_normals()
-    # mesh.compute_vertex_normals()
-    # o3d.visualization.draw_geometries([mesh,mesh_reduced])
 
     # save to ply
     o3d.io.write_triangle_mesh(f"{out_name}_mesh.ply", mesh_reduced, write_vertex_normals=True)
 
+    # visualization, you need to compute normals for rendering
+    # mesh.compute_triangle_normals()
+    # mesh.compute_vertex_normals()
+    # o3d.visualization.draw_geometries([mesh,mesh_reduced])
     # print(f'vertices: {len(verts)} -> {len(mesh_reduced.vertices)} ')
     # print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
 
 def read_face_and_triangles(ply_file):
+    """
+    Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
+    :param ply_file:
+    :return:
+    """
     mesh = o3d.io.read_triangle_mesh(filename=ply_file)
     vertices = np.asarray(mesh.vertices, np.float64)
     faces = np.asarray(mesh.triangles, np.int64)

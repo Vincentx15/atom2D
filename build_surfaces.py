@@ -10,6 +10,7 @@ from atom3d.datasets import LMDBDataset
 
 import df_utils
 import surface_utils
+import utils
 
 """
 In this file, we define functions to make the following transformations : 
@@ -121,6 +122,7 @@ class MapAtom3DDataset(Dataset):
         _lmdb_dataset = LMDBDataset(lmdb_path)
         self.lenght = len(_lmdb_dataset)
         self._lmdb_dataset = None
+        self.failed_set = set()
         self.lmdb_path = lmdb_path
 
     def __len__(self) -> int:
@@ -147,12 +149,23 @@ class MapAtom3DDataset(Dataset):
             if name is None:
                 continue
             else:
-                print(name)
-                process_df(df=dataframe,
-                           dump_surf=f'data/processed_data/geometry/{name}',
-                           dump_operator='data/processed_data/operator/',
-                           recompute=False)
-                # print()
+                if name in self.failed_set:
+                    return 0
+                try:
+                    dump_surf_dir = os.path.join('data/processed_data/geometry/', utils.name_to_dir(name))
+                    dump_surf_outname = os.path.join(dump_surf_dir, name)
+                    dump_operator = os.path.join('data/processed_data/operator/', utils.name_to_dir(name))
+                    os.makedirs(dump_surf_dir, exist_ok=True)
+                    os.makedirs(dump_operator, exist_ok=True)
+                    process_df(df=dataframe,
+                               dump_surf=dump_surf_outname,
+                               dump_operator=dump_operator,
+                               recompute=False)
+                    print(f'Precomputed successfully for {name}')
+                except:
+                    self.failed_set.add(name)
+                    print(f'Failed precomputing for {name}')
+                    return 0
         return 1
 
 
@@ -168,23 +181,14 @@ def collate_fn(samples):
 # Finally, we need to iterate to precompute all relevant surfaces and operators
 def compute_operators_all(data_dir):
     train_dataset = MapAtom3DDataset(data_dir)
-    loader = torch.utils.data.DataLoader(train_dataset, num_workers=1, batch_size=1, collate_fn=collate_fn)
-    # all_names = set()
-    for i, names in enumerate(loader):
-        # for name in names[0]:
-        #     all_names.add(name)
-        # break
+    loader = torch.utils.data.DataLoader(train_dataset, num_workers=6, batch_size=1, collate_fn=collate_fn)
+    for i, success in enumerate(loader):
         if i > 50:
             break
-        # if not i % 100:
-        # print()
-        # print(f"{i}/{len(loader)} processed")
-        # print(f"Discoverd {len(all_names)} pdb")
-        # 87300/87303 processed
-        # Discoverd 108805 pdb
 
 
 if __name__ == '__main__':
+    pass
     # pdb_to_surf(pdb='data/example_files/from_biopython.pdb', out_name='data/example_files/test')
     # pdb_to_surf(pdb='data/example_files/from_db.pdb', out_name='data/example_files/test')
     # surf_to_operators(vert_file='data/example_files/test.vert',
@@ -200,3 +204,7 @@ if __name__ == '__main__':
     #            dump_surf='data/processed_data/geometry/4kt3',
     #            dump_operator='data/processed_data/operator/')
     compute_operators_all(data_dir='data/DIPS-split/data/train/')
+
+    # A first run gave us 100k pdb in the DB.
+    # 87300/87303 processed
+    # Discoverd 108805 pdb
