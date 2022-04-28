@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import pandas as pd
-import subprocess
 import time
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -9,87 +8,35 @@ from torch.utils.data import DataLoader, Dataset
 from diffusion_net import geometry
 from atom3d.datasets import LMDBDataset
 
-from df_utils import df_to_pdb
+import df_utils
+import surface_utils
 
 """
 In this file, we define functions to make the following transformations : 
-PDB -> surfaces in .vert+.faces -> DiffNets operators in .npz format
+.ply -> DiffNets operators in .npz format
 
 We also define a way to iterate through a .mdb file as defined by ATOM3D
 and leverage PyTorch parallel data loading to 
 """
 
 
-def pdb_to_surf(pdb, out_name):
-    """
-    Runs msms on the input PDB file and dumps the output in out_name
-    :param pdb:
-    :param out_name:
-    :return:
-    """
-    # First get the xyzr file
-    temp_xyzr_name = f"{out_name}_temp.xyzr"
-    temp_log_name = f"{out_name}_msms.log"
-    with open(temp_xyzr_name, "w") as f:
-        cline = f"pdb_to_xyzr {pdb}"
-        subprocess.run(cline.split(), stdout=f)
-    cline = f"msms -if {temp_xyzr_name} -of {out_name}"
-    with open(temp_log_name, "w") as f:
-        subprocess.run(cline.split(), stdout=f)
-    os.remove(temp_xyzr_name)
-    os.remove(temp_log_name)
-    pass
-
-
-def surf_to_operators(vert_file, face_file, dump_dir, recompute=False):
+def surf_to_operators(vertices, faces, dump_dir, recompute=False):
     """
     Takes the output of msms and dump the diffusion nets operators in dump dir
-    :param vert_file:
-    :param face_file:
-    :param dump_dir:
+    :param vert_file: Vx3 tensor of coordinates
+    :param face_file: Fx3 tensor of indexes, zero based
+    :param dump_dir: Where to dump the precomputed operators
     :return:
     """
-    with open(vert_file, 'r') as f:
-        # Parse the file and ensure it looks sound
-        lines = f.readlines()
-        n_vert = int(lines[2].split()[0])
-        no_header = lines[3:]
-        assert len(no_header) == n_vert
 
-        # Parse the info to retrieve vertices and normals
-        lines = [line.split() for line in no_header]
-        lines = np.array(lines).astype(np.float)
-        verts = lines[:, :3]
-        # normals = lines[:, 3:6]
-
-    with open(face_file, 'r') as f:
-        # Parse the file and ensure it looks sound
-        lines = f.readlines()
-        n_faces = int(lines[2].split()[0])
-        no_header = lines[3:]
-        assert len(no_header) == n_faces
-
-        # Parse the lines and remove 1 to get zero based indexing
-        lines = [line.split() for line in no_header]
-        lines = np.array(lines).astype(np.int)
-        faces = lines[:, :3]
-        faces -= 1
-
-    verts = torch.from_numpy(np.ascontiguousarray(verts))
+    verts = torch.from_numpy(np.ascontiguousarray(vertices))
     faces = torch.from_numpy(np.ascontiguousarray(faces))
-    # pre_normals = torch.from_numpy(np.ascontiguousarray(normals))
-    normals = None
-
-    print(f'found {len(verts)} vertices')
-    # print(verts.shape)
-    # print(faces.shape)
-
     frames, mass, L, evals, evecs, gradX, gradY = geometry.get_operators(verts=verts,
-                                                                         normals=normals,
                                                                          faces=faces,
                                                                          op_cache_dir=dump_dir,
                                                                          overwrite_cache=recompute)
 
+    # pre_normals = torch.from_numpy(np.ascontiguousarray(normals))
     # computed_normals = frames[:, 2, :]
     # print(computed_normals.shape)
     # print(pre_normals.shape)
@@ -100,28 +47,49 @@ def surf_to_operators(vert_file, face_file, dump_dir, recompute=False):
     return frames, mass, L, evals, evecs, gradX, gradY
 
 
-def process_df(df, dump_surf, dump_operator, recompute=False):
+def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4, max_error=5):
     """
+    The whole process of data creation, from df format of atom3D to ply files and precomputed operators.
+
+    We have to get enough points on the surface to avoid eigendecomposition problems, so we potentially resample
+    over the surface using msms. Then we simplify all meshes to get closer to this value, up to a certain error,
+    using open3d coarsening.
+
+    Without coarsening, time is dominated by eigendecomposition and is approx 5s. Operator files weigh around 10M, small
+        ones around 400k, big ones up to 16M
+    With a max_error of 5, time is dominated by MSMS and is close to ones. Operator files weigh around 0.6M, small ones
+        around 400k, big ones up to 1.1M
 
     :param df: a df that represents a protein
-    :param dump_surf: the basename of the surface .vert and .faces to compute
+    :param dump_surf: the basename of the surface to dump
     :param dump_operator: The dir where diffusion net searches for precomputed data
+    :param recompute: to force recomputation of cached files
+    :param min_number: The minimum number of points of the final mesh, we take 4 times the size of kept eigenvalues
+    :param max_error: The maximum error when coarsening the mesh
     :return:
     """
-    # if they are missing, compute the surface from the df
-    vert_file = dump_surf + '.vert'
-    face_file = dump_surf + '.face'
-    if (not os.path.exists(vert_file) or not os.path.exists(face_file)) or recompute:
-        t_0 = time.perf_counter()
+    ply_file = f"{dump_surf}_mesh.ply"
+    # if they are missing, compute the surface from the df. Get a temp PDB, parse it with msms and simplify it
+    if not os.path.exists(ply_file) or recompute:
+        # t_0 = time.perf_counter()
         temp_pdb = dump_surf + '.pdb'
-        df_to_pdb(df, out_file_name=temp_pdb)
-        pdb_to_surf(temp_pdb, out_name=dump_surf)
+        vert_file = dump_surf + '.vert'
+        face_file = dump_surf + '.face'
+        df_utils.df_to_pdb(df, out_file_name=temp_pdb)
+        surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number)
+        surface_utils.mesh_simplification(vert_file=vert_file,
+                                          face_file=face_file,
+                                          out_name=dump_surf,
+                                          vert_number=min_number,
+                                          maximum_error=max_error)
         os.remove(temp_pdb)
-        print('time to process msms : ', time.perf_counter() - t_0)
-    if not os.path.exists(dump_operator) or recompute:
-        t_0 = time.perf_counter()
-        operators = surf_to_operators(vert_file, face_file, dump_dir=dump_operator, recompute=recompute)
-        print('time to process diffnets : ', time.perf_counter() - t_0)
+        os.remove(vert_file)
+        os.remove(face_file)
+        # print('time to process msms and simplify mesh: ', time.perf_counter() - t_0)
+    # t_0 = time.perf_counter()
+    vertices, faces = surface_utils.read_face_and_triangles(ply_file=ply_file)
+    operators = surf_to_operators(vertices=vertices, faces=faces, dump_dir=dump_operator, recompute=recompute)
+    # print('time to process diffnets : ', time.perf_counter() - t_0)
     return
 
 
@@ -184,7 +152,7 @@ class MapAtom3DDataset(Dataset):
                            dump_surf=f'data/processed_data/geometry/{name}',
                            dump_operator='data/processed_data/operator/',
                            recompute=False)
-                print()
+                # print()
         return 1
 
 
@@ -223,7 +191,7 @@ if __name__ == '__main__':
     #                   face_file='data/example_files/test.face',
     #                   dump_dir='data/processed_data/operators')
 
-    df = pd.read_csv('data/example_files/4kt3.csv')
+    # df = pd.read_csv('data/example_files/4kt3.csv')
 
     # np.random.seed(0)
     # torch.manual_seed(0)
@@ -231,4 +199,4 @@ if __name__ == '__main__':
     # process_df(df=df,
     #            dump_surf='data/processed_data/geometry/4kt3',
     #            dump_operator='data/processed_data/operator/')
-    compute_operators_all(data_dir='data/DIPS-split/data/train')
+    compute_operators_all(data_dir='data/DIPS-split/data/train/')
