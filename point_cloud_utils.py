@@ -17,7 +17,8 @@ def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01):
     :param sigma:
     :return: m,k
     """
-    assert points_1.dtype == points_2.dtype == feats_1.dtype
+    if not points_1.dtype == points_2.dtype == feats_1.dtype:
+        raise ValueError(f"can't RBF with different dtypes{points_1.dtype, points_2.dtype, feats_1.dtype}")
     # Get all to all dists, make it a weight and message passing.
     #     TODO : Maybe include sigma as a learnable parameter
     with torch.no_grad():
@@ -29,8 +30,8 @@ def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01):
 
         # Then normalize by line, the sum are a confidence score
         line_norms = torch.sum(rbf_weights, dim=1) + eps
-        feats_2 = torch.mm(rbf_weights, feats_1)
-        feats_2 = torch.div(feats_2, line_norms[:, None])
+        rbf_weights = torch.div(rbf_weights, line_norms[:, None])
+    feats_2 = torch.mm(rbf_weights, feats_1)
     return feats_2, line_norms
 
 
@@ -69,7 +70,7 @@ def get_features_pdb(pdb):
     all_features = np.asarray(all_features, dtype=np.int8)
 
     # Finally one hot encode it
-    encoded_all_features = np.zeros((all_features.size, all_features.max() + 1), dtype=np.float32)
+    encoded_all_features = np.zeros((all_features.size, len(ELEMENT_MAPPING)), dtype=np.float32)
     encoded_all_features[np.arange(all_features.size), all_features] = 1
     return all_coords, encoded_all_features
 
@@ -101,19 +102,18 @@ if __name__ == '__main__':
     # print(feats_2.shape, confidence.shape)
 
     # # Visual proof
-    # points_1 = torch.randn(size=(2000, 1)) * 10
-    # points_2 = torch.randn(size=(30, 1)) * 15
-    # feats_1 = torch.sin(points_1)
-    # feats_2, confidence = torch_rbf(points_1=points_1, points_2=points_2, feats_1=feats_1, sigma=0.5)
+    points_1 = torch.randn(size=(2000, 1)) * 10
+    points_2 = torch.randn(size=(50, 1)) * 20
+    feats_1 = torch.sin(points_1)
+    feats_2, confidence = torch_rbf(points_1=points_1, points_2=points_2, feats_1=feats_1, sigma=0.5)
 
-    # plt.scatter(points_1.numpy(), feats_1.numpy())
-    # plt.scatter(points_2.numpy(), feats_2.numpy())
-    # plt.scatter(points_2.numpy(), torch.tanh(confidence).numpy())
-    # plt.show()
+    plt.scatter(points_1.numpy(), feats_1.numpy())
+    plt.scatter(points_2.numpy(), feats_2.numpy())
+    plt.scatter(points_2.numpy(), torch.tanh(confidence).numpy())
+    plt.show()
 
     # Actual PDB example
-
-    verts, faces = surface_utils.read_face_and_triangles('data/example_files/4kt3_mesh.ply')
-    feats, confidence = get_features(pdb='data/example_files/4kt3.pdb', verts=verts, sigma=3)
-    plt.hist(confidence)
-    plt.show()
+    # verts, faces = surface_utils.read_face_and_triangles('data/example_files/4kt3_mesh.ply')
+    # feats, confidence = get_features(pdb='data/example_files/4kt3.pdb', verts=verts, sigma=3)
+    # plt.hist(confidence)
+    # plt.show()

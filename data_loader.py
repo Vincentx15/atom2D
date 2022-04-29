@@ -91,9 +91,15 @@ class CNN3D_Dataset(Dataset):
         frames, mass, L, evals, evecs, gradX, gradY = build_surfaces.surf_to_operators(vertices=vertices,
                                                                                        faces=faces,
                                                                                        dump_dir=dump_operator)
-        return features, confidence, mass, L, evals, evecs, gradX, gradY, faces
+        return features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces
 
     def __getitem__(self, index):
+        """
+
+        :param index:
+        :return: pos and neg arrays of the 2 partners CA 3D coordinates shape N_{pos,neg}x 2x 3
+                 and the geometry objects necessary to embed the surfaces
+        """
         if self._lmdb_dataset is None:
             self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
@@ -132,11 +138,13 @@ class CNN3D_Dataset(Dataset):
 
         pos_pairs_cas = self._get_res_pair_ca_coords(pos_samples_df, structs_df)
         neg_pairs_cas = self._get_res_pair_ca_coords(neg_samples_df, structs_df)
+        pos_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas])
+        neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
 
         geom_feats_0 = self.get_diffnetfiles(names_used[0], df=structs_df[0])
         geom_feats_1 = self.get_diffnetfiles(names_used[1], df=structs_df[1])
 
-        return pos_pairs_cas, neg_pairs_cas, geom_feats_0, geom_feats_1
+        return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
 
 
 if __name__ == '__main__':
