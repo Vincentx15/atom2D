@@ -52,7 +52,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
         assert len(no_header) == n_vert
 
         # Parse the info to retrieve vertices and normals
-        lines = [line.split() for line in no_header]
+        lines = [line.split()[:6] for line in no_header]
         lines = np.array(lines).astype(np.float)
         verts = lines[:, :3]
         if keep_normals:

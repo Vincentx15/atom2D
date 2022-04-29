@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 from diffusion_net import geometry
 from atom3d.datasets import LMDBDataset
 
+from atom3dutils import get_subunits
 import df_utils
 import point_cloud_utils
 import surface_utils
@@ -70,8 +71,13 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
     :param max_error: The maximum error when coarsening the mesh
     :return:
     """
+    # Optionnally setup dirs
+    dump_surf_dir = os.path.dirname(dump_surf)
+    os.makedirs(dump_surf_dir, exist_ok=True)
+    os.makedirs(dump_operator, exist_ok=True)
+
     ply_file = f"{dump_surf}_mesh.ply"
-    features_file = f"{dump_surf}_features.npy"
+    features_file = f"{dump_surf}_features.npz"
     temp_pdb = dump_surf + '.pdb'
     df_utils.df_to_pdb(df, out_file_name=temp_pdb)
 
@@ -92,9 +98,9 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
 
     vertices, faces = surface_utils.read_face_and_triangles(ply_file=ply_file)
     # t_0 = time.perf_counter()
-    if not os.path.exists(features_file) or recompute :
+    if not os.path.exists(features_file) or recompute:
         features, confidence = point_cloud_utils.get_features(temp_pdb, vertices)
-        np.savez_compressed(features_file, {'features': features, 'confidence': confidence})
+        np.savez_compressed(features_file, **{'features': features, 'confidence': confidence})
     # print('time get_features: ', time.perf_counter() - t_0)
     os.remove(temp_pdb)
 
@@ -102,29 +108,6 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
     operators = surf_to_operators(vertices=vertices, faces=faces, dump_dir=dump_operator, recompute=recompute)
     # print('time to process diffnets : ', time.perf_counter() - t_0)
     return
-
-
-def get_subunits(ensemble):
-    subunits = ensemble['subunit'].unique()
-
-    if len(subunits) == 4:
-        lb = [x for x in subunits if x.endswith('ligand_bound')][0]
-        lu = [x for x in subunits if x.endswith('ligand_unbound')][0]
-        rb = [x for x in subunits if x.endswith('receptor_bound')][0]
-        ru = [x for x in subunits if x.endswith('receptor_unbound')][0]
-        bdf0 = ensemble[ensemble['subunit'] == lb]
-        bdf1 = ensemble[ensemble['subunit'] == rb]
-        udf0 = ensemble[ensemble['subunit'] == lu]
-        udf1 = ensemble[ensemble['subunit'] == ru]
-        names = (lb, rb, lu, ru)
-    elif len(subunits) == 2:
-        udf0, udf1 = None, None
-        bdf0 = ensemble[ensemble['subunit'] == subunits[0]]
-        bdf1 = ensemble[ensemble['subunit'] == subunits[1]]
-        names = (subunits[0], subunits[1], None, None)
-    else:
-        raise RuntimeError('Incorrect number of subunits for pair')
-    return names, (bdf0, bdf1, udf0, udf1)
 
 
 class MapAtom3DDataset(Dataset):
@@ -147,26 +130,15 @@ class MapAtom3DDataset(Dataset):
         names, (bdf0, bdf1, udf0, udf1) = get_subunits(item['atoms_pairs'])
 
         structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
-        # Throw away non empty hetero/insertion_code
-        non_heteros = []
-        for df in structs_df:
-            non_heteros.extend(df[(df.hetero == ' ') & (df.insertion_code == ' ')].residue.unique())
-        filtered_df = []
-        for df in structs_df:
-            filtered_df.append(df[df.residue.isin(non_heteros)])
-
-        for name, dataframe in zip(names, filtered_df):
+        for name, dataframe in zip(names, structs_df):
             if name is None:
                 continue
             else:
                 if name in self.failed_set:
                     return 0
                 try:
-                    dump_surf_dir = os.path.join('data/processed_data/geometry/', utils.name_to_dir(name))
-                    dump_surf_outname = os.path.join(dump_surf_dir, name)
+                    dump_surf_outname = os.path.join('data/processed_data/geometry/', utils.name_to_path(name))
                     dump_operator = os.path.join('data/processed_data/operator/', utils.name_to_dir(name))
-                    os.makedirs(dump_surf_dir, exist_ok=True)
-                    os.makedirs(dump_operator, exist_ok=True)
                     process_df(df=dataframe,
                                dump_surf=dump_surf_outname,
                                dump_operator=dump_operator,
@@ -208,11 +180,11 @@ if __name__ == '__main__':
     # np.random.seed(0)
     # torch.manual_seed(0)
 
-    df = pd.read_csv('data/example_files/4kt3.csv')
-    process_df(df=df,
-               dump_surf='data/example_files/4kt3',
-               dump_operator='data/example_files/4kt3')
-    # compute_operators_all(data_dir='data/DIPS-split/data/train/')
+    # df = pd.read_csv('data/example_files/4kt3.csv')
+    # process_df(df=df,
+    #            dump_surf='data/example_files/4kt3',
+    #            dump_operator='data/example_files/4kt3')
+    compute_operators_all(data_dir='data/DIPS-split/data/train/')
 
     # A first run gave us 100k pdb in the DB.
     # 87300/87303 processed
