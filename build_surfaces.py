@@ -92,12 +92,11 @@ def process_df(df, dump_surf, dump_operator, recompute=False, min_number=128 * 4
 
     vertices, faces = surface_utils.read_face_and_triangles(ply_file=ply_file)
     # t_0 = time.perf_counter()
-    if not os.path.exists(features_file) or recompute:
-        features = point_cloud_utils.get_features(temp_pdb, vertices)
-        np.save(features_file, features)
+    if not os.path.exists(features_file) or recompute :
+        features, confidence = point_cloud_utils.get_features(temp_pdb, vertices)
+        np.savez_compressed(features_file, {'features': features, 'confidence': confidence})
     # print('time get_features: ', time.perf_counter() - t_0)
     os.remove(temp_pdb)
-
 
     # t_0 = time.perf_counter()
     operators = surf_to_operators(vertices=vertices, faces=faces, dump_dir=dump_operator, recompute=recompute)

@@ -115,5 +115,6 @@ if __name__ == '__main__':
 
     verts, faces = surface_utils.read_face_and_triangles('data/example_files/4kt3_mesh.ply')
     feats, confidence = get_features(pdb='data/example_files/4kt3.pdb', verts=verts, sigma=3)
+    print(feats[:10])
     plt.hist(confidence)
     plt.show()
