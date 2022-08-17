@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 import tqdm
 
 import data_loader
@@ -42,11 +41,11 @@ def train_loop(model, loader, criterion, optimizer, device):
 
 
 if __name__ == '__main__':
-    data_dir = '/home/vmallet/projects/surface-protein/data/DIPS-split/data/train/'
+    data_dir = '/home/vmallet/projects/atom2d/data/DIPS-split/data/train/'
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataset = data_loader.CNN3D_Dataset(data_dir)
-    data_loader = DataLoader(dataset, batch_size=None)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=None)
     model = models.SurfNet()
     criterion = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters())

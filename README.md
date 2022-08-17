@@ -7,8 +7,9 @@ To transform the data from the dataframe format into the one
 used by DiffNets, we need three dependencies
 `atom3d, diffusion_nets and msms`.
 
-- For atom3d and diffusionnets, you just need to clone 
+- For diffusionnets, you just need to clone 
 them and add them to your PYTHONPATH.
+- atom3d can be installed through pip
 - For msms, one needs to download it and add the executable 
 in your PATH.
 

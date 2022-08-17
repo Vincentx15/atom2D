@@ -163,10 +163,11 @@ def collate_fn(samples):
 # Finally, we need to iterate to precompute all relevant surfaces and operators
 def compute_operators_all(data_dir):
     train_dataset = MapAtom3DDataset(data_dir)
-    loader = torch.utils.data.DataLoader(train_dataset, num_workers=6, batch_size=1, collate_fn=collate_fn)
+    loader = torch.utils.data.DataLoader(train_dataset, num_workers=os.cpu_count(), batch_size=1, collate_fn=collate_fn)
     for i, success in enumerate(loader):
-        if i > 50:
-            break
+        pass
+        # if i > 0:
+        #     break
 
 
 if __name__ == '__main__':
