@@ -4,7 +4,7 @@ import tqdm
 
 import data_loader
 import models
-import build_surfaces
+import get_operators
 
 
 def train_loop(model, loader, criterion, optimizer, device):

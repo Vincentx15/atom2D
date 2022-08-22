@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from atom3d.datasets import LMDBDataset
 
 import atom3dutils
-import build_surfaces
+import get_operators
 import df_utils
 import point_cloud_utils
 import surface_utils
@@ -85,7 +85,7 @@ class CNN3D_Dataset(Dataset):
                 and os.path.exists(dump_operator)):
             build_surfaces.process_df(df=df, dump_surf=dump_surf_outname, dump_operator=dump_operator)
 
-        vertices, faces = surface_utils.read_face_and_triangles(ply_file=ply_file)
+        vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         features_dump = np.load(features_file)
         features, confidence = features_dump['features'], features_dump['confidence']
         frames, mass, L, evals, evecs, gradX, gradY = build_surfaces.surf_to_operators(vertices=vertices,

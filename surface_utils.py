@@ -139,18 +139,24 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
     # print(f'vertices: {len(verts)} -> {len(mesh_reduced.vertices)} ')
     # print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
+def get_vertices_and_triangles(mesh):
+    """
+    Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
+    :param ply_file:
+    :return:
+    """
+    vertices = np.asarray(mesh.vertices, np.float64)
+    faces = np.asarray(mesh.triangles, np.int64)
+    return vertices, faces
 
-def read_face_and_triangles(ply_file):
+def read_vertices_and_triangles(ply_file):
     """
     Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
     :param ply_file:
     :return:
     """
     mesh = o3d.io.read_triangle_mesh(filename=ply_file)
-    vertices = np.asarray(mesh.vertices, np.float64)
-    faces = np.asarray(mesh.triangles, np.int64)
-    return vertices, faces
-
+    return get_vertices_and_triangles(mesh)
 
 if __name__ == "__main__":
     vert_file = "data/example_files/test.vert"
