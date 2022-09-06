@@ -55,8 +55,17 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     vertices, faces = None, None
     dump_operator_file = f"{dump_operator}_operator.npz"
 
-    # Get pdb file
-    df_utils.df_to_pdb(df, out_file_name=temp_pdb)
+    # Need recomputing ?
+    ply_ex = os.path.exists(ply_file)
+    feat_ex = os.path.exists(features_file)
+    ope_ex = os.path.exists(dump_operator_file)
+    if not os.path.exists(ply_file) or not os.path.exists(features_file) or not os.path.exists(dump_operator_file):
+        print(f'Precomputing {name}, ply : {ply_ex}, feat : {feat_ex}, ope : {ope_ex}')
+
+    # Get pdb file only if needed
+    need_pdb = recompute or not os.path.exists(ply_file) or not os.path.exists(features_file)
+    if need_pdb:
+        df_utils.df_to_pdb(df, out_file_name=temp_pdb)
 
     # if they are missing, compute the surface from the df. Get a temp PDB, parse it with msms and simplify it
     if not os.path.exists(ply_file) or recompute:
@@ -82,7 +91,9 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         features, confidence = point_cloud_utils.get_features(temp_pdb, vertices)
         np.savez_compressed(features_file, **{'features': features, 'confidence': confidence})
     # print('time get_features: ', time.perf_counter() - t_0)
-    os.remove(temp_pdb)
+
+    if need_pdb:
+        os.remove(temp_pdb)
 
     # t_0 = time.perf_counter()
 
@@ -107,7 +118,6 @@ class MapAtom3DDataset(Dataset):
         return self.lenght
 
     def __getitem__(self, index):
-
         if self._lmdb_dataset is None:
             self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
