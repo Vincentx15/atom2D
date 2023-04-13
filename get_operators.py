@@ -5,7 +5,7 @@ import torch
 from diffusion_net import geometry, utils
 
 """
-In this file, we define functions to make the following transformations : 
+In this file, we define functions to make the following transformations :
 .ply -> DiffNets operators in .npz format
 """
 
@@ -24,7 +24,6 @@ def get_operators(npz_path, verts, faces, k_eig=128, normals=None, recompute=Fal
     dtype = verts.dtype
     verts_np = utils.toNP(verts)
     faces_np = utils.toNP(faces)
-    is_cloud = faces.numel() == 0
 
     if (np.isnan(verts_np).any()):
         raise RuntimeError("tried to construct operators from NaN verts")
@@ -81,7 +80,7 @@ def get_operators(npz_path, verts, faces, k_eig=128, normals=None, recompute=Fal
         pass
         # print("  cache miss -- constructing operators")
 
-    except Exception as E:
+    except Exception:
         pass
         # print("unexpected error loading file: " + str(E))
         # print("-- constructing operators")

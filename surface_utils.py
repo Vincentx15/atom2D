@@ -2,13 +2,14 @@ import open3d as o3d
 import os
 import numpy as np
 import subprocess
+from pathlib import Path
 
 """
-In this file, we define functions to make the following transformations : 
+In this file, we define functions to make the following transformations :
 PDB -> surfaces in .vert+.faces -> .ply file
 
 We also define a way to iterate through a .mdb file as defined by ATOM3D
-and leverage PyTorch parallel data loading to 
+and leverage PyTorch parallel data loading to
 """
 
 
@@ -23,9 +24,9 @@ def pdb_to_surf(pdb, out_name, density=1.):
     temp_xyzr_name = f"{out_name}_temp.xyzr"
     temp_log_name = f"{out_name}_msms.log"
     with open(temp_xyzr_name, "w") as f:
-        cline = f"pdb_to_xyzr {pdb}"
+        cline = f"{Path.cwd()}/pdb_to_xyzr {pdb}"
         subprocess.run(cline.split(), stdout=f)
-    cline = f"msms -if {temp_xyzr_name} -of {out_name} -density {density}"
+    cline = f"{Path.cwd()}/msms -if {temp_xyzr_name} -of {out_name} -density {density}"
     with open(temp_log_name, "w") as f:
         try:
             subprocess.run(cline.split(), stdout=f, stderr=f, timeout=8)
@@ -72,7 +73,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
         faces -= 1
 
     if keep_normals:
-        return verts, faces, keep_normals
+        return verts, faces, normals
     else:
         return verts, faces
 
@@ -139,6 +140,7 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
     # print(f'vertices: {len(verts)} -> {len(mesh_reduced.vertices)} ')
     # print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
+
 def get_vertices_and_triangles(mesh):
     """
     Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
@@ -149,6 +151,7 @@ def get_vertices_and_triangles(mesh):
     faces = np.asarray(mesh.triangles, np.int64)
     return vertices, faces
 
+
 def read_vertices_and_triangles(ply_file):
     """
     Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
@@ -157,6 +160,7 @@ def read_vertices_and_triangles(ply_file):
     """
     mesh = o3d.io.read_triangle_mesh(filename=ply_file)
     return get_vertices_and_triangles(mesh)
+
 
 if __name__ == "__main__":
     vert_file = "data/example_files/test.vert"

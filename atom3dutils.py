@@ -81,17 +81,23 @@ def get_res(df):
     return df[index_columns].drop_duplicates()
 
 
+# todo to optimize more
 def get_negatives(neighbors, df0, df1):
     """Get negative pairs, given positives."""
     idx_to_res0, res_to_idx0 = _get_idx_to_res_mapping(df0)
     idx_to_res1, res_to_idx1 = _get_idx_to_res_mapping(df1)
     all_pairs = np.zeros((len(idx_to_res0.index), len(idx_to_res1.index)))
-    for i, neighbor in neighbors.iterrows():
-        res0 = tuple(neighbor[['ensemble0', 'subunit0', 'structure0', 'model0', 'chain0', 'residue0']])
-        res1 = tuple(neighbor[['ensemble1', 'subunit1', 'structure1', 'model1', 'chain1', 'residue1']])
-        idx0 = res_to_idx0[res0]
-        idx1 = res_to_idx1[res1]
-        all_pairs[idx0, idx1] = 1
+
+    res0_cols = ['ensemble0', 'subunit0', 'structure0', 'model0', 'chain0', 'residue0']
+    res1_cols = ['ensemble1', 'subunit1', 'structure1', 'model1', 'chain1', 'residue1']
+
+    res0 = neighbors[res0_cols].apply(tuple, axis=1)
+    res1 = neighbors[res1_cols].apply(tuple, axis=1)
+
+    idx0 = res_to_idx0.loc[res0].to_numpy()
+    idx1 = res_to_idx1.loc[res1].to_numpy()
+
+    all_pairs[idx0, idx1] = 1
     pairs = np.array(np.where(all_pairs == 0)).T
     res0 = idx_to_res0.iloc[pairs[:, 0]][index_columns]
     res1 = idx_to_res1.iloc[pairs[:, 1]][index_columns]

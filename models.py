@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 
 import point_cloud_utils
-from point_cloud_utils import torch_rbf
 
 
 class SurfNet(torch.nn.Module):
@@ -44,10 +43,12 @@ class SurfNet(torch.nn.Module):
         :param x_right:
         :return:
         """
+        device = pairs_loc.device
 
         def unwrap_feats(geom_feat):
             features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces = geom_feat
             features = torch.cat((features, confidence[..., None]), dim=-1)
+            gradX, gradY = gradX.to_sparse(), gradY.to_sparse()
             dict_return = {'x_in': features,
                            'mass': mass,
                            'L': L,
@@ -56,7 +57,7 @@ class SurfNet(torch.nn.Module):
                            'gradX': gradX,
                            'gradY': gradY,
                            'faces': faces}
-            dict_return_32 = {k: v.float() for k, v in dict_return.items()}
+            dict_return_32 = {k: v.float().to(device) for k, v in dict_return.items()}
             return dict_return_32
 
         processed_left = self.diff_net_model(**unwrap_feats(x_left))
@@ -65,8 +66,8 @@ class SurfNet(torch.nn.Module):
         # TODO remove double from loading... probably also in the dumping
         # Push this signal onto the CA locations
         locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
-        verts_left = x_left[2].float()
-        verts_right = x_right[2].float()
+        verts_left = x_left[2].float().to(device)
+        verts_right = x_right[2].float().to(device)
         feats_left, confidence_left = point_cloud_utils.torch_rbf(points_1=verts_left, feats_1=processed_left,
                                                                   points_2=locs_left)
         feats_right, confidence_right = point_cloud_utils.torch_rbf(points_1=verts_right, feats_1=processed_right,

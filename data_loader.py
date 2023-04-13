@@ -1,15 +1,16 @@
 import math
 import numpy as np
 import os
+from pathlib import Path
+import torch
 from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
 import atom3dutils
 import get_operators
-import df_utils
-import point_cloud_utils
 import surface_utils
+import preprocess_data
 import utils
 
 
@@ -63,7 +64,7 @@ class CNN3D_Dataset(Dataset):
                 coord0 = _get_ca_coord(structs_df[0], res0)
                 coord1 = _get_ca_coord(structs_df[1], res1)
                 cas.append((res0, res1, coord0, coord1))
-            except:
+            except Exception:
                 pass
         return cas
 
@@ -77,21 +78,24 @@ class CNN3D_Dataset(Dataset):
         dump_surf_dir = os.path.join(self.geometry_path, utils.name_to_dir(name))
         dump_surf_outname = os.path.join(dump_surf_dir, name)
         dump_operator = os.path.join(self.operator_path, utils.name_to_dir(name))
+        dump_operator = Path(dump_operator).resolve()
+        operator_file = f"{dump_operator}/{name}_operator.npz"
 
         ply_file = f"{dump_surf_outname}_mesh.ply"
         features_file = f"{dump_surf_outname}_features.npz"
         if not (os.path.exists(ply_file)
                 and os.path.exists(features_file)
                 and os.path.exists(dump_operator)):
-            build_surfaces.process_df(df=df, dump_surf=dump_surf_outname, dump_operator=dump_operator)
+            print(f"Recomputing {name} geometry and operator", os.path.exists(ply_file), os.path.exists(features_file), os.path.exists(dump_operator))
+            preprocess_data.process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator)
 
         vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         features_dump = np.load(features_file)
         features, confidence = features_dump['features'], features_dump['confidence']
-        frames, mass, L, evals, evecs, gradX, gradY = build_surfaces.surf_to_operators(vertices=vertices,
-                                                                                       faces=faces,
-                                                                                       dump_dir=dump_operator)
-        return features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces
+        frames, mass, L, evals, evecs, gradX, gradY = get_operators.surf_to_operators(vertices=vertices,
+                                                                                      faces=faces,
+                                                                                      npz_path=operator_file)
+        return features, confidence, vertices, mass, torch.rand(1, 3), evals, evecs, gradX.to_dense(), gradY.to_dense(), faces
 
     def __getitem__(self, index):
         """
@@ -100,55 +104,60 @@ class CNN3D_Dataset(Dataset):
         :return: pos and neg arrays of the 2 partners CA 3D coordinates shape N_{pos,neg}x 2x 3
                  and the geometry objects necessary to embed the surfaces
         """
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
-        item = self._lmdb_dataset[index]
+        try:
+            if self._lmdb_dataset is None:
+                self._lmdb_dataset = LMDBDataset(self.lmdb_path)
+            item = self._lmdb_dataset[index]
 
-        # Subunits
-        wrapped_names, wrapped_structs = atom3dutils.get_subunits(item['atoms_pairs'])
+            # Subunits
+            wrapped_names, wrapped_structs = atom3dutils.get_subunits(item['atoms_pairs'])
 
-        bdf0, bdf1, udf0, udf1 = wrapped_structs
-        name_bdf0, name_bdf1, name_udf0, name_udf1 = wrapped_names
-        structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
-        names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
+            bdf0, bdf1, udf0, udf1 = wrapped_structs
+            name_bdf0, name_bdf1, name_udf0, name_udf1 = wrapped_names
+            structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
+            names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
 
-        # Get all positives and negative neighbors, filter out non empty hetero/insertion_code
-        pos_neighbors_df = item['atoms_neighbors']
-        neg_neighbors_df = atom3dutils.get_negatives(pos_neighbors_df, structs_df[0], structs_df[1])
-        non_heteros = []
-        for df in structs_df:
-            non_heteros.append(df[(df.hetero == ' ') & (df.insertion_code == ' ')].residue.unique())
-        pos_neighbors_df = pos_neighbors_df[pos_neighbors_df.residue0.isin(non_heteros[0]) & \
-                                            pos_neighbors_df.residue1.isin(non_heteros[1])]
-        neg_neighbors_df = neg_neighbors_df[neg_neighbors_df.residue0.isin(non_heteros[0]) & \
-                                            neg_neighbors_df.residue1.isin(non_heteros[1])]
+            # Get all positives and negative neighbors, filter out non empty hetero/insertion_code
+            pos_neighbors_df = item['atoms_neighbors']
+            neg_neighbors_df = atom3dutils.get_negatives(pos_neighbors_df, structs_df[0], structs_df[1])
+            non_heteros = []
+            for df in structs_df:
+                non_heteros.append(df[(df.hetero == ' ') & (df.insertion_code == ' ')].residue.unique())
+            pos_neighbors_df = pos_neighbors_df[pos_neighbors_df.residue0.isin(non_heteros[0])
+                                                & pos_neighbors_df.residue1.isin(non_heteros[1])]
+            neg_neighbors_df = neg_neighbors_df[neg_neighbors_df.residue0.isin(non_heteros[0])
+                                                & neg_neighbors_df.residue1.isin(non_heteros[1])]
 
-        # Sample pos and neg samples
-        num_pos = pos_neighbors_df.shape[0]
-        num_neg = neg_neighbors_df.shape[0]
-        num_pos_to_use, num_neg_to_use = self._num_to_use(num_pos, num_neg)
-        if pos_neighbors_df.shape[0] == num_pos_to_use:
-            pos_samples_df = pos_neighbors_df.reset_index(drop=True)
-        else:
-            pos_samples_df = pos_neighbors_df.sample(num_pos_to_use, replace=True).reset_index(drop=True)
-        if neg_neighbors_df.shape[0] == num_neg_to_use:
-            neg_samples_df = neg_neighbors_df.reset_index(drop=True)
-        else:
-            neg_samples_df = neg_neighbors_df.sample(num_neg_to_use, replace=True).reset_index(drop=True)
+            # Sample pos and neg samples
+            num_pos = pos_neighbors_df.shape[0]
+            num_neg = neg_neighbors_df.shape[0]
+            num_pos_to_use, num_neg_to_use = self._num_to_use(num_pos, num_neg)
+            if pos_neighbors_df.shape[0] == num_pos_to_use:
+                pos_samples_df = pos_neighbors_df.reset_index(drop=True)
+            else:
+                pos_samples_df = pos_neighbors_df.sample(num_pos_to_use, replace=True).reset_index(drop=True)
+            if neg_neighbors_df.shape[0] == num_neg_to_use:
+                neg_samples_df = neg_neighbors_df.reset_index(drop=True)
+            else:
+                neg_samples_df = neg_neighbors_df.sample(num_neg_to_use, replace=True).reset_index(drop=True)
 
-        pos_pairs_cas = self._get_res_pair_ca_coords(pos_samples_df, structs_df)
-        neg_pairs_cas = self._get_res_pair_ca_coords(neg_samples_df, structs_df)
-        pos_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas])
-        neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
+            pos_pairs_cas = self._get_res_pair_ca_coords(pos_samples_df, structs_df)
+            neg_pairs_cas = self._get_res_pair_ca_coords(neg_samples_df, structs_df)
+            pos_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas])
+            neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
 
-        geom_feats_0 = self.get_diffnetfiles(names_used[0], df=structs_df[0])
-        geom_feats_1 = self.get_diffnetfiles(names_used[1], df=structs_df[1])
+            geom_feats_0 = self.get_diffnetfiles(names_used[0], df=structs_df[0])
+            geom_feats_1 = self.get_diffnetfiles(names_used[1], df=structs_df[1])
 
-        return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
+            return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
+        except Exception as e:
+            print("------------------")
+            print(f"Error in __getitem__: {e}")
+            return None, None, None, None, None, None
 
 
 if __name__ == '__main__':
-    data_dir = '/home/vmallet/projects/surface-protein/data/DIPS-split/data/train/'
+    data_dir = './data/DIPS-split/data/train/'
     dataset = CNN3D_Dataset(data_dir)
     for i, data in enumerate(dataset):
         print(i)

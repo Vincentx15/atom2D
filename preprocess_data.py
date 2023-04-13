@@ -1,11 +1,8 @@
-import sys
-
 import numpy as np
 import os
-import pandas as pd
 import time
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
@@ -15,6 +12,10 @@ import point_cloud_utils
 import surface_utils
 import get_operators
 import utils
+import warnings
+
+warnings.filterwarnings("ignore", message="In a future version of pandas, a length 1 tuple will be returned when")
+
 
 """
 Here, we define a way to iterate through a .mdb file as defined by ATOM3D
@@ -147,7 +148,7 @@ class MapAtom3DDataset(Dataset):
                                dump_operator_dir=dump_operator_dir,
                                recompute=False)
                     # print(f'Precomputed successfully for {name}')
-                except:
+                except Exception:
                     self.failed_set.add(name)
                     # print(f'Failed precomputing for {name}')
                     return 0
