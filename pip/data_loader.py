@@ -7,16 +7,16 @@ from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
-import atom3dutils
-import get_operators
-import surface_utils
+from atom2d_utils.naming_utils import atom3dutils
+from data_processing import surface_utils, get_operators
 import preprocess_data
-import utils
+from atom2d_utils import naming_utils
 
 
 class CNN3D_Dataset(Dataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
-                 geometry_path='data/processed_data/geometry/', operator_path='data/processed_data/operator/'):
+                 geometry_path='../data/processed_data/geometry/',
+                 operator_path='../data/processed_data/operator/'):
         _lmdb_dataset = LMDBDataset(lmdb_path)
         self.lenght = len(_lmdb_dataset)
         self._lmdb_dataset = None

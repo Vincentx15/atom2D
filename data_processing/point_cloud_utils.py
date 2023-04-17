@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import surface_utils
+import data_processing.surface_utils
 
 ELEMENT_MAPPING = {'C': 0, 'O': 1, 'N': 2, 'S': 3}
 
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     plt.show()
 
     # Actual PDB example
-    # verts, faces = surface_utils.read_face_and_triangles('data/example_files/4kt3_mesh.ply')
-    # feats, confidence = get_features(pdb='data/example_files/4kt3.pdb', verts=verts, sigma=3)
+    # verts, faces = surface_utils.read_face_and_triangles('../data/example_files/4kt3_mesh.ply')
+    # feats, confidence = get_features(pdb='../data/example_files/4kt3.pdb', verts=verts, sigma=3)
     # plt.hist(confidence)
     # plt.show()

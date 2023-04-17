@@ -2,7 +2,7 @@ import diffusion_net
 import torch
 import torch.nn as nn
 
-import point_cloud_utils
+from data_processing import point_cloud_utils
 
 
 class SurfNet(torch.nn.Module):

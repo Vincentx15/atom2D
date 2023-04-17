@@ -24,9 +24,9 @@ def pdb_to_surf(pdb, out_name, density=1.):
     temp_xyzr_name = f"{out_name}_temp.xyzr"
     temp_log_name = f"{out_name}_msms.log"
     with open(temp_xyzr_name, "w") as f:
-        cline = f"{Path.cwd()}/pdb_to_xyzr {pdb}"
+        cline = f"{Path.cwd()}/../executables/pdb_to_xyzr {pdb}"
         subprocess.run(cline.split(), stdout=f)
-    cline = f"{Path.cwd()}/msms -if {temp_xyzr_name} -of {out_name} -density {density}"
+    cline = f"{Path.cwd()}/../executables/msms -if {temp_xyzr_name} -of {out_name} -density {density}"
     with open(temp_log_name, "w") as f:
         try:
             subprocess.run(cline.split(), stdout=f, stderr=f, timeout=8)
@@ -54,7 +54,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
 
         # Parse the info to retrieve vertices and normals
         lines = [line.split()[:6] for line in no_header]
-        lines = np.array(lines).astype(np.float)
+        lines = np.array(lines).astype(float)
         verts = lines[:, :3]
         if keep_normals:
             normals = lines[:, 3:6]
@@ -68,7 +68,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
 
         # Parse the lines and remove 1 to get zero based indexing
         lines = [line.split() for line in no_header]
-        lines = np.array(lines).astype(np.int)
+        lines = np.array(lines).astype(int)
         faces = lines[:, :3]
         faces -= 1
 
@@ -78,32 +78,12 @@ def parse_verts(vert_file, face_file, keep_normals=False):
         return verts, faces
 
 
-def pdb_to_surf_with_min(pdb, out_name, min_number=128):
-    """
-    This function is useful to retrieve at least min_number vertices, which is useful for later use in DiffNets
-    :param pdb:
-    :param out_name:
-    :param min_number:
-    :return:
-    """
-    vert_file = out_name + '.vert'
-    face_file = out_name + '.face'
-    number_of_vertices = 0
-    density = 1.
-    while number_of_vertices < min_number:
-        pdb_to_surf(pdb=pdb, out_name=out_name, density=density)
-        verts, faces = parse_verts(vert_file=vert_file, face_file=face_file)
-        number_of_vertices = len(verts)
-        # print(f'After {density} try, number is {number_of_vertices}')
-        density += 1
-
-
-def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximum_error=np.inf):
+def mesh_simplification(vert_file, face_file, out_ply, vert_number=1000, maximum_error=np.inf):
     """
     Generate a .ply of a simplified mesh from .vert and .face files
     :param vert_file:
     :param face_file:
-    :param out_name:
+    :param out_ply:
     :param vert_number:
     :param maximum_error:
     :return:
@@ -130,7 +110,7 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
     # print(f'Simplified from {len(verts)} to {len(mesh_reduced.vertices)}')
 
     # save to ply
-    o3d.io.write_triangle_mesh(f"{out_name}_mesh.ply", mesh_reduced, write_vertex_normals=True)
+    o3d.io.write_triangle_mesh(out_ply, mesh_reduced, write_vertex_normals=True)
     return mesh_reduced
 
     # visualization, you need to compute normals for rendering
@@ -141,10 +121,31 @@ def mesh_simplification(vert_file, face_file, out_name, vert_number=1000, maximu
     # print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
 
+def pdb_to_surf_with_min(pdb, out_name, min_number=128):
+    """
+    This function is useful to retrieve at least min_number vertices, which is useful for later use in DiffNets
+    :param pdb:
+    :param out_name:
+    :param min_number:
+    :return:
+    """
+
+    vert_file = out_name + '.vert'
+    face_file = out_name + '.face'
+    number_of_vertices = 0
+    density = 1.
+    while number_of_vertices < min_number:
+        pdb_to_surf(pdb=pdb, out_name=out_name, density=density)
+        verts, faces = parse_verts(vert_file=vert_file, face_file=face_file)
+        number_of_vertices = len(verts)
+        # print(f'After {density} try, number is {number_of_vertices}')
+        density += 1
+
+
 def get_vertices_and_triangles(mesh):
     """
     Just a small wrapper to retrieve directly the vertices and faces as np arrays with the right dtypes
-    :param ply_file:
+    :param mesh:
     :return:
     """
     vertices = np.asarray(mesh.vertices, np.float64)
@@ -163,11 +164,12 @@ def read_vertices_and_triangles(ply_file):
 
 
 if __name__ == "__main__":
-    vert_file = "data/example_files/test.vert"
-    faces_file = "data/example_files/test.face"
-
-    mesh_simplification(vert_file, faces_file, "data/example_files/example", vert_number=1000, maximum_error=5)
-
+    # Check that msms gives the right output
+    pdb = "../data/example_files/4kt3.pdb"
+    outname = "../data/example_files/test"
+    vert_file = f"{outname}.vert"
+    faces_file = f"{outname}.face"
+    pdb_to_surf(pdb, out_name=outname, density=1.)
     verts, faces = parse_verts(vert_file, faces_file)
     mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts), o3d.utility.Vector3iVector(faces))
     # compute normal for rendering
@@ -175,7 +177,17 @@ if __name__ == "__main__":
     mesh.compute_vertex_normals()
     o3d.visualization.draw_geometries([mesh])
 
-    mesh_reduced = o3d.io.read_triangle_mesh("data/example_files/example_mesh.ply")
+    # Now build a surface with at least min vertex (lower bound)
+    pdb_to_surf_with_min(pdb, out_name=outname, min_number=128)
+
+    # Now simplify this into a coarser mesh (upper bound), and turn it into a corrected ply file
+    ply_file = "../data/example_files/example_mesh.ply"
+    mesh_simplification(vert_file=vert_file,
+                        face_file=faces_file,
+                        out_ply=ply_file,
+                        vert_number=1000,
+                        maximum_error=5)
+    mesh_reduced = o3d.io.read_triangle_mesh(ply_file)
     mesh_reduced.compute_triangle_normals()
     # mesh_reduced.compute_vertex_normals()
     o3d.visualization.draw_geometries([mesh_reduced])

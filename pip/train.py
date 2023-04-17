@@ -44,7 +44,7 @@ def train_loop(model, loader, criterion, optimizer, device):
 
 
 if __name__ == '__main__':
-    data_dir = './data/DIPS-split/data/train/'
+    data_dir = '../data/DIPS-split/data/train/'
 
     device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
     dataset = data_loader.CNN3D_Dataset(data_dir)
