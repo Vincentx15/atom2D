@@ -7,10 +7,9 @@ from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
-from atom2d_utils.naming_utils import atom3dutils
+from atom2d_utils.naming_utils import atom3dutils, name_to_dir
 from data_processing import surface_utils, get_operators
 import preprocess_data
-from atom2d_utils import naming_utils
 
 
 class CNN3D_Dataset(Dataset):
@@ -75,9 +74,9 @@ class CNN3D_Dataset(Dataset):
         :param df:
         :return:
         """
-        dump_surf_dir = os.path.join(self.geometry_path, utils.name_to_dir(name))
+        dump_surf_dir = os.path.join(self.geometry_path, name_to_dir(name))
         dump_surf_outname = os.path.join(dump_surf_dir, name)
-        dump_operator = os.path.join(self.operator_path, utils.name_to_dir(name))
+        dump_operator = os.path.join(self.operator_path, name_to_dir(name))
         dump_operator = Path(dump_operator).resolve()
         operator_file = f"{dump_operator}/{name}_operator.npz"
 

@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import data_processing.surface_utils
-
 ELEMENT_MAPPING = {'C': 0, 'O': 1, 'N': 2, 'S': 3}
 
 
@@ -91,7 +89,6 @@ def get_features(pdb, verts, sigma=3.):
 
 if __name__ == '__main__':
     pass
-    import matplotlib.pyplot as plt
 
     # # decoys in higher dims
     # points_1 = torch.randn(size=(10, 3)) * 10
