@@ -1,5 +1,5 @@
-# Atom2D 
-This repository takes the ATOM3D benchmark and applies 
+# Atom2D
+This repository takes the ATOM3D benchmark and applies
 a DiffusionNet onto a protein surface representation.
 
 ## Installation
@@ -9,8 +9,7 @@ conda create -n atom2d -y
 conda activate atom2d
 conda install python=3.8
 conda install pytorch=1.13 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-# conda install pytorch=1.13 torchvision torchaudio cpuonly -c pytorch
-pip install pandas==1.1.3 tqdm atom3D open3d robust-laplacian potpourri3d 
+pip install -r requirements.txt
 ```
 
 ## Data
@@ -30,11 +29,11 @@ python preprocess_data.py
 ```
 and the surfaces should start being processed along with the operators used by DiffNets.
 
-To learn a PPI residue predictor, run 
+To learn a PPI residue predictor, run:
 `python train.py`
 
 ### MSP
-In this task, the goal is to predict whether a mutation is stabilizing a protein interaction. 
+In this task, the goal is to predict whether a mutation is stabilizing a protein interaction.
 based on its modified structure. The task is framed as a binary task, where 1 indicates that the modified
 structure is more stable.
 
@@ -43,10 +42,10 @@ The goal is to predict each protein model TM-score from the ground truth release
 as a regression task on the TM score.
 
 ### Structure of the project
-The data processing is organized as pipeline. 
+The data processing is organized as pipeline.
 The object we start from is an ATOM3D Dataframe, which is the item
-contained in LMDB datasets. 
-Those Dataframes are then processed : 
+contained in LMDB datasets.
+Those Dataframes are then processed :
 - by Atom3D to produce the coordinates of positive and negative pairs of CA.
 - by our pipeline to produce the geometry objects needed for DiffNets
 
@@ -56,10 +55,10 @@ The steps of our pipeline are the following :
 - (surface -> precomputed operators) in build_surfaces.py
 - (.ply mesh and PDB -> npz features) in point_cloud_utils.py
 
-The features are obtained through RBF interpolation from the 
+The features are obtained through RBF interpolation from the
 protein residues to the vertices of the mesh. We can
 then use the mesh and operators to embed our protein surface
-with DiffusionNet. 
+with DiffusionNet.
 
 Then we use RBF interpolation from the vertices onto selected
 CA of each protein to get a feature vector for these atoms.

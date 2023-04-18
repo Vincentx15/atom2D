@@ -1,6 +1,5 @@
 import Bio.PDB as bio
 
-import numpy as np
 import pandas as pd
 
 from atom3d.util.formats import bp_to_df, df_to_bp
@@ -65,7 +64,7 @@ if __name__ == '__main__':
     df.to_csv(csv_name)
 
     # csv => df => PDB
-    df = pd.read_csv(csv_name, keep_default_na=False) # keep default is key otherwise bugged
+    df = pd.read_csv(csv_name, keep_default_na=False)  # keep default is key otherwise bugged
     name_test = '../data/example_files/from_db.pdb'
     df_to_pdb(df, name_test)
 

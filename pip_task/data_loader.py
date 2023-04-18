@@ -7,8 +7,7 @@ from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
-from atom2d_utils import atom3dutils
-from atom2d_utils import naming_utils
+from atom2d_utils import atom3dutils, naming_utils
 from data_processing import surface_utils, get_operators
 from pip_task import preprocess_data
 
@@ -86,7 +85,8 @@ class PIP_Dataset(Dataset):
         if not (os.path.exists(ply_file)
                 and os.path.exists(features_file)
                 and os.path.exists(dump_operator)):
-            print(f"Recomputing {name} geometry and operator", os.path.exists(ply_file), os.path.exists(features_file), os.path.exists(dump_operator))
+            print(f"Recomputing {name} geometry and operator", os.path.exists(ply_file), os.path.exists(features_file),
+                  os.path.exists(dump_operator))
             preprocess_data.process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator)
 
         vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
@@ -95,7 +95,8 @@ class PIP_Dataset(Dataset):
         frames, mass, L, evals, evecs, gradX, gradY = get_operators.surf_to_operators(vertices=vertices,
                                                                                       faces=faces,
                                                                                       npz_path=operator_file)
-        return features, confidence, vertices, mass, torch.rand(1, 3), evals, evecs, gradX.to_dense(), gradY.to_dense(), faces
+        return features, confidence, vertices, mass, torch.rand(1,
+                                                                3), evals, evecs, gradX.to_dense(), gradY.to_dense(), faces
 
     def __getitem__(self, index):
         """
