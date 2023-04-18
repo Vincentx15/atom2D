@@ -9,8 +9,7 @@ conda create -n atom2d -y
 conda activate atom2d
 conda install python=3.8
 conda install pytorch=1.13 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-# conda install pytorch=1.13 torchvision torchaudio cpuonly -c pytorch
-pip install pandas==1.1.3 tqdm atom3D open3d robust-laplacian potpourri3d
+pip install -r requirements.txt
 ```
 
 ## Data

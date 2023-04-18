@@ -1,0 +1,6 @@
+pandas==1.1.3
+tqdm
+atom3d
+open3d
+robust-laplacian
+potpourri3d
