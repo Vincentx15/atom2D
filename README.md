@@ -25,7 +25,7 @@ You should get the DIPS_split dataset, extract it and save it at the following p
 
 Then, run :
 ```
-cd pip
+cd pip_task
 python preprocess_data.py
 ```
 and the surfaces should start being processed along with the operators used by DiffNets.

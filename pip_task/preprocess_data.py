@@ -8,7 +8,6 @@ import torch
 from torch.utils.data import Dataset
 import warnings
 
-
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
@@ -27,19 +26,20 @@ and leverage PyTorch parallel data loading to efficiently do this preprocessing
 class MapAtom3DDataset(Dataset):
     def __init__(self, lmdb_path):
         _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.lenght = len(_lmdb_dataset)
+        self.length = len(_lmdb_dataset)
         self._lmdb_dataset = None
         self.failed_set = set()
         self.lmdb_path = lmdb_path
 
     def __len__(self) -> int:
-        return self.lenght
+        return self.length
 
     def __getitem__(self, index):
         if self._lmdb_dataset is None:
             self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
-        # Subunits
+
+        # Get subunits from this dataframe, bound and unbound forms of each complex
         # names : ('117e.pdb1.gz_1_A', '117e.pdb1.gz_1_B', None, None)
         names, (bdf0, bdf1, udf0, udf1) = atom3dutils.get_subunits(item['atoms_pairs'])
 
@@ -49,6 +49,8 @@ class MapAtom3DDataset(Dataset):
         #         return
         # print('doing a buggy one')
 
+        # Use the unbound form when available to increase generalization TODO:check how it's done in atom3D
+        # Then turn it into the structures
         structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
         for name, dataframe in zip(names, structs_df):
             if name is None:
@@ -68,37 +70,26 @@ class MapAtom3DDataset(Dataset):
                                recompute=False)
                     # print(f'Precomputed successfully for {name}')
                 except Exception:
-                    print("failed")
                     self.failed_set.add(name)
-                    # print(f'Failed precomputing for {name}')
+                    # print("failed")
+                    print(f'Failed precomputing for {name}')
                     return 0
         return 1
-
-
-def collate_fn(samples):
-    """
-    A non op to avoid torch casting as we only use it for the multiprocessing here (and inheritance from LMDB)
-    :param samples:
-    :return:
-    """
-    return samples
 
 
 # Finally, we need to iterate to precompute all relevant surfaces and operators
 def compute_operators_all(data_dir):
     t0 = time.time()
-    train_dataset = MapAtom3DDataset(data_dir)
-    train_dataset = torch.utils.data.DataLoader(train_dataset,
-                                                # num_workers=0,
-                                                num_workers=os.cpu_count(),
-                                                batch_size=1,
-                                                collate_fn=collate_fn)
-    for i, success in enumerate(train_dataset):
+    dataset = MapAtom3DDataset(data_dir)
+    loader = torch.utils.data.DataLoader(dataset,
+                                         # num_workers=0,
+                                         num_workers=os.cpu_count(),
+                                         batch_size=1,
+                                         collate_fn=lambda x: x)
+    for i, success in enumerate(loader):
         pass
         if not i % 100:
             print(f"Done {i} in {time.time() - t0}")
-        # if i > 0:
-        #     break
 
 
 if __name__ == '__main__':
@@ -113,4 +104,3 @@ if __name__ == '__main__':
     # 87300/87303 processed
     # Discoverd 108805 pdb
 
-# 1jcc.pdb1.gz_1_C SEGFAULT ?

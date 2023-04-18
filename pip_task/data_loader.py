@@ -7,18 +7,18 @@ from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
-from atom2d_utils.naming_utils import atom3dutils
-from data_processing import surface_utils, get_operators
-import preprocess_data
+from atom2d_utils import atom3dutils
 from atom2d_utils import naming_utils
+from data_processing import surface_utils, get_operators
+from pip_task import preprocess_data
 
 
-class CNN3D_Dataset(Dataset):
+class PIP_Dataset(Dataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/'):
         _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.lenght = len(_lmdb_dataset)
+        self.length = len(_lmdb_dataset)
         self._lmdb_dataset = None
         self.lmdb_path = lmdb_path
 
@@ -29,7 +29,7 @@ class CNN3D_Dataset(Dataset):
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
 
     def __len__(self) -> int:
-        return self.lenght
+        return self.length
 
     def _num_to_use(self, num_pos, num_neg):
         """
@@ -75,9 +75,9 @@ class CNN3D_Dataset(Dataset):
         :param df:
         :return:
         """
-        dump_surf_dir = os.path.join(self.geometry_path, utils.name_to_dir(name))
+        dump_surf_dir = os.path.join(self.geometry_path, naming_utils.name_to_dir(name))
         dump_surf_outname = os.path.join(dump_surf_dir, name)
-        dump_operator = os.path.join(self.operator_path, utils.name_to_dir(name))
+        dump_operator = os.path.join(self.operator_path, naming_utils.name_to_dir(name))
         dump_operator = Path(dump_operator).resolve()
         operator_file = f"{dump_operator}/{name}_operator.npz"
 
@@ -158,7 +158,7 @@ class CNN3D_Dataset(Dataset):
 
 if __name__ == '__main__':
     data_dir = './data/DIPS-split/data/train/'
-    dataset = CNN3D_Dataset(data_dir)
+    dataset = PIP_Dataset(data_dir)
     for i, data in enumerate(dataset):
         print(i)
         if i > 5:
