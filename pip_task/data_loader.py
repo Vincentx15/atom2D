@@ -1,18 +1,21 @@
+import os
+import sys
+
 import math
 import numpy as np
-import os
-from pathlib import Path
-import torch
 from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 
-from atom2d_utils import atom3dutils, naming_utils
-from data_processing import surface_utils, get_operators
-from pip_task import preprocess_data
+if __name__ == '__main__':
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
+
+from atom2d_utils import atom3dutils
+from data_processing import main
 
 
-class PIP_Dataset(Dataset):
+class PIPDataset(Dataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/'):
@@ -51,7 +54,8 @@ class PIP_Dataset(Dataset):
         num_neg_to_use = int(math.ceil(num_neg_to_use))
         return num_pos_to_use, num_neg_to_use
 
-    def _get_res_pair_ca_coords(self, samples_df, structs_df):
+    @staticmethod
+    def _get_res_pair_ca_coords(samples_df, structs_df):
         def _get_ca_coord(struct, res):
             coord = struct[(struct.residue == res) & (struct.name == 'CA')][['x', 'y', 'z']].values[0]
             return coord
@@ -66,37 +70,6 @@ class PIP_Dataset(Dataset):
             except Exception:
                 pass
         return cas
-
-    def get_diffnetfiles(self, name, df):
-        """
-        Get all relevant files, potentially recomputing them as needed
-        :param name:
-        :param df:
-        :return:
-        """
-        dump_surf_dir = os.path.join(self.geometry_path, naming_utils.name_to_dir(name))
-        dump_surf_outname = os.path.join(dump_surf_dir, name)
-        dump_operator = os.path.join(self.operator_path, naming_utils.name_to_dir(name))
-        dump_operator = Path(dump_operator).resolve()
-        operator_file = f"{dump_operator}/{name}_operator.npz"
-
-        ply_file = f"{dump_surf_outname}_mesh.ply"
-        features_file = f"{dump_surf_outname}_features.npz"
-        if not (os.path.exists(ply_file)
-                and os.path.exists(features_file)
-                and os.path.exists(dump_operator)):
-            print(f"Recomputing {name} geometry and operator", os.path.exists(ply_file), os.path.exists(features_file),
-                  os.path.exists(dump_operator))
-            preprocess_data.process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator)
-
-        vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
-        features_dump = np.load(features_file)
-        features, confidence = features_dump['features'], features_dump['confidence']
-        frames, mass, L, evals, evecs, gradX, gradY = get_operators.surf_to_operators(vertices=vertices,
-                                                                                      faces=faces,
-                                                                                      npz_path=operator_file)
-        return features, confidence, vertices, mass, torch.rand(1,
-                                                                3), evals, evecs, gradX.to_dense(), gradY.to_dense(), faces
 
     def __getitem__(self, index):
         """
@@ -118,7 +91,7 @@ class PIP_Dataset(Dataset):
             structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
             names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
 
-            # Get all positives and negative neighbors, filter out non empty hetero/insertion_code
+            # Get all positives and negative neighbors, filter out non-empty hetero/insertion_code
             pos_neighbors_df = item['atoms_neighbors']
             neg_neighbors_df = atom3dutils.get_negatives(pos_neighbors_df, structs_df[0], structs_df[1])
             non_heteros = []
@@ -147,8 +120,12 @@ class PIP_Dataset(Dataset):
             pos_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas])
             neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
 
-            geom_feats_0 = self.get_diffnetfiles(names_used[0], df=structs_df[0])
-            geom_feats_1 = self.get_diffnetfiles(names_used[1], df=structs_df[1])
+            geom_feats_0 = main.get_diffnetfiles(name=names_used[0], df=structs_df[0],
+                                                 geometry_path=self.geometry_path,
+                                                 operator_path=self.operator_path)
+            geom_feats_1 = main.get_diffnetfiles(name=names_used[1], df=structs_df[1],
+                                                 geometry_path=self.geometry_path,
+                                                 operator_path=self.operator_path)
 
             return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
         except Exception as e:
@@ -158,8 +135,8 @@ class PIP_Dataset(Dataset):
 
 
 if __name__ == '__main__':
-    data_dir = './data/DIPS-split/data/train/'
-    dataset = PIP_Dataset(data_dir)
+    data_dir = '../data/PIP/DIPS-split/data/test/'
+    dataset = PIPDataset(data_dir)
     for i, data in enumerate(dataset):
         print(i)
         if i > 5:

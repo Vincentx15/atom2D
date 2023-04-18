@@ -1,13 +1,16 @@
 import os
 import sys
 
+from pathlib import Path
 import numpy as np
+import torch
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
+from atom2d_utils import naming_utils
 
 
 def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=128 * 4, max_error=5):
@@ -85,13 +88,48 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         os.remove(temp_pdb)
 
     # t_0 = time.perf_counter()
-
     if not os.path.exists(dump_operator_file) or recompute:
         if vertices is None or faces is None:
             vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=dump_operator_file,
                                         recompute=recompute)
     # print('time to process diffnets : ', time.perf_counter() - t_0)
+
+
+def get_diffnetfiles(name, df, geometry_path, operator_path):
+    """
+    Get all relevant files, potentially recomputing them as needed
+    :param name: The name of the queried file
+    :param df: The corresponding dataframe
+    :param geometry_path: Where to store the geometry (ply)
+    :param operator_path: Where to store the operators
+    :return:
+    """
+    dump_surf_dir = os.path.join(geometry_path, naming_utils.name_to_dir(name))
+    dump_surf_outname = os.path.join(dump_surf_dir, name)
+    dump_operator = os.path.join(operator_path, naming_utils.name_to_dir(name))
+    dump_operator = Path(dump_operator).resolve()
+    operator_file = f"{dump_operator}/{name}_operator.npz"
+
+    ply_file = f"{dump_surf_outname}_mesh.ply"
+    features_file = f"{dump_surf_outname}_features.npz"
+    if not (os.path.exists(ply_file)
+            and os.path.exists(features_file)
+            and os.path.exists(dump_operator)):
+        print(f"Recomputing {name} geometry and operator",
+              os.path.exists(ply_file),
+              os.path.exists(features_file),
+              os.path.exists(dump_operator))
+        process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator)
+
+    vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
+    features_dump = np.load(features_file)
+    features, confidence = features_dump['features'], features_dump['confidence']
+    frames, mass, _, evals, evecs, grad_x, grad_y = get_operators.surf_to_operators(vertices=vertices,
+                                                                                    faces=faces,
+                                                                                    npz_path=operator_file)
+    return features, confidence, vertices, mass, torch.rand(1, 3), evals, \
+        evecs, grad_x.to_dense(), grad_y.to_dense(), faces
 
 
 if __name__ == '__main__':
