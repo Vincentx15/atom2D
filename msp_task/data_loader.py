@@ -11,7 +11,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import main
-from data_processing.PreprocessorDataset import ProcessorDataset
+from data_processing.preprocessor_dataset import ProcessorDataset
 
 
 class MSPDataset(ProcessorDataset):

@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
 from data_processing.main import process_df
 from atom3d.datasets import LMDBDataset
-from data_processing.PreprocessorDataset import ProcessorDataset
+from data_processing.preprocessor_dataset import ProcessorDataset
 
 """
 Here, we define a way to iterate through a .mdb file as defined by ATOM3D

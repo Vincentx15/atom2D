@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
 from atom2d_utils import atom3dutils
 from data_processing import main
-from data_processing.PreprocessorDataset import ProcessorDataset
+from data_processing.preprocessor_dataset import ProcessorDataset
 
 
 class PIPDataset(ProcessorDataset):
