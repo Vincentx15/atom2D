@@ -2,7 +2,6 @@ import os
 import sys
 
 import numpy as np
-import os
 import torch
 
 if __name__ == '__main__':

@@ -3,7 +3,6 @@ import sys
 
 import math
 import numpy as np
-from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 

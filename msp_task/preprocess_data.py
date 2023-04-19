@@ -2,10 +2,7 @@ import os
 import sys
 
 import numpy as np
-import os
-import time
 import torch
-from torch.utils.data import Dataset
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
