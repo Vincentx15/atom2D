@@ -3,17 +3,15 @@ import sys
 
 import numpy as np
 import os
-import time
 import torch
-from torch.utils.data import Dataset
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing.main import process_df
-from atom2d_utils import naming_utils
 from atom3d.datasets import LMDBDataset
+from data_processing.PreprocessorDataset import ProcessorDataset
 
 """
 Here, we define a way to iterate through a .mdb file as defined by ATOM3D
@@ -21,7 +19,7 @@ and leverage PyTorch parallel data loading to efficiently do this preprocessing
 """
 
 
-class PSRAtom3DDataset(Dataset):
+class PSRAtom3DDataset(ProcessorDataset):
     """
     In this task, the loader returns two protein interfaces an original and mutated one.
 
@@ -33,15 +31,10 @@ class PSRAtom3DDataset(Dataset):
     Then, it feeds the concatenation of these representations to an MLP
     """
 
-    def __init__(self, lmdb_path):
-        _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.length = len(_lmdb_dataset)
-        self._lmdb_dataset = None
-        self.failed_set = set()
-        self.lmdb_path = lmdb_path
-
-    def __len__(self) -> int:
-        return self.length
+    def __init__(self, lmdb_path,
+                 geometry_path='../data/PSR/geometry/',
+                 operator_path='../data/PSR/operator/'):
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
 
     def __getitem__(self, index):
         if self._lmdb_dataset is None:
@@ -56,8 +49,8 @@ class PSRAtom3DDataset(Dataset):
         name = f"{target}_{decoy}"
 
         try:
-            dump_surf_dir = os.path.join('../data/PSR/geometry/', naming_utils.name_to_dir(name))
-            dump_operator_dir = os.path.join('../data/PSR/operator/', naming_utils.name_to_dir(name))
+            dump_surf_dir = self.get_geometry_dir(name)
+            dump_operator_dir = self.get_operator_dir(name)
             process_df(df=df,
                        name=name,
                        dump_surf_dir=dump_surf_dir,
@@ -72,21 +65,6 @@ class PSRAtom3DDataset(Dataset):
         return 1
 
 
-# Finally, we need to iterate to precompute all relevant surfaces and operators
-def compute_operators_all(data_dir):
-    t0 = time.time()
-    dataset = PSRAtom3DDataset(data_dir)
-    loader = torch.utils.data.DataLoader(dataset,
-                                         num_workers=0,
-                                         # num_workers=os.cpu_count(),
-                                         batch_size=1,
-                                         collate_fn=lambda x: x)
-    for i, success in enumerate(loader):
-        pass
-        if not i % 100:
-            print(f"Done {i} in {time.time() - t0}")
-
-
 if __name__ == '__main__':
     pass
 
@@ -95,4 +73,5 @@ if __name__ == '__main__':
     np.random.seed(0)
     torch.manual_seed(0)
 
-    compute_operators_all(data_dir=data_dir)
+    dataset = PSRAtom3DDataset(lmdb_path=data_dir)
+    dataset.run_preprocess()

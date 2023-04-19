@@ -13,25 +13,16 @@ if __name__ == '__main__':
 
 from atom2d_utils import atom3dutils
 from data_processing import main
+from data_processing.PreprocessorDataset import ProcessorDataset
 
 
-class PIPDataset(Dataset):
+class PIPDataset(ProcessorDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/'):
-        _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.length = len(_lmdb_dataset)
-        self._lmdb_dataset = None
-        self.lmdb_path = lmdb_path
-
-        self.geometry_path = geometry_path
-        self.operator_path = operator_path
-
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
-
-    def __len__(self) -> int:
-        return self.length
 
     def _num_to_use(self, num_pos, num_neg):
         """
@@ -121,12 +112,11 @@ class PIPDataset(Dataset):
             neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
 
             geom_feats_0 = main.get_diffnetfiles(name=names_used[0], df=structs_df[0],
-                                                 geometry_path=self.geometry_path,
-                                                 operator_path=self.operator_path)
+                                                 dump_surf_dir=self.get_geometry_dir(names_used[0]),
+                                                 dump_operator_dir=self.get_operator_dir(names_used[0]))
             geom_feats_1 = main.get_diffnetfiles(name=names_used[1], df=structs_df[1],
-                                                 geometry_path=self.geometry_path,
-                                                 operator_path=self.operator_path)
-
+                                                 dump_surf_dir=self.get_geometry_dir(names_used[1]),
+                                                 dump_operator_dir=self.get_operator_dir(names_used[1]))
             return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
         except Exception as e:
             print("------------------")

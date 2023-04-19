@@ -39,20 +39,18 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     os.makedirs(dump_surf_dir, exist_ok=True)
     os.makedirs(dump_operator_dir, exist_ok=True)
     dump_surf = os.path.join(dump_surf_dir, name)
-    dump_operator = os.path.join(dump_operator_dir, name)
-
     temp_pdb = dump_surf + '.pdb'
     ply_file = f"{dump_surf}_mesh.ply"
     features_file = f"{dump_surf}_features.npz"
     vertices, faces = None, None
-    dump_operator_file = f"{dump_operator}_operator.npz"
+    dump_operator_file = os.path.join(dump_operator_dir, f"{name}_operator.npz")
 
     # Need recomputing ?
     ply_ex = os.path.exists(ply_file)
     feat_ex = os.path.exists(features_file)
     ope_ex = os.path.exists(dump_operator_file)
     if not os.path.exists(ply_file) or not os.path.exists(features_file) or not os.path.exists(dump_operator_file):
-        print(f'Precomputing {name}, ply : {ply_ex}, feat : {feat_ex}, ope : {ope_ex}')
+        print(f'Precomputing {name}, found ply : {ply_ex}, found feat : {feat_ex}, found ope : {ope_ex}')
 
     # Get pdb file only if needed
     need_pdb = recompute or not os.path.exists(ply_file) or not os.path.exists(features_file)
@@ -96,31 +94,28 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     # print('time to process diffnets : ', time.perf_counter() - t_0)
 
 
-def get_diffnetfiles(name, df, geometry_path, operator_path):
+def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir):
     """
     Get all relevant files, potentially recomputing them as needed
     :param name: The name of the queried file
     :param df: The corresponding dataframe
-    :param geometry_path: Where to store the geometry (ply)
-    :param operator_path: Where to store the operators
+    :param dump_surf_dir: Where to store the geometry (ply)
+    :param dump_operator_dir: Where to store the operators
     :return:
     """
-    dump_surf_dir = os.path.join(geometry_path, naming_utils.name_to_dir(name))
     dump_surf_outname = os.path.join(dump_surf_dir, name)
-    dump_operator = os.path.join(operator_path, naming_utils.name_to_dir(name))
-    dump_operator = Path(dump_operator).resolve()
-    operator_file = f"{dump_operator}/{name}_operator.npz"
-
     ply_file = f"{dump_surf_outname}_mesh.ply"
     features_file = f"{dump_surf_outname}_features.npz"
+    operator_file = f"{dump_operator_dir}/{name}_operator.npz"
+
     if not (os.path.exists(ply_file)
             and os.path.exists(features_file)
-            and os.path.exists(dump_operator)):
-        print(f"Recomputing {name} geometry and operator",
-              os.path.exists(ply_file),
-              os.path.exists(features_file),
-              os.path.exists(dump_operator))
-        process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator)
+            and os.path.exists(operator_file)):
+        print(f"For system : {name}, recomputing : "
+              f"{'geometry, ' if not os.path.exists(ply_file) else ''}"
+              f"{'features, ' if not os.path.exists(features_file) else ''}"
+              f"{'operator, ' if not os.path.exists(operator_file) else ''}")
+        process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator_dir)
 
     vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
     features_dump = np.load(features_file)

@@ -3,36 +3,22 @@ import sys
 
 from atom3d.datasets import LMDBDataset
 import numpy as np
-import time
 import torch
-from torch.utils.data import Dataset
-import warnings
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing.main import process_df
-from atom2d_utils import atom3dutils, naming_utils
-
-warnings.filterwarnings("ignore", message="In a future version of pandas, a length 1 tuple will be returned when")
-
-"""
-Here, we define a way to iterate through a .mdb file as defined by ATOM3D
-and leverage PyTorch parallel data loading to efficiently do this preprocessing
-"""
+from atom2d_utils import atom3dutils
+from data_processing.PreprocessorDataset import ProcessorDataset
 
 
-class MapAtom3DDataset(Dataset):
-    def __init__(self, lmdb_path):
-        _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.length = len(_lmdb_dataset)
-        self._lmdb_dataset = None
-        self.failed_set = set()
-        self.lmdb_path = lmdb_path
-
-    def __len__(self) -> int:
-        return self.length
+class PIPAtom3DDataset(ProcessorDataset):
+    def __init__(self, lmdb_path,
+                 geometry_path='../data/processed_data/geometry/',
+                 operator_path='../data/processed_data/operator/'):
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
 
     def __getitem__(self, index):
         if self._lmdb_dataset is None:
@@ -59,10 +45,8 @@ class MapAtom3DDataset(Dataset):
                 if name in self.failed_set:
                     return 0
                 try:
-                    dump_surf_dir = os.path.join('../data/processed_data/geometry/',
-                                                 naming_utils.name_to_dir(name))
-                    dump_operator_dir = os.path.join('../data/processed_data/operator/',
-                                                     naming_utils.name_to_dir(name))
+                    dump_surf_dir = self.get_geometry_dir(name)
+                    dump_operator_dir = self.get_operator_dir(name)
                     process_df(df=dataframe,
                                name=name,
                                dump_surf_dir=dump_surf_dir,
@@ -77,30 +61,14 @@ class MapAtom3DDataset(Dataset):
         return 1
 
 
-# Finally, we need to iterate to precompute all relevant surfaces and operators
-def compute_operators_all(data_dir):
-    t0 = time.time()
-    dataset = MapAtom3DDataset(data_dir)
-    loader = torch.utils.data.DataLoader(dataset,
-                                         # num_workers=0,
-                                         num_workers=os.cpu_count(),
-                                         batch_size=1,
-                                         collate_fn=lambda x: x)
-    for i, success in enumerate(loader):
-        pass
-        if not i % 100:
-            print(f"Done {i} in {time.time() - t0}")
-
-
 if __name__ == '__main__':
     pass
 
     np.random.seed(0)
     torch.manual_seed(0)
 
-    compute_operators_all(data_dir='../data/PIP/DIPS-split/data/test/')
-
+    dataset = PIPAtom3DDataset(lmdb_path='../data/PIP/DIPS-split/data/test/')
+    dataset.run_preprocess()
     # A first run gave us 100k pdb in the DB.
     # 87300/87303 processed
     # Discoverd 108805 pdb
-

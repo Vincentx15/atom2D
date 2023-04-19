@@ -9,7 +9,7 @@ def atom3dname_to_name(name):
     return filename
 
 
-def name_to_dir(pdb_path):
+def name_to_dir(pdb_path, dir_path=''):
     """
     toto_test.pdb -> t/o/t/o/
 
@@ -17,7 +17,7 @@ def name_to_dir(pdb_path):
     :return:
     """
 
-    return os.path.join(pdb_path[0], pdb_path[1], pdb_path[2], pdb_path[3])
+    return os.path.join(dir_path, pdb_path[0], pdb_path[1], pdb_path[2], pdb_path[3])
 
 
 def name_to_path(pdb_path):

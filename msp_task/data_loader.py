@@ -2,7 +2,6 @@ import os
 import sys
 
 import torch
-from torch.utils.data import Dataset
 
 from atom3d.datasets import LMDBDataset
 from atom3d.util.formats import get_coordinates_from_df
@@ -12,22 +11,14 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import main
+from data_processing.PreprocessorDataset import ProcessorDataset
 
 
-class MSPDataset(Dataset):
+class MSPDataset(ProcessorDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/MSP/geometry/',
                  operator_path='../data/MSP/operator/'):
-        _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.length = len(_lmdb_dataset)
-        self._lmdb_dataset = None
-        self.lmdb_path = lmdb_path
-
-        self.geometry_path = geometry_path
-        self.operator_path = operator_path
-
-    def __len__(self) -> int:
-        return self.length
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -71,8 +62,9 @@ class MSPDataset(Dataset):
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
             dfs = [left_orig, right_orig, left_mut, right_mut]
             geom_feats = [main.get_diffnetfiles(name=name, df=df,
-                                                geometry_path=self.geometry_path,
-                                                operator_path=self.operator_path) for name, df in zip(names, dfs)]
+                                                dump_surf_dir=self.get_geometry_dir(name),
+                                                dump_operator_dir=self.get_operator_dir(name))
+                          for name, df in zip(names, dfs)]
 
             return names, geom_feats, coords, item['label']
         except Exception as e:
