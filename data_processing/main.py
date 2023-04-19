@@ -1,7 +1,6 @@
 import os
 import sys
 
-from pathlib import Path
 import numpy as np
 import torch
 
@@ -10,10 +9,9 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
-from atom2d_utils import naming_utils
 
 
-def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=128 * 4, max_error=5):
+def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False):
     """
     The whole process of data creation, from df format of atom3D to ply files and precomputed operators.
 
@@ -36,6 +34,7 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     :return:
     """
     # Optionnally setup dirs
+    is_valid_mesh = True
     os.makedirs(dump_surf_dir, exist_ok=True)
     os.makedirs(dump_operator_dir, exist_ok=True)
     dump_surf = os.path.join(dump_surf_dir, name)
@@ -44,6 +43,9 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     features_file = f"{dump_surf}_features.npz"
     vertices, faces = None, None
     dump_operator_file = os.path.join(dump_operator_dir, f"{name}_operator.npz")
+
+    if verbose:
+        print(f'Processing {name}')
 
     # Need recomputing ?
     ply_ex = os.path.exists(ply_file)
@@ -55,6 +57,8 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     # Get pdb file only if needed
     need_pdb = recompute or not os.path.exists(ply_file) or not os.path.exists(features_file)
     if need_pdb:
+        if verbose:
+            print(f'Converting df to pdb for {name}')
         df_utils.df_to_pdb(df, out_file_name=temp_pdb)
 
     # if they are missing, compute the surface from the df. Get a temp PDB, parse it with msms and simplify it
@@ -62,36 +66,41 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         # t_0 = time.perf_counter()
         vert_file = dump_surf + '.vert'
         face_file = dump_surf + '.face'
+        if verbose:
+            print(f'Computing surface for {name} with msms')
         surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number)
-        mesh = surface_utils.mesh_simplification(vert_file=vert_file,
-                                                 face_file=face_file,
-                                                 out_ply=ply_file,
-                                                 vert_number=min_number,
-                                                 maximum_error=max_error)
-        vertices, faces = surface_utils.get_vertices_and_triangles(mesh)
 
-        # print('time to process msms and simplify mesh: ', time.perf_counter() - t_0)
+        if verbose:
+            print(f'Simplifying surface for {name}')
+        mesh, is_valid_mesh = surface_utils.mesh_simplification(vert_file=vert_file,
+                                                                face_file=face_file,
+                                                                out_ply=ply_file,
+                                                                vert_number=min_number)
+
+        vertices, faces = surface_utils.get_vertices_and_triangles(mesh)
         os.remove(vert_file)
         os.remove(face_file)
 
-    # t_0 = time.perf_counter()
     if not os.path.exists(features_file) or recompute:
+        if verbose:
+            print(f'Computing features for {name}')
         if vertices is None or faces is None:
             vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         features, confidence = point_cloud_utils.get_features(temp_pdb, vertices)
         np.savez_compressed(features_file, **{'features': features, 'confidence': confidence})
-    # print('time get_features: ', time.perf_counter() - t_0)
 
     if need_pdb:
         os.remove(temp_pdb)
 
-    # t_0 = time.perf_counter()
     if not os.path.exists(dump_operator_file) or recompute:
+        if verbose:
+            print(f'Computing operators for {name}')
         if vertices is None or faces is None:
             vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=dump_operator_file,
                                         recompute=recompute)
-    # print('time to process diffnets : ', time.perf_counter() - t_0)
+
+    return is_valid_mesh
 
 
 def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir):
@@ -147,8 +156,7 @@ if __name__ == '__main__':
     surface_utils.mesh_simplification(vert_file=vert_file,
                                       face_file=faces_file,
                                       out_ply=ply_file,
-                                      vert_number=1000,
-                                      maximum_error=5)
+                                      vert_number=1000)
 
     # ply -> operators + features
     features_file = os.path.join(root_dir, '4kt3_features.npz')
