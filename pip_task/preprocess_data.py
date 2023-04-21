@@ -76,7 +76,7 @@ def print_error(name, index, error):
 # Finally, we need to iterate to precompute all relevant surfaces and operators
 def compute_operators_all(lmdb_path):
     dataset = PIPAtom3DDataset(lmdb_path=lmdb_path)
-    success_codes = Parallel(n_jobs=3)(delayed(lambda x, i: x[i])(dataset, i) for i in tqdm(range(len(dataset))))
+    success_codes = Parallel(n_jobs=-2)(delayed(lambda x, i: x[i])(dataset, i) for i in tqdm(range(len(dataset))))
     success_codes, failed_list = zip(*success_codes)
     failed_list = [x for x in failed_list if x is not None]
 
