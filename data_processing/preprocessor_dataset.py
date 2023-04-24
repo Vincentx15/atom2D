@@ -76,7 +76,7 @@ class Atom3DDataset(torch.utils.data.Dataset):
     """
 
     def __init__(self, lmdb_path, geometry_path, operator_path):
-        _lmdb_dataset = LMDBDataset(lmdb_path)
+        # _lmdb_dataset = LMDBDataset(lmdb_path)
         self._lmdb_dataset = None
         self.lmdb_path = lmdb_path
         self.geometry_path = geometry_path
