@@ -54,7 +54,8 @@ class PSRAtom3DDataset(ProcessorDataset):
                        name=name,
                        dump_surf_dir=dump_surf_dir,
                        dump_operator_dir=dump_operator_dir,
-                       recompute=False)
+                       recompute=False,
+                       clean_temp=False)
             # print(f'Precomputed successfully for {name}')
         except Exception:
             print(f"failed for {name}")
@@ -66,11 +67,11 @@ class PSRAtom3DDataset(ProcessorDataset):
 
 if __name__ == '__main__':
     pass
-
-    data_dir = '../data/PSR/test'
-
     np.random.seed(0)
     torch.manual_seed(0)
 
-    dataset = PSRAtom3DDataset(lmdb_path=data_dir)
-    dataset.run_preprocess()
+    for mode in ['test', 'train', 'validation']:
+        print(f"Processing for PSR, {mode} set")
+        data_dir = f'../data/PSR/{mode}'
+        dataset = PSRAtom3DDataset(lmdb_path=data_dir)
+        dataset.run_preprocess()

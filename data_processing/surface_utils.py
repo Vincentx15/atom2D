@@ -15,7 +15,7 @@ and leverage PyTorch parallel data loading to
 """
 
 
-def pdb_to_surf_with_min(pdb, out_name, min_number=128):
+def pdb_to_surf_with_min(pdb, out_name, min_number=128, clean_temp=True):
     """
     This function is useful to retrieve at least min_number vertices, which is useful for later use in DiffNets
     :param pdb:
@@ -27,12 +27,12 @@ def pdb_to_surf_with_min(pdb, out_name, min_number=128):
     number_of_vertices = 0
     density = 1.
     while number_of_vertices < min_number:
-        verts, _ = pdb_to_surf(pdb=pdb, out_name=out_name, density=density)
+        verts, _ = pdb_to_surf(pdb=pdb, out_name=out_name, density=density, clean_temp=clean_temp)
         number_of_vertices = len(verts)
         density += 1
 
 
-def pdb_to_surf(pdb, out_name, density=1.):
+def pdb_to_surf(pdb, out_name, density=1., clean_temp=True):
     """
     Runs msms on the input PDB file and dumps the output in out_name
     :param pdb:
@@ -56,7 +56,8 @@ def pdb_to_surf(pdb, out_name, density=1.):
         print(f"*** An error occurred while executing the command: {cline}, see log file for details. *** ")
         assert result.returncode == 0
 
-    os.remove(temp_xyzr_name)
+    if clean_temp:
+        os.remove(temp_xyzr_name)
     os.remove(temp_log_name)
 
     verts, faces = parse_verts(vert_file=vert_file, face_file=face_file)
@@ -176,8 +177,9 @@ def mesh_simplification(vert_file, face_file, out_ply, vert_number=2000):
     mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts), o3d.utility.Vector3iVector(faces))
     o3d.io.write_triangle_mesh(out_ply, mesh, write_vertex_normals=True)
 
-    disconnected, has_isolated_verts, has_duplicate_verts, has_abnormal_triangles = check_mesh_validity(mesh_py, check_triangles=True)
-    is_valid_mesh = not(disconnected or has_isolated_verts or has_duplicate_verts or has_abnormal_triangles)
+    disconnected, has_isolated_verts, has_duplicate_verts, has_abnormal_triangles = check_mesh_validity(mesh_py,
+                                                                                                        check_triangles=True)
+    is_valid_mesh = not (disconnected or has_isolated_verts or has_duplicate_verts or has_abnormal_triangles)
     return mesh, is_valid_mesh
 
 
@@ -204,7 +206,7 @@ def remove_abnormal_triangles(mesh):
     cos123 = np.concatenate((cos1.reshape(-1, 1),
                              cos2.reshape(-1, 1),
                              cos3.reshape(-1, 1)), axis=-1)
-    valid_faces = np.where(np.all(1 - cos123**2 > 1E-5, axis=-1))[0]
+    valid_faces = np.where(np.all(1 - cos123 ** 2 > 1E-5, axis=-1))[0]
     faces_new = faces[valid_faces]
 
     return pymesh.form_mesh(verts, faces_new)
@@ -271,7 +273,7 @@ def check_mesh_validity(mesh, check_triangles=False):
         cos123 = np.concatenate((cos1.reshape(-1, 1),
                                  cos2.reshape(-1, 1),
                                  cos3.reshape(-1, 1)), axis=-1)
-        valid_faces = np.where(np.all(1 - cos123**2 >= 1E-5, axis=-1))[0]
+        valid_faces = np.where(np.all(1 - cos123 ** 2 >= 1E-5, axis=-1))[0]
         has_abnormal_triangles = faces.shape[0] != len(valid_faces)
     else:
         has_abnormal_triangles = False

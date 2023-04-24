@@ -11,7 +11,8 @@ if __name__ == '__main__':
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
 
 
-def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False):
+def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False,
+               clean_temp=True):
     """
     The whole process of data creation, from df format of atom3D to ply files and precomputed operators.
 
@@ -30,7 +31,8 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     :param dump_operator_dir: The dir where diffusion net searches for precomputed data
     :param recompute: to force recomputation of cached files
     :param min_number: The minimum number of points of the final mesh, we take 4 times the size of kept eigenvalues
-    :param max_error: The maximum error when coarsening the mesh
+    :param clean_temp: To remove temp files such as yzr files. This can cause bugs when processing the same pdb in
+    parallel for different chains for instance
     :return:
     """
     # Optionnally setup dirs
@@ -51,7 +53,12 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     ply_ex = os.path.exists(ply_file)
     feat_ex = os.path.exists(features_file)
     ope_ex = os.path.exists(dump_operator_file)
-    if not os.path.exists(ply_file) or not os.path.exists(features_file) or not os.path.exists(dump_operator_file):
+    need_recompute = not os.path.exists(ply_file) or \
+                     not os.path.exists(features_file) or \
+                     not os.path.exists(dump_operator_file)
+    if not need_recompute:
+        return
+    if verbose:
         print(f'Precomputing {name}, found ply : {ply_ex}, found feat : {feat_ex}, found ope : {ope_ex}')
 
     # Get pdb file only if needed
@@ -68,7 +75,7 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         face_file = dump_surf + '.face'
         if verbose:
             print(f'Computing surface for {name} with msms')
-        surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number)
+        surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number, clean_temp=clean_temp)
 
         if verbose:
             print(f'Simplifying surface for {name}')

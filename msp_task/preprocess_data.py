@@ -58,7 +58,8 @@ class MSPAtom3DDataset(ProcessorDataset):
                            name=name,
                            dump_surf_dir=self.get_geometry_dir(name),
                            dump_operator_dir=self.get_operator_dir(name),
-                           recompute=False)
+                           recompute=False,
+                           clean_temp=False)
                 # print(f'Precomputed successfully for {name}')
         except Exception:
             print(f"failed for {name}")
@@ -70,11 +71,11 @@ class MSPAtom3DDataset(ProcessorDataset):
 
 if __name__ == '__main__':
     pass
-
-    data_dir = '../data/MSP/test'
-
     np.random.seed(0)
     torch.manual_seed(0)
 
-    dataset = MSPAtom3DDataset(lmdb_path=data_dir)
-    dataset.run_preprocess()
+    for mode in ['test', 'train', 'validation']:
+        print(f"Processing for MSP, {mode} set")
+        data_dir = f'../data/MSP/{mode}'
+        dataset = MSPAtom3DDataset(lmdb_path=data_dir)
+        dataset.run_preprocess()
