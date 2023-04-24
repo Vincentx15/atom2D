@@ -2,8 +2,10 @@ import os
 import sys
 
 from atom3d.datasets import LMDBDataset
+from collections import defaultdict
 from joblib import Parallel, delayed
 import numpy as np
+import pickle
 import time
 import torch
 from tqdm import tqdm
@@ -16,18 +18,90 @@ from data_processing.main import process_df  # noqa
 from atom2d_utils import naming_utils
 
 
-class ProcessorDataset(torch.utils.data.Dataset):
+def dummy_collate(x):
+    return x
+
+
+class DryRunDataset(torch.utils.data.Dataset):
+    def __init__(self, lmdb_path):
+        self.lmdb_path = lmdb_path
+        self._lmdb_dataset = LMDBDataset(lmdb_path)
+
+    def __len__(self) -> int:
+        return len(self._lmdb_dataset)
+
+    def get_mapping(self, dumpfile=None):
+        """
+        First let us iterate through the database and collect all systems to preprocess per LMDB 'item'
+        Then return a dict {unique_subunit : items}
+        We will then be able to process each of those.
+        :return:
+        """
+        dumpfile = os.path.join(self.lmdb_path, 'systems_mapping.p') if dumpfile is None else dumpfile
+        if os.path.exists(dumpfile):
+            return pickle.load(open(dumpfile, 'rb'))
+        t0 = time.time()
+        loader = torch.utils.data.DataLoader(self,
+                                             # num_workers=0,
+                                             num_workers=os.cpu_count(),
+                                             batch_size=1,
+                                             collate_fn=dummy_collate)
+        subunits_mapping = defaultdict(list)
+        for i, batch_subunits in enumerate(loader):
+            for subunit in batch_subunits[0]:
+                subunits_mapping[subunit].append(i)
+            if not i % 100:
+                print(f"Done {i}/{len(self)} in {time.time() - t0}")
+        subunits_mapping = dict(subunits_mapping)
+        pickle.dump(subunits_mapping, open(dumpfile, 'wb'))
+        return subunits_mapping
+
+    def __getitem__(self, index):
+        """
+        Return a list of subunit for this item.
+        :param index:
+        :return:
+        """
+        raise NotImplementedError
+
+
+class Atom3DDataset(torch.utils.data.Dataset):
+    """
+    Generic class for thing that contain a LMDB dataset and interact with precomputed data
+    - Processor dataset
+    - Learning dataset
+    """
+
     def __init__(self, lmdb_path, geometry_path, operator_path):
         _lmdb_dataset = LMDBDataset(lmdb_path)
-        self.length = len(_lmdb_dataset)
         self._lmdb_dataset = None
-        self.failed_set = set()
         self.lmdb_path = lmdb_path
         self.geometry_path = geometry_path
         self.operator_path = operator_path
+        self.failed_set = set()
+
+    def get_geometry_dir(self, name):
+        return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
+
+    def get_operator_dir(self, name):
+        return naming_utils.name_to_dir(name, dir_path=self.operator_path)
+
+
+class ProcessorDataset(Atom3DDataset):
+    def __init__(self, lmdb_path, geometry_path, operator_path, subunits_mapping):
+        """
+
+        :param lmdb_path:
+        :param geometry_path:
+        :param operator_path:
+        :param subunits_mapping: the output from a dry run, a dict unique_system : lmdb_id
+        """
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        self.failed_set = set()
+        self.systems_to_compute = [(unique_name, lmdb_ids[0]) for unique_name, lmdb_ids in subunits_mapping.items()]
 
     def __len__(self) -> int:
-        return self.length
+        return len(self.systems_to_compute)
 
     @staticmethod
     def print_error(name, index, error):
@@ -45,7 +119,7 @@ class ProcessorDataset(torch.utils.data.Dataset):
         # Finally, we need to iterate to precompute all relevant surfaces and operators
         n_jobs = max(2 * os.cpu_count() // 3, 1)
         # n_jobs = 1
-        success_codes = Parallel(n_jobs=n_jobs)(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(self.length)))
+        success_codes = Parallel(n_jobs=n_jobs)(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(len(self))))
         success_codes, failed_list = zip(*success_codes)
         failed_list = [x for x in failed_list if x is not None]
 
@@ -56,23 +130,6 @@ class ProcessorDataset(torch.utils.data.Dataset):
         with open(os.path.join(self.lmdb_path, 'failed_set.txt'), 'w') as f:
             for name in failed_list:
                 f.write(f'{name[0]}, {name[1]}' + '\n')
-
-        # t0 = time.time()
-        # loader = torch.utils.data.DataLoader(self,
-        #                                      # num_workers=0,
-        #                                      num_workers=os.cpu_count(),
-        #                                      batch_size=1,
-        #                                      collate_fn=lambda x: x)
-        # for i, success in enumerate(loader):
-        #     pass
-        #     if not i % 100:
-        #         print(f"Done {i} in {time.time() - t0}")
-
-    def get_geometry_dir(self, name):
-        return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
-
-    def get_operator_dir(self, name):
-        return naming_utils.name_to_dir(name, dir_path=self.operator_path)
 
     def process_lists(self, names, dfs, index):
         """
@@ -114,6 +171,11 @@ class ProcessorDataset(torch.utils.data.Dataset):
         return 1, None
 
     def __getitem__(self, index):
+        if self._lmdb_dataset is None:
+            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
+
+        # unique_name, lmdb_id = self.systems_to_compute[index]
+        # lmdb_item = self._lmdb_dataset[lmdb_id] ...
         raise NotImplementedError
 
 

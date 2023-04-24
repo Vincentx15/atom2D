@@ -9,34 +9,54 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from atom3d.datasets import LMDBDataset
-from data_processing.preprocessor_dataset import ProcessorDataset
+from data_processing.preprocessor_dataset import DryRunDataset, ProcessorDataset
+
+
+class PSRDryRunDataset(DryRunDataset):
+
+    def __init__(self, lmdb_path):
+        super().__init__(lmdb_path=lmdb_path)
+
+    def __getitem__(self, index):
+        """
+        Return a list of subunit for this item.
+        :param index:
+        :return:
+        """
+        if self._lmdb_dataset is None:
+            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
+        item = self._lmdb_dataset[index]
+        # item[id] has a weird formatting
+        name = item['id']
+        target, decoy = name[1:-1].split(',')
+        target, decoy = target[2:-1], decoy[2:-1]
+        name = f"{target}_{decoy}"
+        return [name]
 
 
 class PSRAtom3DDataset(ProcessorDataset):
     """
-    In this task, the loader returns two protein interfaces an original and mutated one.
 
-    In the C3D and enn representation, a cropping of the protein around this interface is provided,
-    whereas in the graph formulation, the whole graphs are used with an extra label indicating which nodes are mutated
-    in the original and mutated versions.
-
-    The model then does graph convolutions and add pool the node representations of the interfaces for each graph.
-    Then, it feeds the concatenation of these representations to an MLP
     """
 
     def __init__(self, lmdb_path,
+                 subunits_mapping,
                  geometry_path='../data/PSR/geometry/',
                  operator_path='../data/PSR/operator/'):
-        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        super().__init__(lmdb_path=lmdb_path,
+                         geometry_path=geometry_path,
+                         operator_path=operator_path,
+                         subunits_mapping=subunits_mapping)
 
     def __getitem__(self, index):
         if self._lmdb_dataset is None:
             self._lmdb_dataset = LMDBDataset(self.lmdb_path)
-        item = self._lmdb_dataset[index]
+        _, lmdb_id = self.systems_to_compute[index]
+        lmdb_item = self._lmdb_dataset[lmdb_id]
 
-        df = item['atoms'].reset_index(drop=True)
+        df = lmdb_item['atoms'].reset_index(drop=True)
         # item[id] has a weird formatting
-        name = item['id']
+        name = lmdb_item['id']
         target, decoy = name[1:-1].split(',')
         target, decoy = target[2:-1], decoy[2:-1]
         name = f"{target}_{decoy}"
@@ -51,5 +71,6 @@ if __name__ == '__main__':
     for mode in ['test', 'train', 'validation']:
         print(f"Processing for PSR, {mode} set")
         data_dir = f'../data/PSR/{mode}'
-        dataset = PSRAtom3DDataset(lmdb_path=data_dir)
+        subunits_mapping = PSRDryRunDataset(lmdb_path=data_dir).get_mapping()
+        dataset = PSRAtom3DDataset(lmdb_path=data_dir, subunits_mapping=subunits_mapping)
         dataset.run_preprocess()
