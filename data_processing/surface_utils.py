@@ -27,9 +27,11 @@ def pdb_to_surf_with_min(pdb, out_name, min_number=128, clean_temp=True):
     number_of_vertices = 0
     density = 1.
     while number_of_vertices < min_number:
-        verts, _ = pdb_to_surf(pdb=pdb, out_name=out_name, density=density, clean_temp=clean_temp)
+        verts, faces = pdb_to_surf(pdb=pdb, out_name=out_name, density=density, clean_temp=clean_temp)
         number_of_vertices = len(verts)
         density += 1
+
+    return verts, faces
 
 
 def pdb_to_surf(pdb, out_name, density=1., clean_temp=True):
@@ -62,6 +64,9 @@ def pdb_to_surf(pdb, out_name, density=1., clean_temp=True):
     os.remove(temp_log_name)
 
     verts, faces = parse_verts(vert_file=vert_file, face_file=face_file)
+    os.remove(vert_file)
+    os.remove(face_file)
+
     return verts, faces
 
 
@@ -142,8 +147,7 @@ def mesh_simplification2(vert_file, face_file, out_ply, vert_number=2000):
     # print(f'triangles: {len(faces)} -> {len(mesh_reduced.triangles)} ')
 
 
-def mesh_simplification(vert_file, face_file, out_ply, vert_number=2000):
-    verts, faces = parse_verts(vert_file, face_file)
+def mesh_simplification(verts, faces, out_ply, vert_number=2000):
 
     # remeshing to have a target number of vertices
     faces_num = int(vert_number * len(faces) / len(verts))
@@ -181,7 +185,8 @@ def mesh_simplification(vert_file, face_file, out_ply, vert_number=2000):
     disconnected, has_isolated_verts, has_duplicate_verts, has_abnormal_triangles = check_mesh_validity(mesh_py,
                                                                                                         check_triangles=True)
     is_valid_mesh = not (disconnected or has_isolated_verts or has_duplicate_verts or has_abnormal_triangles)
-    return mesh, is_valid_mesh
+
+    return verts, faces, is_valid_mesh
 
 
 def remove_abnormal_triangles(mesh):
