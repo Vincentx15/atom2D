@@ -54,7 +54,7 @@ if __name__ == '__main__':
     np.random.seed(0)
     torch.manual_seed(0)
 
-    for mode in ['test', 'train', 'validation']:
+    for mode in ['test', 'train', 'val']:
         print(f"Processing for MSP, {mode} set")
         data_dir = f'../data/MSP/{mode}'
         dataset = MSPAtom3DDataset(lmdb_path=data_dir)
