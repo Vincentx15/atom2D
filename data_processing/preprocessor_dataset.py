@@ -17,6 +17,8 @@ if __name__ == '__main__':
 from data_processing.main import process_df  # noqa
 from atom2d_utils import naming_utils
 
+os.environ['OMP_NUM_THREADS'] = '1'  # use one thread for numpy and scipy
+
 
 def dummy_collate(x):
     return x
@@ -39,6 +41,7 @@ class DryRunDataset(torch.utils.data.Dataset):
         """
         dumpfile = os.path.join(self.lmdb_path, 'systems_mapping.p') if dumpfile is None else dumpfile
         if os.path.exists(dumpfile):
+            print('Skipping dry run, found a mapping already.')
             return pickle.load(open(dumpfile, 'rb'))
         t0 = time.time()
         loader = torch.utils.data.DataLoader(self,
@@ -117,9 +120,11 @@ class ProcessorDataset(Atom3DDataset):
         :return:
         """
         # Finally, we need to iterate to precompute all relevant surfaces and operators
+        print("Running preprocessing")
         n_jobs = max(2 * os.cpu_count() // 3, 1)
         # n_jobs = 1
-        success_codes = Parallel(n_jobs=n_jobs)(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(len(self))))
+        runner = Parallel(n_jobs=n_jobs, backend='threading')
+        success_codes = runner(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(len(self))))
         success_codes, failed_list = zip(*success_codes)
         failed_list = [x for x in failed_list if x is not None]
 
