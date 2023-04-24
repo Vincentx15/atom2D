@@ -50,7 +50,7 @@ def normalize(x, divide_eps=1e-6, highdim=False):
 
 
 def face_coords(verts, faces):
-    coords = verts[faces]
+    coords = verts[faces.long()]
     return coords
 
 
@@ -213,6 +213,7 @@ def build_grad_point_cloud(verts, frames, n_neighbors_cloud=30):
 
 
 def edge_tangent_vectors(verts, frames, edges):
+    edges = edges.long()
     edge_vecs = verts[edges[1, :], :] - verts[edges[0, :], :]
     basisX = frames[edges[0, :], 0, :]
     basisY = frames[edges[0, :], 1, :]

@@ -123,7 +123,7 @@ class ProcessorDataset(Atom3DDataset):
         print("Running preprocessing")
         n_jobs = max(2 * os.cpu_count() // 3, 1)
         # n_jobs = 1
-        runner = Parallel(n_jobs=n_jobs, backend='threading')
+        runner = Parallel(n_jobs=n_jobs, backend='loky')
         success_codes = runner(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(len(self))))
         success_codes, failed_list = zip(*success_codes)
         failed_list = [x for x in failed_list if x is not None]
