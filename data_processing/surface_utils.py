@@ -48,8 +48,9 @@ def pdb_to_surf(pdb, out_name, density=1., clean_temp=True):
     with open(temp_xyzr_name, "w") as f:
         cline = f"{Path.cwd()}/../executables/pdb_to_xyzr {pdb}"
         subprocess.run(cline.split(), stdout=f)
-    cline = f"{Path.cwd()}/../executables/msms -if {temp_xyzr_name} -of {out_name} -density {density}"
 
+    # Then run msms on this file
+    cline = f"{Path.cwd()}/../executables/msms -if {temp_xyzr_name} -of {out_name} -density {density}"
     with open(temp_log_name, "w") as f:
         result = subprocess.run(cline.split(), stdout=f, stderr=f, timeout=10)
     if result.returncode != 0:

@@ -57,7 +57,7 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
                      not os.path.exists(features_file) or \
                      not os.path.exists(dump_operator_file)
     if not need_recompute:
-        return
+        return is_valid_mesh
     if verbose:
         print(f'Precomputing {name}, found ply : {ply_ex}, found feat : {feat_ex}, found ope : {ope_ex}')
 
@@ -96,7 +96,7 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         features, confidence = point_cloud_utils.get_features(temp_pdb, vertices)
         np.savez_compressed(features_file, **{'features': features, 'confidence': confidence})
 
-    if need_pdb:
+    if need_pdb and clean_temp:
         os.remove(temp_pdb)
 
     if not os.path.exists(dump_operator_file) or recompute:
