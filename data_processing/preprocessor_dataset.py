@@ -4,7 +4,6 @@ import sys
 from atom3d.datasets import LMDBDataset
 from joblib import Parallel, delayed
 import numpy as np
-import time
 import torch
 from tqdm import tqdm
 
@@ -14,6 +13,8 @@ if __name__ == '__main__':
 
 from data_processing.main import process_df  # noqa
 from atom2d_utils import naming_utils
+
+os.environ['OMP_NUM_THREADS'] = '1'  # use one thread for numpy and scipy
 
 
 class ProcessorDataset(torch.utils.data.Dataset):
@@ -45,7 +46,7 @@ class ProcessorDataset(torch.utils.data.Dataset):
         # Finally, we need to iterate to precompute all relevant surfaces and operators
         n_jobs = max(2 * os.cpu_count() // 3, 1)
         # n_jobs = 1
-        success_codes = Parallel(n_jobs=n_jobs)(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(self.length)))
+        success_codes = Parallel(n_jobs=n_jobs, backend='threading')(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(self.length)))
         success_codes, failed_list = zip(*success_codes)
         failed_list = [x for x in failed_list if x is not None]
 
