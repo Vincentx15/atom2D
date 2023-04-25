@@ -6,7 +6,7 @@ import torch
 ELEMENT_MAPPING = {'C': 0, 'O': 1, 'N': 2, 'S': 3}
 
 
-def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01):
+def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01, concat=False):
     """
     Get the signal on the points1 onto the points 2
     :param points_1: n,3
@@ -16,7 +16,9 @@ def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01):
     :return: m,k
     """
     if not points_1.dtype == points_2.dtype == feats_1.dtype:
-        raise ValueError(f"can't RBF with different dtypes{points_1.dtype, points_2.dtype, feats_1.dtype}")
+        raise ValueError(
+            f"can't RBF with different dtypes. point1 :{points_1.dtype}, "
+            f"point2 :{points_2.dtype}, feat1 :{feats_1.dtype}")
     # Get all to all dists, make it a weight and message passing.
     #     TODO : Maybe include sigma as a learnable parameter
     with torch.no_grad():
@@ -30,6 +32,8 @@ def torch_rbf(points_1, points_2, feats_1, sigma=2.5, eps=0.01):
         line_norms = torch.sum(rbf_weights, dim=1) + eps
         rbf_weights = torch.div(rbf_weights, line_norms[:, None])
     feats_2 = torch.mm(rbf_weights, feats_1)
+    if concat:
+        return torch.cat((feats_2, torch.tanh(line_norms[:, None])), dim=1)
     return feats_2, line_norms
 
 

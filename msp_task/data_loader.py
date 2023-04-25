@@ -11,10 +11,11 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import main
-from data_processing.preprocessor_dataset import ProcessorDataset
+from data_processing.preprocessor_dataset import Atom3DDataset
+from atom2d_utils.learning_utils import list_from_numpy
 
 
-class MSPDataset(ProcessorDataset):
+class MSPDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/MSP/geometry/',
                  operator_path='../data/MSP/operator/'):
@@ -50,6 +51,8 @@ class MSPDataset(ProcessorDataset):
             orig_coords = get_coordinates_from_df(orig_df.iloc[orig_idx])
             mut_coords = get_coordinates_from_df(mut_df.iloc[mut_idx])
             coords = orig_coords, mut_coords
+            coords = list_from_numpy(coords)
+            coords = [x.float() for x in coords]
 
             # Then get the split dfs and names, and retrieve the surfaces
             # Apparently this is faster than split
@@ -67,10 +70,10 @@ class MSPDataset(ProcessorDataset):
                           for name, df in zip(names, dfs)]
 
             return names, geom_feats, coords, item['label']
-        except Exception as e:
+        except IndentationError as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            return None, None, None, None, None, None
+            return None, None, None, None
 
 
 if __name__ == '__main__':

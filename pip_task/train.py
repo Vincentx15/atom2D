@@ -45,7 +45,6 @@ def train_loop(model, loader, criterion, optimizer, device):
 
 if __name__ == '__main__':
     data_dir = '../data/DIPS-split/data/train/'
-
     device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
     dataset = data_loader.PIPDataset(data_dir)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=None, num_workers=8, pin_memory=True)

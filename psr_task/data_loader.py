@@ -10,10 +10,10 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing import main
-from data_processing.preprocessor_dataset import ProcessorDataset
+from data_processing.preprocessor_dataset import Atom3DDataset
 
 
-class MSPDataset(ProcessorDataset):
+class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/PSR/geometry/',
                  operator_path='../data/PSR/operator/'):
@@ -55,12 +55,12 @@ class MSPDataset(ProcessorDataset):
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            return None, None, None, None, None, None
+            return None, None, None
 
 
 if __name__ == '__main__':
     data_dir = '../data/PSR/test/'
-    dataset = MSPDataset(data_dir)
+    dataset = PSRDataset(data_dir)
     for i, data in enumerate(dataset):
         print(i)
         if i > 5:
