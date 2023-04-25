@@ -17,7 +17,7 @@ if __name__ == '__main__':
 from data_processing.main import process_df  # noqa
 from atom2d_utils import naming_utils
 
-os.environ['OMP_NUM_THREADS'] = '1'  # use one thread for numpy and scipy
+os.environ['OMP_NUM_THREADS'] = '4'  # use one thread for numpy and scipy
 
 
 def dummy_collate(x):
@@ -129,7 +129,7 @@ class ProcessorDataset(Atom3DDataset):
                 return None
 
         print("Running preprocessing")
-        n_jobs = max(2 * os.cpu_count() // 3, 1) * 0
+        n_jobs = max(2 * os.cpu_count() // 3, 1)
         timeout = 20
         executor = ThreadPoolExecutor(max_workers=1)
 
