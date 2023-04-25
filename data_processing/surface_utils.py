@@ -87,7 +87,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
 
         # Parse the info to retrieve vertices and normals
         lines = [line.split()[:6] for line in no_header]
-        lines = np.array(lines).astype(float)
+        lines = np.array(lines).astype(np.float32)
         verts = lines[:, :3]
         if keep_normals:
             normals = lines[:, 3:6]
@@ -101,7 +101,7 @@ def parse_verts(vert_file, face_file, keep_normals=False):
 
         # Parse the lines and remove 1 to get zero based indexing
         lines = [line.split() for line in no_header]
-        lines = np.array(lines).astype(int)
+        lines = np.array(lines).astype(np.int32)
         faces = lines[:, :3]
         faces -= 1
 
@@ -148,7 +148,6 @@ def mesh_simplification2(vert_file, face_file, out_ply, vert_number=2000):
 
 
 def mesh_simplification(verts, faces, out_ply, vert_number=2000):
-
     # remeshing to have a target number of vertices
     faces_num = int(vert_number * len(faces) / len(verts))
     mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts), o3d.utility.Vector3iVector(faces))
@@ -178,7 +177,7 @@ def mesh_simplification(verts, faces, out_ply, vert_number=2000):
     mesh_py, _ = pymesh.remove_isolated_vertices(mesh)
 
     # save to ply
-    verts, faces = np.array(mesh_py.vertices), np.array(mesh_py.faces)
+    verts, faces = np.array(mesh_py.vertices, dtype=np.float32), np.array(mesh_py.faces, dtype=np.int32)
     mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(verts), o3d.utility.Vector3iVector(faces))
     o3d.io.write_triangle_mesh(out_ply, mesh, write_vertex_normals=True)
 
@@ -296,8 +295,8 @@ def get_vertices_and_triangles(mesh):
     :param mesh:
     :return:
     """
-    vertices = np.asarray(mesh.vertices, np.float64)
-    faces = np.asarray(mesh.triangles, np.int64)
+    vertices = np.asarray(mesh.vertices, dtype=np.float32)
+    faces = np.asarray(mesh.triangles, dtype=np.int32)
     return vertices, faces
 
 
@@ -326,15 +325,14 @@ if __name__ == "__main__":
     o3d.visualization.draw_geometries([mesh])
 
     # Now build a surface with at least min vertex (lower bound)
-    pdb_to_surf_with_min(pdb, out_name=outname, min_number=128)
+    verts, faces = pdb_to_surf_with_min(pdb, out_name=outname, min_number=128)
 
     # Now simplify this into a coarser mesh (upper bound), and turn it into a corrected ply file
     ply_file = "../data/example_files/example_mesh.ply"
-    mesh_simplification(vert_file=vert_file,
-                        face_file=faces_file,
+    mesh_simplification(verts=verts,
+                        faces=faces,
                         out_ply=ply_file,
-                        vert_number=1000,
-                        maximum_error=5)
+                        vert_number=1000)
     mesh_reduced = o3d.io.read_triangle_mesh(ply_file)
     mesh_reduced.compute_triangle_normals()
     o3d.visualization.draw_geometries([mesh_reduced])
