@@ -53,10 +53,13 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     feat_ex = os.path.exists(features_file)
     ope_ex = os.path.exists(dump_operator_file)
     need_recompute = not os.path.exists(ply_file) or not os.path.exists(features_file) or not os.path.exists(dump_operator_file)
-    if not need_recompute:
+    if not (need_recompute or recompute):
         return is_valid_mesh
     if verbose:
-        print(f"Precomputing {name}, found ply : {ply_ex}, found feat : {feat_ex}, found ope : {ope_ex}")
+        if recompute:
+            print(f"Recomputing {name}")
+        else:
+            print(f"Precomputing {name}, found ply : {ply_ex}, found feat : {feat_ex}, found ope : {ope_ex}")
 
     # Get pdb file only if needed
     need_pdb = recompute or not os.path.exists(ply_file) or not os.path.exists(features_file)
