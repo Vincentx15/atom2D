@@ -57,7 +57,7 @@ def pdb_to_surf(pdb, out_name, density=1., clean_temp=True):
         result = subprocess.run(cline.split(), stdout=f, stderr=f, timeout=10)
     if result.returncode != 0:
         print(f"*** An error occurred while executing the command: {cline}, see log file for details. *** ")
-        assert result.returncode == 0
+        raise RuntimeError(f"MSMS failed with return code {result.returncode}")
 
     if clean_temp:
         os.remove(temp_xyzr_name)
@@ -185,6 +185,9 @@ def mesh_simplification(verts, faces, out_ply, vert_number=2000):
     disconnected, has_isolated_verts, has_duplicate_verts, has_abnormal_triangles = check_mesh_validity(mesh_py,
                                                                                                         check_triangles=True)
     is_valid_mesh = not (disconnected or has_isolated_verts or has_duplicate_verts or has_abnormal_triangles)
+
+    if verts.shape[0] > 15000:
+        raise ValueError(f'Too many vertices in the mesh: {verts.shape[0]}')
 
     return verts, faces, is_valid_mesh
 

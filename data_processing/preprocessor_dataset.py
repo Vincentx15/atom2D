@@ -1,9 +1,9 @@
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 from atom3d.datasets import LMDBDataset
 from collections import defaultdict
-from joblib import Parallel, delayed
 import numpy as np
 import pickle
 import time
@@ -17,7 +17,7 @@ if __name__ == '__main__':
 from data_processing.main import process_df  # noqa
 from atom2d_utils import naming_utils
 
-os.environ['OMP_NUM_THREADS'] = '1'  # use one thread for numpy and scipy
+os.environ['OMP_NUM_THREADS'] = '4'  # use one thread for numpy and scipy
 
 
 def dummy_collate(x):
@@ -120,13 +120,38 @@ class ProcessorDataset(Atom3DDataset):
         :return:
         """
         # Finally, we need to iterate to precompute all relevant surfaces and operators
+
+        def load_batch(dataloader_iterator):
+            try:
+                data = next(dataloader_iterator)
+                return data
+            except StopIteration:
+                return None
+
         print("Running preprocessing")
         n_jobs = max(2 * os.cpu_count() // 3, 1)
-        # n_jobs = 1
-        runner = Parallel(n_jobs=n_jobs, backend='loky')
-        success_codes = runner(delayed(lambda x, i: x[i])(self, i) for i in tqdm(range(len(self))))
-        success_codes, failed_list = zip(*success_codes)
-        failed_list = [x for x in failed_list if x is not None]
+        timeout = 20
+        executor = ThreadPoolExecutor(max_workers=1)
+
+        loader = torch.utils.data.DataLoader(self, num_workers=n_jobs, batch_size=1, collate_fn=lambda x: x)
+        success_codes, failed_list = [], []
+
+        dataloader_iterator = iter(loader)
+        for i in tqdm(range(len(loader))):
+            try:
+                future = executor.submit(load_batch, dataloader_iterator)
+                data = future.result(timeout)
+                if data is None:
+                    break
+
+                success_code, failed = data[0]
+                success_codes.append(success_code)
+                if failed is not None:
+                    failed_list.append(failed)
+
+            except TimeoutError:
+                print(f"Skipping batch {i} due to timeout")
+                continue
 
         print(f'{sum(success_codes)}/{len(success_codes)} processed')
         print(list(failed_list))
