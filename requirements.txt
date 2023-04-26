@@ -4,3 +4,5 @@ atom3d
 open3d
 robust-laplacian
 potpourri3d
+pytorch-lightning==1.9.0
+tensorboard

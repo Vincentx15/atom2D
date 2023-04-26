@@ -18,8 +18,9 @@ from data_processing.preprocessor_dataset import ProcessorDataset
 class PIPDataset(ProcessorDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
-                 operator_path='../data/processed_data/operator/'):
-        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+                 operator_path='../data/processed_data/operator/',
+                 subunits_mapping=dict()):
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path, subunits_mapping=subunits_mapping)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
 

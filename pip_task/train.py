@@ -1,56 +1,56 @@
-import numpy as np
-import torch
-import tqdm
+import os
+import sys
+import pytorch_lightning as pl
+from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
-import data_loader
-import models
-
-
-def train_loop(model, loader, criterion, optimizer, device):
-    model.train()
-    model = model.to(device)
-
-    loss_all = 0
-    total = 0
-    err_counter = 0
-    pbar = tqdm.tqdm(enumerate(loader), total=len(loader))
-    for i, data in pbar:
-        # Concatenate all pairs to make all pair inference, this avoids embedding the surface twice
-        names_0, names_1, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data
-        if names_0 is None:
-            continue
-        all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3).to(device)
-        labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(device)
-
-        # Perform the learning
-        try:
-            optimizer.zero_grad()
-            output = model(geom_feats_0, geom_feats_1, all_pairs)
-            loss = criterion(output, labels)
-            loss.backward()
-            loss_all += loss.item() * len(labels)
-            total += len(labels)
-            optimizer.step()
-        except Exception as e:
-            print("--------------------")
-            print(e)
-            err_counter += 1
-            print(f'Error counter: {err_counter} - {i // err_counter}')
-
-        # stats
-        pbar.set_description(f"Iteration: {i:04d}, Loss: {np.sqrt(loss_all / total):.6f}")
-
-    return np.sqrt(loss_all / total)
+from pl_module import PIPModule
+from data_module import PIPDataModule
 
 
-if __name__ == '__main__':
-    data_dir = '../data/DIPS-split/data/train/'
+script_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(script_dir, '..'))
 
-    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
-    dataset = data_loader.PIPDataset(data_dir)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=None, num_workers=8, pin_memory=True)
-    model = models.SurfNet()
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters())
 
-    loss = train_loop(model=model, loader=data_loader, criterion=criterion, optimizer=optimizer, device=device)
+def main():
+    seed = 2023
+    pl.seed_everything(seed, workers=True)
+
+    # init model
+    model = PIPModule()
+
+    # init logger
+    tb_logger = TensorBoardLogger(save_dir="./logs")
+    loggers = [tb_logger]
+
+    # callbacks
+    lr_logger = pl.callbacks.LearningRateMonitor()
+    callbacks = [lr_logger]
+
+    # init trainer
+    trainer = pl.Trainer(
+        accelerator="gpu",
+        devices=[0],
+        max_epochs=100,
+        callbacks=callbacks,
+        logger=loggers,
+        # fast_dev_run=True,
+        # limit_train_batches=0.1,
+        # limit_val_batches=0.1,
+        # limit_test_batches=0.1,
+        # profiler=True,
+        # benchmark=True,
+        # deterministic=True,
+    )
+
+    # datamodule
+    datamodule = PIPDataModule()
+
+    # train
+    trainer.fit(model, datamodule=datamodule)
+
+    # test
+    trainer.test(model, datamodule=datamodule)
+
+
+if __name__ == "__main__":
+    main()

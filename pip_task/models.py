@@ -1,3 +1,8 @@
+import os
+import sys
+script_dir = os.path.dirname(os.path.realpath(__file__))  # todo to fix
+sys.path.append(os.path.join(script_dir, '..'))
+
 import diffusion_net
 import torch
 import torch.nn as nn
@@ -5,9 +10,11 @@ import torch.nn as nn
 from data_processing import point_cloud_utils
 
 
-class SurfNet(torch.nn.Module):
-    def __init__(self, in_channels=5, out_channel=64, dropout=True, drate=0.3, batch_norm=False):
-        super(SurfNet, self).__init__()
+
+
+class PIPNet(torch.nn.Module):
+    def __init__(self, in_channels=5, out_channel=64, dropout=0.3, batch_norm=False):
+        super().__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
@@ -28,7 +35,7 @@ class SurfNet(torch.nn.Module):
             if batch_norm:
                 layers.append(nn.BatchNorm1d(units))
             if dropout:
-                layers.append(nn.Dropout(drate))
+                layers.append(nn.Dropout(dropout))
             in_features = units
 
         # Final FC layer
