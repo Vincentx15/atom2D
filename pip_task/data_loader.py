@@ -1,16 +1,8 @@
-import os
-import sys
 import math
 import numpy as np
 import torch
 
 from atom3d.datasets import LMDBDataset
-
-
-if __name__ == '__main__':
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    sys.path.append(os.path.join(script_dir, '..'))
-
 from atom2d_utils import atom3dutils
 from data_processing import main
 from data_processing.preprocessor_dataset import Atom3DDataset
