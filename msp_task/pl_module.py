@@ -31,9 +31,6 @@ class MSPModule(pl.LightningModule):
         if name is None:
             return None, None, None
 
-        label = torch.tensor([int(label)]).float().to(self.device)
-        geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
-        coords = [x.to(self.device) for x in coords]
         output = self((geom_feats, coords))
         loss = self.criterion(output, label)
         return loss, output.flatten(), label
@@ -80,3 +77,14 @@ class MSPModule(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
         # return [optimizer], [lr_scheduler]
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if batch[0][0] is None:
+            return batch
+
+        name, geom_feats, coords, label = batch[0]
+        label = torch.tensor([int(label)]).float().to(self.device)
+        geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
+        coords = [x.to(self.device) for x in coords]
+        batch = [(name, geom_feats, coords, label)]
+        return batch
