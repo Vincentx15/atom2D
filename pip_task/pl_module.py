@@ -24,6 +24,8 @@ class PIPModule(pl.LightningModule):
 
     def step(self, data):
         names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data[0]
+        if names_0 is None or pos_pairs_cas_arr.numel() == 0 or neg_pairs_cas_arr.numel() == 0:
+            return None, None, None
 
         all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
         labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
@@ -33,9 +35,11 @@ class PIPModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
+        if loss is None:
+            return None
 
         self.log_dict({"loss/train": loss.cpu().detach()},
-                      on_step=True, on_epoch=True, prog_bar=True,)
+                      on_step=True, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         self.train_accuracy(logits, labels)
         self.log_dict({"acc/train": self.train_accuracy}, on_epoch=True)
@@ -44,18 +48,22 @@ class PIPModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
+        if loss is None:
+            return None
 
         self.log_dict({"loss/val": loss.cpu().detach()},
-                      on_step=False, on_epoch=True, prog_bar=True)
+                      on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         self.val_accuracy(logits, labels)
         self.log_dict({"acc/val": self.val_accuracy}, on_epoch=True)
 
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
+        if loss is None:
+            return None
 
         self.log_dict({"loss/test": loss.cpu().detach()},
-                      on_step=False, on_epoch=True, prog_bar=True)
+                      on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         self.test_accuracy(logits, labels)
         self.log_dict({"acc/test": self.test_accuracy}, on_epoch=True)
