@@ -8,7 +8,8 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from pl_module import PIPModule
-from data_module import PIPDataModule
+from data_processing.data_module import PLDataModule
+from data_loader import PIPDataset
 
 
 def main():
@@ -43,7 +44,7 @@ def main():
     )
 
     # datamodule
-    datamodule = PIPDataModule()
+    datamodule = PLDataModule(PIPDataset, "../data/PIP/DIPS-split/data/")
 
     # train
     trainer.fit(model, datamodule=datamodule)
