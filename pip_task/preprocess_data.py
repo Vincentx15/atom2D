@@ -1,7 +1,6 @@
 import os
 import sys
 
-from atom3d.datasets import LMDBDataset
 import numpy as np
 import torch
 
@@ -24,8 +23,6 @@ class PIPDryRunDataset(DryRunDataset):
         :param index:
         :return:
         """
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
 
         names, _ = atom3dutils.get_subunits(item['atoms_pairs'])
@@ -34,17 +31,19 @@ class PIPDryRunDataset(DryRunDataset):
 
 class PIPAtom3DDataset(ProcessorDataset):
     def __init__(self, lmdb_path,
+                 subunits_mapping,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/',
-                 subunits_mapping=None):
+                 recompute=False,
+                 verbose=False):
         super().__init__(lmdb_path=lmdb_path,
                          geometry_path=geometry_path,
                          operator_path=operator_path,
-                         subunits_mapping=subunits_mapping)
+                         subunits_mapping=subunits_mapping,
+                         recompute=recompute,
+                         verbose=verbose)
 
     def __getitem__(self, index):
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         unique_name, lmdb_id = self.systems_to_compute[index]
         lmdb_item = self._lmdb_dataset[lmdb_id]
 

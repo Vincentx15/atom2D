@@ -70,8 +70,6 @@ class PIPDataset(Atom3DDataset):
                  and the geometry objects necessary to embed the surfaces
         """
         try:
-            if self._lmdb_dataset is None:
-                self._lmdb_dataset = LMDBDataset(self.lmdb_path)
             item = self._lmdb_dataset[index]
 
             # Subunits

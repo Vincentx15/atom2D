@@ -1,4 +1,4 @@
-import diffusion_net
+import diff_net
 import torch
 import torch.nn as nn
 
@@ -12,12 +12,13 @@ from torch_geometric.nn import GCNConv
 import torch.nn.functional as F
 
 
-def create_pyg_graph_object(coords, features):
+def create_pyg_graph_object(coords, features, sigma=4):
     num_nodes = len(coords)
 
     # Calculate pairwise distances using torch.cdist
     with torch.no_grad():
         pairwise_distances = torch.cdist(coords, coords)
+        rbf_weights = torch.exp(-pairwise_distances / sigma)
 
         # Create edge index using torch.triu_indices and remove self-loops
         row, col = torch.triu_indices(num_nodes, num_nodes, offset=1)
@@ -27,7 +28,7 @@ def create_pyg_graph_object(coords, features):
         edge_index = torch.cat([edge_index, edge_index.flip(0)], dim=1)
 
         # Extract edge weights from pairwise_distances using the created edge_index
-        edge_weight = pairwise_distances[row, col]
+        edge_weight = rbf_weights[row, col]
         edge_weight = torch.cat([edge_weight, edge_weight], dim=0)
 
     return Data(x=features, edge_index=edge_index, edge_weight=edge_weight)
@@ -77,10 +78,10 @@ class MSPSurfNet(torch.nn.Module):
         self.in_channels = in_channels
         self.out_channel = out_channel
         # Create the model
-        self.diff_net_model = diffusion_net.layers.DiffusionNet(C_in=in_channels,
-                                                                C_out=out_channel,
-                                                                C_width=10,
-                                                                last_activation=torch.relu)
+        self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=10,
+                                                           last_activation=torch.relu)
         self.gcn = GCN(num_features=2 * (out_channel + 1), hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)
         self.top_mlp = get_mlp(in_features=out_channel,
@@ -121,7 +122,8 @@ class MSPSurfNet(torch.nn.Module):
 
         orig_nodes = self.gcn(orig_graph)
         mut_nodes = self.gcn(mut_graph)
-        x = torch.mean(torch.cat((orig_nodes, mut_nodes), dim=-2), dim=-2)  # meanpool
+        x = torch.cat((orig_nodes, mut_nodes), dim=-2)  # TODO
+        x = torch.mean(x, dim=-2)  # meanpool
         x = self.top_mlp(x)
         x = torch.sigmoid(x)
         return x

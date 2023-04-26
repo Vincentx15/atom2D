@@ -9,7 +9,6 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing.preprocessor_dataset import DryRunDataset, ProcessorDataset
-from atom3d.datasets import LMDBDataset
 
 
 class MSPDryRunDataset(DryRunDataset):
@@ -23,9 +22,6 @@ class MSPDryRunDataset(DryRunDataset):
         :param index:
         :return:
         """
-
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
 
         # mutation is like AD56G which means Alanine (A) in chain D resnum 56 (D56) -> Glycine (G)
@@ -36,7 +32,7 @@ class MSPDryRunDataset(DryRunDataset):
         return names
 
 
-class MSPAtom3DDataset(ProcessorDataset):
+class MSPPreprocessDataset(ProcessorDataset):
     """
     In this task, the loader returns two protein interfaces an original and mutated one.
 
@@ -48,17 +44,20 @@ class MSPAtom3DDataset(ProcessorDataset):
     Then, it feeds the concatenation of these representations to an MLP
     """
 
-    def __init__(self, lmdb_path, subunits_mapping,
+    def __init__(self, lmdb_path,
+                 subunits_mapping,
                  geometry_path='../data/MSP/geometry/',
-                 operator_path='../data/MSP/operator/'):
+                 operator_path='../data/MSP/operator/',
+                 recompute=False,
+                 verbose=False):
         super().__init__(lmdb_path=lmdb_path,
                          geometry_path=geometry_path,
                          operator_path=operator_path,
-                         subunits_mapping=subunits_mapping)
+                         subunits_mapping=subunits_mapping,
+                         recompute=recompute,
+                         verbose=verbose)
 
     def __getitem__(self, index):
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         unique_name, lmdb_id = self.systems_to_compute[index]
         lmdb_item = self._lmdb_dataset[lmdb_id]
 
@@ -81,8 +80,6 @@ class MSPAtom3DDataset(ProcessorDataset):
         position = names.index(unique_name)
         return self.process_one(name=unique_name, df=dfs[position], index=index)
 
-        # return self.process_lists(names=names, dfs=dfs, index=index)
-
 
 if __name__ == '__main__':
     pass
@@ -93,5 +90,5 @@ if __name__ == '__main__':
         print(f"Processing for MSP, {mode} set")
         data_dir = f'../data/MSP/{mode}'
         subunits_mapping = MSPDryRunDataset(lmdb_path=data_dir).get_mapping()
-        dataset = MSPAtom3DDataset(lmdb_path=data_dir, subunits_mapping=subunits_mapping)
+        dataset = MSPPreprocessDataset(lmdb_path=data_dir, subunits_mapping=subunits_mapping)
         dataset.run_preprocess()

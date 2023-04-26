@@ -1,4 +1,4 @@
-import diffusion_net
+import diff_net
 import torch
 import torch.nn as nn
 
@@ -13,10 +13,10 @@ class PSRSurfNet(torch.nn.Module):
         self.in_channels = in_channels
         self.out_channel = out_channel
         # Create the model
-        self.diff_net_model = diffusion_net.layers.DiffusionNet(C_in=in_channels,
-                                                                C_out=out_channel,
-                                                                C_width=10,
-                                                                last_activation=torch.relu)
+        self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=10,
+                                                           last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         layers = []
         # Top FCs
@@ -49,13 +49,13 @@ class PSRSurfNet(torch.nn.Module):
         :return:
         """
 
-        dict_feat_left = unwrap_feats(x, device=self.device)
+        dict_feat = unwrap_feats(x, device=self.device)
 
         # We need the vertices to push back the points.
         # We also have to remove them from the dict to feed into diff_net
-        _ = dict_feat_left.pop('vertices')
+        _ = dict_feat.pop('vertices')
 
-        processed = self.diff_net_model(**dict_feat_left)
+        processed = self.diff_net_model(**dict_feat)
         x = torch.max(processed, dim=-2).values
         x = self.top_net(x)
         return x

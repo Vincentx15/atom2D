@@ -23,8 +23,6 @@ class PSRDryRunDataset(DryRunDataset):
         :param index:
         :return:
         """
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         item = self._lmdb_dataset[index]
         # item[id] has a weird formatting
         name = item['id']
@@ -42,15 +40,17 @@ class PSRAtom3DDataset(ProcessorDataset):
     def __init__(self, lmdb_path,
                  subunits_mapping,
                  geometry_path='../data/PSR/geometry/',
-                 operator_path='../data/PSR/operator/'):
+                 operator_path='../data/PSR/operator/',
+                 recompute=False,
+                 verbose=False):
         super().__init__(lmdb_path=lmdb_path,
                          geometry_path=geometry_path,
                          operator_path=operator_path,
-                         subunits_mapping=subunits_mapping)
+                         subunits_mapping=subunits_mapping,
+                         recompute=recompute,
+                         verbose=verbose)
 
     def __getitem__(self, index):
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
         _, lmdb_id = self.systems_to_compute[index]
         lmdb_item = self._lmdb_dataset[lmdb_id]
 

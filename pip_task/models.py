@@ -1,4 +1,4 @@
-import diffusion_net
+import diff_net
 import torch
 import torch.nn as nn
 
@@ -13,10 +13,10 @@ class PIPNet(torch.nn.Module):
         self.in_channels = in_channels
         self.out_channel = out_channel
         # Create the model
-        self.diff_net_model = diffusion_net.layers.DiffusionNet(C_in=in_channels,
-                                                                C_out=out_channel,
-                                                                C_width=10,
-                                                                last_activation=torch.relu)
+        self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=10,
+                                                           last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         in_features = 2 * (out_channel + 1)
         layers = []

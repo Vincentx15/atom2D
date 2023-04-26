@@ -76,12 +76,14 @@ class Atom3DDataset(torch.utils.data.Dataset):
     """
 
     def __init__(self, lmdb_path, geometry_path, operator_path):
-        # _lmdb_dataset = LMDBDataset(lmdb_path)
-        self._lmdb_dataset = None
+        self._lmdb_dataset = LMDBDataset(lmdb_path)
         self.lmdb_path = lmdb_path
         self.geometry_path = geometry_path
         self.operator_path = operator_path
         self.failed_set = set()
+
+    def __len__(self) -> int:
+        return len(self._lmdb_dataset)
 
     def get_geometry_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
@@ -91,7 +93,7 @@ class Atom3DDataset(torch.utils.data.Dataset):
 
 
 class ProcessorDataset(Atom3DDataset):
-    def __init__(self, lmdb_path, geometry_path, operator_path, subunits_mapping):
+    def __init__(self, lmdb_path, geometry_path, operator_path, subunits_mapping, recompute=False, verbose=False):
         """
 
         :param lmdb_path:
@@ -102,6 +104,8 @@ class ProcessorDataset(Atom3DDataset):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.failed_set = set()
         self.systems_to_compute = [(unique_name, lmdb_ids[0]) for unique_name, lmdb_ids in subunits_mapping.items()]
+        self.recompute = recompute
+        self.verbose = verbose
 
     def __len__(self) -> int:
         return len(self.systems_to_compute)
@@ -119,6 +123,7 @@ class ProcessorDataset(Atom3DDataset):
         :param dataset:
         :return:
         """
+
         # Finally, we need to iterate to precompute all relevant surfaces and operators
 
         def load_batch(dataloader_iterator):
@@ -185,8 +190,8 @@ class ProcessorDataset(Atom3DDataset):
                                        name=name,
                                        dump_surf_dir=dump_surf_dir,
                                        dump_operator_dir=dump_operator_dir,
-                                       recompute=False,
-                                       verbose=False,
+                                       recompute=self.recompute,
+                                       verbose=self.verbose,
                                        clean_temp=False  # several chains are always computed,
                                        # making the computation buggy with cleaning
                                        )
@@ -201,9 +206,6 @@ class ProcessorDataset(Atom3DDataset):
         return 1, None
 
     def __getitem__(self, index):
-        if self._lmdb_dataset is None:
-            self._lmdb_dataset = LMDBDataset(self.lmdb_path)
-
         # unique_name, lmdb_id = self.systems_to_compute[index]
         # lmdb_item = self._lmdb_dataset[lmdb_id] ...
         raise NotImplementedError

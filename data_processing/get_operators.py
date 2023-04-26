@@ -2,7 +2,7 @@ import numpy as np
 import os
 import scipy
 import torch
-from diffusion_net import geometry, utils
+from diff_net import geometry, utils
 
 """
 In this file, we define functions to make the following transformations :

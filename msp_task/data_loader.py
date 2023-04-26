@@ -36,8 +36,6 @@ class MSPDataset(Atom3DDataset):
         """
 
         try:
-            if self._lmdb_dataset is None:
-                self._lmdb_dataset = LMDBDataset(self.lmdb_path)
             item = self._lmdb_dataset[index]
 
             # mutation is like AD56G which means Alanine (A) in chain D residue number 56 (D56) -> Glycine (G)

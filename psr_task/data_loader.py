@@ -34,8 +34,6 @@ class PSRDataset(Atom3DDataset):
         """
 
         try:
-            if self._lmdb_dataset is None:
-                self._lmdb_dataset = LMDBDataset(self.lmdb_path)
             item = self._lmdb_dataset[index]
 
             df = item['atoms'].reset_index(drop=True)
