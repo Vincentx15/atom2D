@@ -13,18 +13,15 @@ class PIPDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         data_dir = self.data_dir / "train"
-        subunits_mapping = PIPDryRunDataset(lmdb_path=data_dir).get_mapping()
-        dataset = PIPDataset(data_dir, subunits_mapping=subunits_mapping)
+        dataset = PIPDataset(data_dir)
         return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
 
     def val_dataloader(self):
         data_dir = self.data_dir / "val"
-        subunits_mapping = PIPDryRunDataset(lmdb_path=data_dir).get_mapping()
-        dataset = PIPDataset(data_dir, subunits_mapping=subunits_mapping)
+        dataset = PIPDataset(data_dir)
         return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
 
     def test_dataloader(self):
         data_dir = self.data_dir / "test"
-        subunits_mapping = PIPDryRunDataset(lmdb_path=data_dir).get_mapping()
-        dataset = PIPDataset(data_dir, subunits_mapping=subunits_mapping)
+        dataset = PIPDataset(data_dir)
         return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)

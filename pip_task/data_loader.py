@@ -1,20 +1,26 @@
+import os
+import sys
 import math
 import numpy as np
 import torch
 
 from atom3d.datasets import LMDBDataset
 
+
+if __name__ == '__main__':
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
+
 from atom2d_utils import atom3dutils
 from data_processing import main
-from data_processing.preprocessor_dataset import ProcessorDataset
+from data_processing.preprocessor_dataset import Atom3DDataset
 
 
-class PIPDataset(ProcessorDataset):
+class PIPDataset(Atom3DDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
-                 operator_path='../data/processed_data/operator/',
-                 subunits_mapping=dict()):
-        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path, subunits_mapping=subunits_mapping)
+                 operator_path='../data/processed_data/operator/'):
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
 
