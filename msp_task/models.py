@@ -12,7 +12,7 @@ from torch_geometric.nn import GCNConv
 import torch.nn.functional as F
 
 
-def create_pyg_graph_object(coords, features, sigma=4):
+def create_pyg_graph_object(coords, features, sigma=3):
     num_nodes = len(coords)
 
     # Calculate pairwise distances using torch.cdist
@@ -84,7 +84,7 @@ class MSPSurfNet(torch.nn.Module):
                                                            last_activation=torch.relu)
         self.gcn = GCN(num_features=2 * (out_channel + 1), hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)
-        self.top_mlp = get_mlp(in_features=out_channel,
+        self.top_mlp = get_mlp(in_features=2 * out_channel,
                                hidden_sizes=hidden_sizes,
                                drate=drate,
                                batch_norm=batch_norm)
@@ -122,8 +122,12 @@ class MSPSurfNet(torch.nn.Module):
 
         orig_nodes = self.gcn(orig_graph)
         mut_nodes = self.gcn(mut_graph)
-        x = torch.cat((orig_nodes, mut_nodes), dim=-2)  # TODO
-        x = torch.mean(x, dim=-2)  # meanpool
+
+        # meanpool each graph and concatenate
+        orig_emb = torch.mean(orig_nodes, dim=-2)
+        mut_emb = torch.mean(mut_nodes, dim=-2)
+        x = torch.cat((orig_emb, mut_emb), dim=-1)
+
         x = self.top_mlp(x)
         x = torch.sigmoid(x)
         return x
