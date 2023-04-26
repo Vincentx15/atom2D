@@ -1,16 +1,9 @@
-import os
-import sys
-script_dir = os.path.dirname(os.path.realpath(__file__))  # todo to fix
-sys.path.append(os.path.join(script_dir, '..'))
-
 import diffusion_net
 import torch
 import torch.nn as nn
 
 from data_processing import point_cloud_utils
 from atom2d_utils.learning_utils import unwrap_feats
-
-
 
 
 class PIPNet(torch.nn.Module):
