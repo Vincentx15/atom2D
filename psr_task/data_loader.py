@@ -3,8 +3,6 @@ import sys
 
 import torch
 
-from atom3d.datasets import LMDBDataset
-
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
@@ -16,8 +14,10 @@ from data_processing.preprocessor_dataset import Atom3DDataset
 class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/PSR/geometry/',
-                 operator_path='../data/PSR/operator/'):
+                 operator_path='../data/PSR/operator/',
+                 recompute=True):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        self.recompute = recompute
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -47,7 +47,8 @@ class PSRDataset(Atom3DDataset):
             geom_feats = main.get_diffnetfiles(name=name,
                                                df=df,
                                                dump_surf_dir=self.get_geometry_dir(name),
-                                               dump_operator_dir=self.get_operator_dir(name))
+                                               dump_operator_dir=self.get_operator_dir(name),
+                                               recompute=self.recompute)
 
             return name, geom_feats, scores
         except Exception as e:

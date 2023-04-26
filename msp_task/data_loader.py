@@ -18,8 +18,10 @@ from atom2d_utils.learning_utils import list_from_numpy
 class MSPDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/MSP/geometry/',
-                 operator_path='../data/MSP/operator/'):
+                 operator_path='../data/MSP/operator/',
+                 recompute=True):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        self.recompute = recompute
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -64,11 +66,12 @@ class MSPDataset(Atom3DDataset):
             dfs = [left_orig, right_orig, left_mut, right_mut]
             geom_feats = [main.get_diffnetfiles(name=name, df=df,
                                                 dump_surf_dir=self.get_geometry_dir(name),
-                                                dump_operator_dir=self.get_operator_dir(name))
+                                                dump_operator_dir=self.get_operator_dir(name),
+                                                recompute=self.recompute)
                           for name, df in zip(names, dfs)]
 
             return names, geom_feats, coords, item['label']
-        except IndentationError as e:
+        except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
             return None, None, None, None

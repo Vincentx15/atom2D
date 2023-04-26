@@ -101,18 +101,19 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
         if vertices is None or faces is None:
             vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
         operators = get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=dump_operator_file,
-                                        recompute=recompute)
+                                                    recompute=recompute)
 
     return is_valid_mesh
 
 
-def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir):
+def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True):
     """
     Get all relevant files, potentially recomputing them as needed
     :param name: The name of the queried file
     :param df: The corresponding dataframe
     :param dump_surf_dir: Where to store the geometry (ply)
     :param dump_operator_dir: Where to store the operators
+    :param recompute: If file is missing, shall we recompute ?
     :return:
     """
     dump_surf_outname = os.path.join(dump_surf_dir, name)
@@ -120,14 +121,18 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir):
     features_file = f"{dump_surf_outname}_features.npz"
     operator_file = f"{dump_operator_dir}/{name}_operator.npz"
 
-    if not (os.path.exists(ply_file) and os.path.exists(features_file) and os.path.exists(operator_file)):
-        print(
-            f"For system : {name}, recomputing : "
-            f"{'geometry, ' if not os.path.exists(ply_file) else ''}"
-            f"{'features, ' if not os.path.exists(features_file) else ''}"
-            f"{'operator, ' if not os.path.exists(operator_file) else ''}"
-        )
-        process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator_dir)
+    need_recompute = not (os.path.exists(ply_file) and os.path.exists(features_file) and os.path.exists(operator_file))
+    if need_recompute:
+        if recompute:
+            print(
+                f"For system : {name}, recomputing : "
+                f"{'geometry, ' if not os.path.exists(ply_file) else ''}"
+                f"{'features, ' if not os.path.exists(features_file) else ''}"
+                f"{'operator, ' if not os.path.exists(operator_file) else ''}"
+            )
+            process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator_dir)
+        else:
+            raise FileNotFoundError("The precomputed file could not be found for ", name)
 
     vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
     features_dump = np.load(features_file)

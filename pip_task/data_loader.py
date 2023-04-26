@@ -1,8 +1,14 @@
+import os
+import sys
+
 import math
 import numpy as np
 import torch
 
-from atom3d.datasets import LMDBDataset
+if __name__ == '__main__':
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
+
 from atom2d_utils import atom3dutils
 from data_processing import main
 from data_processing.preprocessor_dataset import Atom3DDataset
@@ -11,10 +17,12 @@ from data_processing.preprocessor_dataset import Atom3DDataset
 class PIPDataset(Atom3DDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
-                 operator_path='../data/processed_data/operator/'):
+                 operator_path='../data/processed_data/operator/',
+                 recompute=True):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
+        self.recompute = recompute
 
     def _num_to_use(self, num_pos, num_neg):
         """
@@ -101,12 +109,16 @@ class PIPDataset(Atom3DDataset):
             pos_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas]))
             neg_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas]))
 
-            geom_feats_0 = main.get_diffnetfiles(name=names_used[0], df=structs_df[0],
+            geom_feats_0 = main.get_diffnetfiles(name=names_used[0],
+                                                 df=structs_df[0],
                                                  dump_surf_dir=self.get_geometry_dir(names_used[0]),
-                                                 dump_operator_dir=self.get_operator_dir(names_used[0]))
-            geom_feats_1 = main.get_diffnetfiles(name=names_used[1], df=structs_df[1],
+                                                 dump_operator_dir=self.get_operator_dir(names_used[0]),
+                                                 recompute=self.recompute)
+            geom_feats_1 = main.get_diffnetfiles(name=names_used[1],
+                                                 df=structs_df[1],
                                                  dump_surf_dir=self.get_geometry_dir(names_used[1]),
-                                                 dump_operator_dir=self.get_operator_dir(names_used[1]))
+                                                 dump_operator_dir=self.get_operator_dir(names_used[1]),
+                                                 recompute=self.recompute)
             return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
         except Exception as e:
             print("------------------")
