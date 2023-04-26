@@ -9,9 +9,11 @@ if __name__ == "__main__":
     sys.path.append(os.path.join(script_dir, ".."))
 
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
+from atom2d_utils import learning_utils
 
 
-def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False, clean_temp=True):
+def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False,
+               clean_temp=True):
     """
     The whole process of data creation, from df format of atom3D to ply files and precomputed operators.
 
@@ -52,7 +54,9 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     ply_ex = os.path.exists(ply_file)
     feat_ex = os.path.exists(features_file)
     ope_ex = os.path.exists(dump_operator_file)
-    need_recompute = not os.path.exists(ply_file) or not os.path.exists(features_file) or not os.path.exists(dump_operator_file)
+    need_recompute = not os.path.exists(ply_file) or \
+                     not os.path.exists(features_file) or \
+                     not os.path.exists(dump_operator_file)
     if not (need_recompute or recompute):
         return is_valid_mesh
     if verbose:
@@ -72,11 +76,13 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     if not os.path.exists(ply_file) or recompute:
         if verbose:
             print(f"Computing surface for {name} with msms")
-        verts, faces = surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number, clean_temp=clean_temp)
+        vertices, faces = surface_utils.pdb_to_surf_with_min(temp_pdb, out_name=dump_surf, min_number=min_number,
+                                                             clean_temp=clean_temp)
 
         if verbose:
             print(f"Simplifying surface for {name}")
-        vertices, faces, is_valid_mesh = surface_utils.mesh_simplification(verts=verts, faces=faces, out_ply=ply_file, vert_number=min_number)
+        vertices, faces, is_valid_mesh = surface_utils.mesh_simplification(verts=vertices, faces=faces,
+                                                                           out_ply=ply_file, vert_number=min_number)
 
     if not os.path.exists(features_file) or recompute:
         if verbose:
@@ -94,7 +100,8 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
             print(f"Computing operators for {name}")
         if vertices is None or faces is None:
             vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
-        get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=dump_operator_file, recompute=recompute)
+        operators = get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=dump_operator_file,
+                                        recompute=recompute)
 
     return is_valid_mesh
 
@@ -125,8 +132,12 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir):
     vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
     features_dump = np.load(features_file)
     features, confidence = features_dump["features"], features_dump["confidence"]
-    frames, mass, _, evals, evecs, grad_x, grad_y = get_operators.surf_to_operators(vertices=vertices, faces=faces, npz_path=operator_file)
-    return features, confidence, vertices, mass, torch.rand(1, 3), evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces
+    vertices, faces, features, confidence = learning_utils.list_from_numpy([vertices, faces, features, confidence])
+    frames, mass, _, evals, evecs, grad_x, grad_y = get_operators.surf_to_operators(vertices=vertices,
+                                                                                    faces=faces,
+                                                                                    npz_path=operator_file)
+    return features, confidence, vertices, mass, torch.rand(1,
+                                                            3), evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces
 
 
 if __name__ == "__main__":
@@ -141,12 +152,10 @@ if __name__ == "__main__":
     df = pd.read_csv(df_path, keep_default_na=False)
     df_utils.df_to_pdb(df, pdb_path)
     out_name = os.path.join(root_dir, "4kt3_mesh")
-    vert_file = f"{out_name}.vert"
-    faces_file = f"{out_name}.face"
     ply_file = os.path.join(root_dir, "4kt3_mesh.ply")
 
-    surface_utils.pdb_to_surf_with_min(pdb=pdb_path, out_name=out_name)
-    surface_utils.mesh_simplification(vert_file=vert_file, face_file=faces_file, out_ply=ply_file, vert_number=1000)
+    verts, faces = surface_utils.pdb_to_surf_with_min(pdb=pdb_path, out_name=out_name)
+    surface_utils.mesh_simplification(verts=verts, faces=faces, out_ply=ply_file, vert_number=1000)
 
     # ply -> operators + features
     features_file = os.path.join(root_dir, "4kt3_features.npz")
@@ -157,4 +166,7 @@ if __name__ == "__main__":
     np.savez_compressed(features_file, **{"features": features, "confidence": confidence})
 
     # All at once
-    process_df(df=df, name="4kt3", dump_surf_dir="../data/example_files/4kt3", dump_operator_dir="../data/example_files/4kt3", recompute=True)
+    process_df(df=df, name="4kt3",
+               dump_surf_dir="../data/example_files/4kt3",
+               dump_operator_dir="../data/example_files/4kt3",
+               recompute=True)
