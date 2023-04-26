@@ -50,7 +50,7 @@ class PSRDataset(Atom3DDataset):
                                                dump_operator_dir=self.get_operator_dir(name),
                                                recompute=self.recompute)
 
-            return name, geom_feats, scores['gdt_ts']
+            return name, geom_feats, torch.tensor([scores['gdt_ts']])
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")

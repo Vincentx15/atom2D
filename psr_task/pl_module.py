@@ -1,7 +1,7 @@
 import torch
 import pytorch_lightning as pl
 import torchmetrics
-from models import MSPSurfNet
+from models import PSRSurfNet
 
 
 class PSRModule(pl.LightningModule):
@@ -15,18 +15,18 @@ class PSRModule(pl.LightningModule):
         self.val_accuracy = mean.clone()
         self.test_accuracy = mean.clone()
 
-        self.model = MSPSurfNet()
-        self.criterion = torch.nn.BCELoss()
+        self.model = PSRSurfNet()
+        self.criterion = torch.nn.MSELoss()
 
     def forward(self, x):
-        return self.model(*x)
+        return self.model(x)
 
     def step(self, data):
         name, geom_feats, scores = data[0]
         if name is None:
             return None, None, None
 
-        output = self((geom_feats))
+        output = self(geom_feats)
         loss = self.criterion(output, scores)
         return loss, output.flatten(), scores
 
@@ -38,10 +38,6 @@ class PSRModule(pl.LightningModule):
         self.log_dict({"loss/train": loss.cpu().detach()},
                       on_step=True, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
-        self.train_accuracy(logits, labels)
-        self.train_auroc(logits, labels)
-        self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True)
-
         return loss
 
     def validation_step(self, batch, batch_idx: int):
@@ -52,10 +48,6 @@ class PSRModule(pl.LightningModule):
         self.log_dict({"loss/val": loss.cpu().detach()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
-        self.val_accuracy(logits, labels)
-        self.val_auroc(logits, labels)
-        self.log_dict({"acc/val": self.val_accuracy, "auroc/val": self.val_auroc}, on_epoch=True)
-
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
         if loss is None:
@@ -63,10 +55,6 @@ class PSRModule(pl.LightningModule):
 
         self.log_dict({"loss/test": loss.cpu().detach()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
-
-        self.test_accuracy(logits, labels)
-        self.test_auroc(logits, labels)
-        self.log_dict({"acc/test": self.test_accuracy, "auroc/test": self.test_auroc}, on_epoch=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -79,5 +67,6 @@ class PSRModule(pl.LightningModule):
 
         name, geom_feats, scores = batch[0]
         geom_feats = [x.to(self.device) for x in geom_feats]
+        scores = scores.to(self.device)
         batch = [(name, geom_feats, scores)]
         return batch

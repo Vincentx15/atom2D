@@ -162,3 +162,4 @@ pdb_to_xyzrn
 old_data/*
 pip_task/logs/*
 msp_task/logs/*
+psr_task/logs/*
