@@ -10,6 +10,7 @@ conda activate atom2d
 conda install python=3.8
 conda install pytorch=1.13 torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install -r requirements.txt
+conda install pyg -c pyg
 ```
 
 ## Data

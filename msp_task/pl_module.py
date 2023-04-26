@@ -27,15 +27,16 @@ class MSPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data[0]
-        if names_0 is None or pos_pairs_cas_arr.numel() == 0 or neg_pairs_cas_arr.numel() == 0:
+        name, geom_feats, coords, label = data[0]
+        if name is None:
             return None, None, None
 
-        all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
-        labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
-        output = self((geom_feats_0, geom_feats_1, all_pairs))
-        loss = self.criterion(output, labels)
-        return loss, output.flatten(), labels.flatten()
+        label = torch.tensor([int(label)]).float().to(self.device)
+        geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
+        coords = [x.to(self.device) for x in coords]
+        output = self((geom_feats, coords))
+        loss = self.criterion(output, label)
+        return loss, output.flatten(), label
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)

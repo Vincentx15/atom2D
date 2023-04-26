@@ -5,7 +5,7 @@ from data_loader import MSPDataset
 
 
 class MSPDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir="../data/MSP/DIPS-split/data/", batch_size=1):
+    def __init__(self, data_dir="../data/MSP/", batch_size=1):
         super().__init__()
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size

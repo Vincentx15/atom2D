@@ -69,7 +69,7 @@ class MSPDataset(Atom3DDataset):
                                                 recompute=self.recompute)
                           for name, df in zip(names, dfs)]
 
-            return names, geom_feats, coords, item['label']
+            return names, geom_feats, coords, torch.tensor([float(item['label'])])
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
