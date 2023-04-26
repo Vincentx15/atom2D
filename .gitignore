@@ -161,3 +161,4 @@ msms.x86_64Linux2.2.6.1.staticgcc
 pdb_to_xyzrn
 old_data/*
 pip_task/logs/*
+msp_task/logs/*
