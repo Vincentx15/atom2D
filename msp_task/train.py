@@ -8,7 +8,8 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from pl_module import MSPModule
-from data_module import MSPDataModule
+from data_processing.data_module import PLDataModule
+from data_loader import MSPDataset
 
 
 def main():
@@ -43,7 +44,7 @@ def main():
     )
 
     # datamodule
-    datamodule = MSPDataModule()
+    datamodule = PLDataModule(MSPDataset, "../data/MSP/")
 
     # train
     trainer.fit(model, datamodule=datamodule)
