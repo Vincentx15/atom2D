@@ -20,14 +20,14 @@ class PIPModule(pl.LightningModule):
         self.criterion = torch.nn.BCELoss()
 
     def forward(self, x):
-        return self.model(x)
+        return self.model(*x)
 
     def step(self, data):
-        names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data
+        names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data[0]
 
         all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
-        labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr))))
-        output = self(geom_feats_0, geom_feats_1, all_pairs)
+        labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
+        output = self((geom_feats_0, geom_feats_1, all_pairs))
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
 

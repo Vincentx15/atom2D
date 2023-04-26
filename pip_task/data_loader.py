@@ -3,6 +3,7 @@ import sys
 
 import math
 import numpy as np
+import torch
 
 from atom3d.datasets import LMDBDataset
 
@@ -108,8 +109,8 @@ class PIPDataset(ProcessorDataset):
 
             pos_pairs_cas = self._get_res_pair_ca_coords(pos_samples_df, structs_df)
             neg_pairs_cas = self._get_res_pair_ca_coords(neg_samples_df, structs_df)
-            pos_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas])
-            neg_pairs_cas_arrs = np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas])
+            pos_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas]))
+            neg_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas]))
 
             geom_feats_0 = main.get_diffnetfiles(name=names_used[0], df=structs_df[0],
                                                  dump_surf_dir=self.get_geometry_dir(names_used[0]),
