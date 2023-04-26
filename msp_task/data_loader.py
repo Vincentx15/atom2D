@@ -3,7 +3,6 @@ import sys
 
 import torch
 
-from atom3d.datasets import LMDBDataset
 from atom3d.util.formats import get_coordinates_from_df
 
 if __name__ == '__main__':

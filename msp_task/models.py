@@ -5,8 +5,6 @@ import torch.nn as nn
 from atom2d_utils.learning_utils import unwrap_feats
 from data_processing.point_cloud_utils import torch_rbf
 
-import torch
-import numpy as np
 from torch_geometric.data import Data
 from torch_geometric.nn import GCNConv
 import torch.nn.functional as F
