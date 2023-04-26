@@ -4,21 +4,16 @@ import torchmetrics
 from models import MSPSurfNet
 
 
-class MSPModule(pl.LightningModule):
+class PSRModule(pl.LightningModule):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
         # self.save_hyperparameters()
 
-        accuracy = torchmetrics.Accuracy(task="binary")
-        self.train_accuracy = accuracy.clone()
-        self.val_accuracy = accuracy.clone()
-        self.test_accuracy = accuracy.clone()
-
-        auroc = torchmetrics.AUROC(task="binary")
-        self.train_auroc = auroc.clone()
-        self.val_auroc = auroc.clone()
-        self.test_auroc = auroc.clone()
+        mean = torchmetrics.MeanMetric()
+        self.train_accuracy = mean.clone()
+        self.val_accuracy = mean.clone()
+        self.test_accuracy = mean.clone()
 
         self.model = MSPSurfNet()
         self.criterion = torch.nn.BCELoss()
@@ -27,13 +22,13 @@ class MSPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        name, geom_feats, coords, label = data[0]
+        name, geom_feats, scores = data[0]
         if name is None:
             return None, None, None
 
-        output = self((geom_feats, coords))
-        loss = self.criterion(output, label)
-        return loss, output.flatten(), label
+        output = self((geom_feats))
+        loss = self.criterion(output, scores)
+        return loss, output.flatten(), scores
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
@@ -82,9 +77,7 @@ class MSPModule(pl.LightningModule):
         if batch[0][0] is None:
             return batch
 
-        name, geom_feats, coords, label = batch[0]
-        label = label.to(self.device)
-        geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
-        coords = [x.to(self.device) for x in coords]
-        batch = [(name, geom_feats, coords, label)]
+        name, geom_feats, scores = batch[0]
+        geom_feats = [x.to(self.device) for x in geom_feats]
+        batch = [(name, geom_feats, scores)]
         return batch
