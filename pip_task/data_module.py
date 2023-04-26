@@ -2,7 +2,6 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from data_loader import PIPDataset
-from preprocess_data import PIPDryRunDataset
 
 
 class PIPDataModule(pl.LightningDataModule):
