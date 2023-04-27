@@ -1,5 +1,6 @@
 import os
 import sys
+import yaml
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
@@ -12,15 +13,15 @@ from data_processing.data_module import PLDataModule
 from data_loader import PIPDataset
 
 
-def main():
-    seed = 2023
+def main(cfg):
+    seed = cfg.seed
     pl.seed_everything(seed, workers=True)
 
     # init model
-    model = PIPModule()
+    model = PIPModule(cfg)
 
     # init logger
-    tb_logger = TensorBoardLogger(save_dir="./logs")
+    tb_logger = TensorBoardLogger(save_dir=cfg.log_dir)
     loggers = [tb_logger]
 
     # callbacks
@@ -30,8 +31,8 @@ def main():
     # init trainer
     trainer = pl.Trainer(
         accelerator="gpu",
-        devices=[0],
-        max_epochs=100,
+        devices=[cfg.device],
+        max_epochs=cfg.epochs,
         callbacks=callbacks,
         logger=loggers,
         # fast_dev_run=True,
@@ -44,7 +45,7 @@ def main():
     )
 
     # datamodule
-    datamodule = PLDataModule(PIPDataset, "../data/PIP/DIPS-split/data/")
+    datamodule = PLDataModule(PIPDataset, cfg.dataset.data_dir, cfg.loader)
 
     # train
     trainer.fit(model, datamodule=datamodule)
@@ -54,4 +55,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    cfg = yaml.safe_load(open("config.yaml", "r"))
+    main(cfg)

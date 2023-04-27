@@ -6,9 +6,9 @@ from models import PIPNet
 
 class PIPModule(pl.LightningModule):
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, hparams) -> None:
         super().__init__()
-        # self.save_hyperparameters()
+        self.save_hyperparameters()
 
         accuracy = torchmetrics.Accuracy(task="binary")
         self.train_accuracy = accuracy.clone()
@@ -20,7 +20,7 @@ class PIPModule(pl.LightningModule):
         self.val_auroc = auroc.clone()
         self.test_auroc = auroc.clone()
 
-        self.model = PIPNet()
+        self.model = PIPNet(**hparams.model)
         self.criterion = torch.nn.BCELoss()
 
     def forward(self, x):
