@@ -15,7 +15,7 @@ class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/PSR/geometry/',
                  operator_path='../data/PSR/operator/',
-                 recompute=True):
+                 recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.recompute = recompute
 
@@ -49,7 +49,8 @@ class PSRDataset(Atom3DDataset):
                                                dump_surf_dir=self.get_geometry_dir(name),
                                                dump_operator_dir=self.get_operator_dir(name),
                                                recompute=self.recompute)
-
+            if geom_feats is None:
+                return None, None, None
             return name, geom_feats, torch.tensor([scores['gdt_ts']])
         except Exception as e:
             print("------------------")

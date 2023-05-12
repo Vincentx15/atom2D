@@ -18,7 +18,7 @@ class PIPDataset(Atom3DDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/',
-                 recompute=True):
+                 recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
@@ -119,6 +119,8 @@ class PIPDataset(Atom3DDataset):
                                                  dump_surf_dir=self.get_geometry_dir(names_used[1]),
                                                  dump_operator_dir=self.get_operator_dir(names_used[1]),
                                                  recompute=self.recompute)
+            if geom_feats_0 is None or geom_feats_1 is None:
+                return None, None, None, None, None, None
             return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
         except Exception as e:
             print("------------------")

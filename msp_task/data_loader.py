@@ -18,7 +18,7 @@ class MSPDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/MSP/geometry/',
                  operator_path='../data/MSP/operator/',
-                 recompute=True):
+                 recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.recompute = recompute
 
@@ -68,7 +68,8 @@ class MSPDataset(Atom3DDataset):
                                                 dump_operator_dir=self.get_operator_dir(name),
                                                 recompute=self.recompute)
                           for name, df in zip(names, dfs)]
-
+            if any([geom_feat is None for geom_feat in geom_feats]):
+                return None, None, None, None
             return names, geom_feats, coords, torch.tensor([float(item['label'])])
         except Exception as e:
             print("------------------")
