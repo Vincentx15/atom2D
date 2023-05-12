@@ -1,6 +1,6 @@
 import os
 import sys
-import hydra
+from omegaconf import OmegaConf
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
@@ -13,9 +13,8 @@ from data_processing.data_module import PLDataModule
 from data_loader import PIPDataset
 
 
-@hydra.main(config_path="./", config_name="config")
 def main(cfg=None):
-    command = f"{'_'.join(sys.argv)}"
+    command = f"{'_'.join(sys.argv[1:])}"
     seed = cfg.seed
     pl.seed_everything(seed, workers=True)
 
@@ -25,7 +24,7 @@ def main(cfg=None):
     # init logger
     version = TensorBoardLogger(save_dir=cfg.log_dir).version
     version_name = f"version_{version}_{command}"
-    tb_logger = TensorBoardLogger(save_dir=cfg.tb_save_dir, version=version_name)
+    tb_logger = TensorBoardLogger(save_dir=cfg.log_dir, version=version_name)
     loggers = [tb_logger]
 
     # callbacks
@@ -49,7 +48,7 @@ def main(cfg=None):
     )
 
     # datamodule
-    datamodule = PLDataModule(PIPDataset, cfg.dataset, cfg.loader.batch_size)
+    datamodule = PLDataModule(PIPDataset, cfg.dataset.data_dir, cfg.loader.batch_size_train)
 
     # train
     trainer.fit(model, datamodule=datamodule)
@@ -59,4 +58,5 @@ def main(cfg=None):
 
 
 if __name__ == "__main__":
-    main()
+    cfg = OmegaConf.load("config.yaml")
+    main(cfg)

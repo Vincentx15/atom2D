@@ -6,3 +6,4 @@ robust-laplacian
 potpourri3d
 pytorch-lightning==1.9.0
 tensorboard
+omegaconf==2.1.2
