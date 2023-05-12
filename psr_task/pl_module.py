@@ -91,15 +91,23 @@ class PSRModule(pl.LightningModule):
         self.log_dict({"loss/test": loss.cpu().detach()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
-    def on_validation_end(self):
+    def on_validation_epoch_end(self):
+        # Do the computation over the epoch results and reset the epoch variables
         global_r, local_r = rs_metric(self.val_reslist, self.val_resdict)
+        self.val_reslist = list()
+        self.val_resdict = defaultdict(list)
+
         print(f" Global R validation: {global_r}")
         print(f" Local R validation : {local_r}")
         self.log_dict({"global_r/val": global_r})
         self.log_dict({"local_r/val": local_r})
 
-    def on_test_end(self):
+    def on_test_epoch_end(self):
+        # Do the computation over the epoch results and reset the epoch variables
         global_r, local_r = rs_metric(self.test_reslist, self.test_resdict)
+        self.test_reslist = list()
+        self.test_resdict = defaultdict(list)
+
         print(f" Global R test: {global_r}")
         print(f" Local R test : {local_r}")
         self.log_dict({"global_r/test": global_r})

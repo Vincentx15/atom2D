@@ -132,7 +132,7 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
             )
             process_df(df=df, name=name, dump_surf_dir=dump_surf_dir, dump_operator_dir=dump_operator_dir)
         else:
-            return (None,) * 10
+            return None
             # raise FileNotFoundError("The precomputed file could not be found for ", name)
 
     vertices, faces = surface_utils.read_vertices_and_triangles(ply_file=ply_file)
