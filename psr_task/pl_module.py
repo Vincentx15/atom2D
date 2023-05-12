@@ -38,6 +38,7 @@ class PSRModule(pl.LightningModule):
         self.test_resdict = defaultdict(list)
 
         self.model = PSRSurfNet()
+        # a = sum(dict((p.data_ptr(), p.numel()) for p in self.model.parameters()).values())
         self.criterion = torch.nn.MSELoss()
 
     def forward(self, x):

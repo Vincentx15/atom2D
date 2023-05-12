@@ -20,7 +20,7 @@ class PIPModule(pl.LightningModule):
         self.val_auroc = auroc.clone()
         self.test_auroc = auroc.clone()
 
-        self.model = PIPNet(**hparams.model)
+        self.model = PIPNet(**hparams['model'])
         self.criterion = torch.nn.BCELoss()
 
     def forward(self, x):
