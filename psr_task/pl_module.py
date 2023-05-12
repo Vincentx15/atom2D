@@ -22,9 +22,9 @@ def rs_metric(reslist, resdict):
 
 class PSRModule(pl.LightningModule):
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, hparams) -> None:
         super().__init__()
-        # self.save_hyperparameters()
+        self.save_hyperparameters()
 
         mean = torchmetrics.MeanMetric()
         self.train_accuracy = mean.clone()
@@ -37,8 +37,7 @@ class PSRModule(pl.LightningModule):
         self.test_reslist = list()
         self.test_resdict = defaultdict(list)
 
-        self.model = PSRSurfNet()
-        # a = sum(dict((p.data_ptr(), p.numel()) for p in self.model.parameters()).values())
+        self.model = PSRSurfNet(**hparams['model'])
         self.criterion = torch.nn.MSELoss()
 
     def forward(self, x):

@@ -71,7 +71,8 @@ def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
 
 class MSPSurfNet(torch.nn.Module):
 
-    def __init__(self, in_channels=5, out_channel=64, hidden_sizes=(128,), drate=0.3, batch_norm=False):
+    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
+                 batch_norm=False):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -79,7 +80,8 @@ class MSPSurfNet(torch.nn.Module):
         # Create the model
         self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
                                                            C_out=out_channel,
-                                                           C_width=10,
+                                                           C_width=C_width,
+                                                           N_block=N_block,
                                                            last_activation=torch.relu)
         self.gcn = GCN(num_features=2 * (out_channel + 1), hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)

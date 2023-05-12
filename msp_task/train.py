@@ -1,5 +1,7 @@
 import os
 import sys
+from omegaconf import OmegaConf
+
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
@@ -12,12 +14,16 @@ from data_processing.data_module import PLDataModule
 from data_loader import MSPDataset
 
 
-def main():
+def main(cfg=None):
     seed = 2023
     pl.seed_everything(seed, workers=True)
 
     # init model
-    model = MSPModule()
+    model = MSPModule(cfg)
+
+    # a = sum(dict((p.data_ptr(), p.numel()) for p in model.model.parameters()).values())
+    # print(a)
+    # sys.exit()
 
     # init logger
     tb_logger = TensorBoardLogger(save_dir="./logs")
@@ -30,8 +36,8 @@ def main():
     # init trainer
     trainer = pl.Trainer(
         accelerator="gpu",
-        devices=[0],
-        max_epochs=100,
+        devices=[cfg.device],
+        max_epochs=cfg.epochs,
         callbacks=callbacks,
         logger=loggers,
         # fast_dev_run=True,
@@ -44,7 +50,7 @@ def main():
     )
 
     # datamodule
-    datamodule = PLDataModule(MSPDataset, "../data/MSP/")
+    datamodule = PLDataModule(MSPDataset, cfg.dataset.data_dir)
 
     # train
     trainer.fit(model, datamodule=datamodule)
@@ -54,4 +60,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    cfg = OmegaConf.load("config.yaml")
+    main(cfg)

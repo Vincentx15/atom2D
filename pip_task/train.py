@@ -20,6 +20,9 @@ def main(cfg=None):
 
     # init model
     model = PIPModule(cfg)
+    # a = sum(dict((p.data_ptr(), p.numel()) for p in model.model.parameters()).values())
+    # print(a)
+    # sys.exit()
 
     # init logger
     version = TensorBoardLogger(save_dir=cfg.log_dir).version

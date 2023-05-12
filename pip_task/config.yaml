@@ -17,5 +17,7 @@ loader:
 model:
   in_channels: 5
   out_channel: 64
+  C_width: 96
+  N_block: 3
   dropout: 0.3
   batch_norm: False

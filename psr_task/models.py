@@ -7,7 +7,8 @@ from atom2d_utils.learning_utils import unwrap_feats
 
 class PSRSurfNet(torch.nn.Module):
 
-    def __init__(self, in_channels=5, out_channel=64, linear_sizes=(128,), dropout=True, drate=0.3, batch_norm=False):
+    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
+                 drate=0.3, batch_norm=False):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -15,7 +16,8 @@ class PSRSurfNet(torch.nn.Module):
         # Create the model
         self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
                                                            C_out=out_channel,
-                                                           C_width=10,
+                                                           C_width=C_width,
+                                                           N_block=N_block,
                                                            last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         layers = []
