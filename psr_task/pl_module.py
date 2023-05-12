@@ -1,7 +1,23 @@
-import torch
+from collections import defaultdict
+import numpy as np
 import pytorch_lightning as pl
+import scipy
+import torch
 import torchmetrics
+
 from models import PSRSurfNet
+
+
+def rs_metric(reslist, resdict):
+    all_lists = np.array(reslist)
+    global_r = scipy.stats.spearmanr(all_lists, axis=0).statistic
+    local_r = []
+    for system, lists in resdict.items():
+        lists = np.array(lists)
+        r = scipy.stats.spearmanr(lists, axis=0).statistic
+        local_r.append(r)
+    local_r = float(np.mean(local_r))
+    return global_r, local_r
 
 
 class PSRModule(pl.LightningModule):
@@ -15,6 +31,12 @@ class PSRModule(pl.LightningModule):
         self.val_accuracy = mean.clone()
         self.test_accuracy = mean.clone()
 
+        self.val_reslist = list()
+        self.val_resdict = defaultdict(list)
+
+        self.test_reslist = list()
+        self.test_resdict = defaultdict(list)
+
         self.model = PSRSurfNet()
         self.criterion = torch.nn.MSELoss()
 
@@ -24,14 +46,14 @@ class PSRModule(pl.LightningModule):
     def step(self, data):
         name, geom_feats, scores = data[0]
         if name is None:
-            return None, None, None
+            return None, None, None, None
 
         output = self(geom_feats)
         loss = self.criterion(output, scores)
-        return loss, output.flatten(), scores
+        return name, loss, output.flatten(), scores
 
     def training_step(self, batch, batch_idx):
-        loss, logits, labels = self.step(batch)
+        name, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
 
@@ -41,20 +63,46 @@ class PSRModule(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx: int):
-        loss, logits, labels = self.step(batch)
+        name, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
+
+        scores = logits.item()
+        output = labels.item()
+        reslist = [output, scores]
+        self.val_reslist.append(reslist)
+        self.val_resdict[name[:4]].append(reslist)
 
         self.log_dict({"loss/val": loss.cpu().detach()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
     def test_step(self, batch, batch_idx: int):
-        loss, logits, labels = self.step(batch)
+        name, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
 
+        scores = logits.item()
+        output = labels.item()
+        reslist = [output, scores]
+        self.test_reslist.append(reslist)
+        self.test_resdict[name[:4]].append(reslist)
+
         self.log_dict({"loss/test": loss.cpu().detach()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
+
+    def on_validation_end(self):
+        global_r, local_r = rs_metric(self.val_reslist, self.val_resdict)
+        print(f" Global R validation: {global_r}")
+        print(f" Local R validation : {local_r}")
+        self.log_dict({"global_r/val": global_r})
+        self.log_dict({"local_r/val": local_r})
+
+    def on_test_end(self):
+        global_r, local_r = rs_metric(self.test_reslist, self.test_resdict)
+        print(f" Global R test: {global_r}")
+        print(f" Local R test : {local_r}")
+        self.log_dict({"global_r/test": global_r})
+        self.log_dict({"local_r/test": local_r})
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
