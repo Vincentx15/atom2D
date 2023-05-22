@@ -24,3 +24,26 @@ class PLDataModule(pl.LightningDataModule):
         data_dir = self.data_dir / "test"
         dataset = self.dataset(data_dir)
         return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
+
+
+class PLDataModule2(pl.LightningDataModule):
+    def __init__(self, dataset, cfg):
+        super().__init__()
+        self.dataset = dataset
+        self.data_dir = Path(cfg.dataset.data_dir)
+        self.cfg = cfg
+
+    def train_dataloader(self):
+        data_dir = self.data_dir / "train"
+        dataset = self.dataset(data_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train, collate_fn=lambda x: x)
+
+    def val_dataloader(self):
+        data_dir = self.data_dir / "val"
+        dataset = self.dataset(data_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val, collate_fn=lambda x: x)
+
+    def test_dataloader(self):
+        data_dir = self.data_dir / "test"
+        dataset = self.dataset(data_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val, collate_fn=lambda x: x)
