@@ -37,7 +37,7 @@ class PSRModule(pl.LightningModule):
         self.test_reslist = list()
         self.test_resdict = defaultdict(list)
 
-        self.model = PSRSurfNet(**hparams['model'])
+        self.model = PSRSurfNet(**hparams.model)
         self.criterion = torch.nn.MSELoss()
 
     def forward(self, x):
@@ -100,6 +100,7 @@ class PSRModule(pl.LightningModule):
         print(f" Local R validation : {local_r}")
         self.log_dict({"global_r/val": global_r})
         self.log_dict({"local_r/val": local_r})
+        self.log("global_r_val", global_r, prog_bar=True, on_step=False, on_epoch=True, logger=False)
 
     def on_test_epoch_end(self):
         # Do the computation over the epoch results and reset the epoch variables

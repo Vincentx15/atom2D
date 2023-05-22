@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 
-class PLDataModule(pl.LightningDataModule):
+class PLDataModule2(pl.LightningDataModule):
     def __init__(self, dataset, data_dir="path/to/data", batch_size=1):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -26,7 +26,7 @@ class PLDataModule(pl.LightningDataModule):
         return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
 
 
-class PLDataModule2(pl.LightningDataModule):
+class PLDataModule(pl.LightningDataModule):
     def __init__(self, dataset, cfg):
         super().__init__()
         self.dataset = dataset

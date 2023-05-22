@@ -13,8 +13,8 @@ from data_processing.preprocessor_dataset import Atom3DDataset
 
 class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
-                 geometry_path='../data/PSR/geometry/',
-                 operator_path='../data/PSR/operator/',
+                 geometry_path='../../data/PSR/geometry/',
+                 operator_path='../../data/PSR/operator/',
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.recompute = recompute

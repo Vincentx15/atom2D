@@ -20,7 +20,7 @@ class MSPModule(pl.LightningModule):
         self.val_auroc = auroc.clone()
         self.test_auroc = auroc.clone()
 
-        self.model = MSPSurfNet(**hparams['model'])
+        self.model = MSPSurfNet(**hparams.model)
         self.criterion = torch.nn.BCELoss()
 
     def forward(self, x):
@@ -60,6 +60,7 @@ class MSPModule(pl.LightningModule):
         self.val_accuracy(logits, labels)
         self.val_auroc(logits, labels)
         self.log_dict({"acc/val": self.val_accuracy, "auroc/val": self.val_auroc}, on_epoch=True)
+        self.log("auroc_val", self.val_auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False)
 
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)

@@ -1,7 +1,7 @@
 import os
 import sys
-from omegaconf import OmegaConf
-
+from pathlib import Path
+import hydra
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
@@ -12,26 +12,40 @@ if __name__ == '__main__':
 from pl_module import MSPModule
 from data_processing.data_module import PLDataModule
 from data_loader import MSPDataset
+from atom2d_utils.callbacks import CommandLoggerCallback
 
 
+@hydra.main(config_path="./", config_name="config")
 def main(cfg=None):
-    seed = 2023
+    command = f"python3 {' '.join(sys.argv)}"
+    seed = cfg.seed
     pl.seed_everything(seed, workers=True)
 
     # init model
     model = MSPModule(cfg)
 
-    # a = sum(dict((p.data_ptr(), p.numel()) for p in model.model.parameters()).values())
-    # print(a)
-    # sys.exit()
-
     # init logger
-    tb_logger = TensorBoardLogger(save_dir="./logs")
+    version = TensorBoardLogger(save_dir=cfg.log_dir).version
+    version_name = f"version_{version}_{cfg.run_name}"
+    tb_logger = TensorBoardLogger(save_dir=cfg.log_dir, version=version_name)
     loggers = [tb_logger]
 
     # callbacks
     lr_logger = pl.callbacks.LearningRateMonitor()
-    callbacks = [lr_logger]
+
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+        filename="{epoch}-{auroc_val:.2f}",
+        dirpath=Path(tb_logger.log_dir) / "checkpoints",
+        monitor="auroc_val",
+        mode="max",
+        save_last=True,
+        save_top_k=cfg.train.save_top_k,
+        verbose=False,
+    )
+
+    early_stop_callback = pl.callbacks.EarlyStopping(monitor='auroc_val', patience=cfg.train.early_stoping_patience, mode='max')
+
+    callbacks = [lr_logger, checkpoint_callback, early_stop_callback, CommandLoggerCallback(command)]
 
     # init trainer
     trainer = pl.Trainer(
@@ -41,16 +55,16 @@ def main(cfg=None):
         callbacks=callbacks,
         logger=loggers,
         # fast_dev_run=True,
-        # limit_train_batches=0.1,
-        # limit_val_batches=0.1,
-        # limit_test_batches=0.1,
+        # limit_train_batches=0.01,
+        # limit_val_batches=0.01,
+        # limit_test_batches=0.01,
         # profiler=True,
         # benchmark=True,
         # deterministic=True,
     )
 
     # datamodule
-    datamodule = PLDataModule(MSPDataset, cfg.dataset.data_dir)
+    datamodule = PLDataModule(MSPDataset, cfg)
 
     # train
     trainer.fit(model, datamodule=datamodule)
@@ -60,5 +74,4 @@ def main(cfg=None):
 
 
 if __name__ == "__main__":
-    cfg = OmegaConf.load("config.yaml")
-    main(cfg)
+    main()

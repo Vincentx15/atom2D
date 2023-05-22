@@ -10,7 +10,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from pl_module import PIPModule
-from data_processing.data_module import PLDataModule2
+from data_processing.data_module import PLDataModule
 from data_loader import PIPDataset
 from atom2d_utils.callbacks import CommandLoggerCallback
 
@@ -64,7 +64,7 @@ def main(cfg=None):
     )
 
     # datamodule
-    datamodule = PLDataModule2(PIPDataset, cfg)
+    datamodule = PLDataModule(PIPDataset, cfg)
 
     # train
     trainer.fit(model, datamodule=datamodule)

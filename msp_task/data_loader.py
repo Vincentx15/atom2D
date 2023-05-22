@@ -16,8 +16,8 @@ from atom2d_utils.learning_utils import list_from_numpy
 
 class MSPDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
-                 geometry_path='../data/MSP/geometry/',
-                 operator_path='../data/MSP/operator/',
+                 geometry_path='../../data/MSP/geometry/',
+                 operator_path='../../data/MSP/operator/',
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.recompute = recompute
@@ -78,7 +78,7 @@ class MSPDataset(Atom3DDataset):
 
 
 if __name__ == '__main__':
-    data_dir = '../data/MSP/test/'
+    data_dir = '../../data/MSP/test/'
     dataset = MSPDataset(data_dir)
     for i, data in enumerate(dataset):
         print(i)

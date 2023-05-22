@@ -1,10 +1,11 @@
+run_name: "NA"
 epochs: 100
 device: 0
 seed: 2023
-log_dir: "./logs"
+log_dir: "./"
 
 dataset:
-  data_dir: "../data/MSP/"
+  data_dir: "../../data/MSP/"
   recompute: False
 
 loader:
@@ -19,3 +20,12 @@ model:
   N_block: 3
   drate: 0.3
   batch_norm: False
+
+train:
+  save_top_k: 2
+  early_stoping_patience: 10
+
+
+hydra:
+  run:
+    dir: ../outputs/msp/
