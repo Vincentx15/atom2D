@@ -15,6 +15,8 @@ def safe_spearman(gt, pred):
 
 
 def rs_metric(reslist, resdict):
+    if len(reslist) == 0:
+        return 0, 0
     all_lists = np.array(reslist)
     gt, pred = all_lists[:, 0], all_lists[:, 1]
     global_r = safe_spearman(gt, pred)
