@@ -75,7 +75,7 @@ class MSPModule(pl.LightningModule):
         self.log_dict({"acc/test": self.test_accuracy, "auroc/test": self.test_auroc}, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.hparams.optimizer.lr)
         return optimizer
         # return [optimizer], [lr_scheduler]
 

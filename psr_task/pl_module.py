@@ -121,7 +121,7 @@ class PSRModule(pl.LightningModule):
         self.log_dict({"local_r/test": local_r})
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.hparams.optimizer.lr)
         return optimizer
         # return [optimizer], [lr_scheduler]
 
