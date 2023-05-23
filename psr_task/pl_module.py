@@ -8,14 +8,21 @@ import torchmetrics
 from models import PSRSurfNet
 
 
+def safe_spearman(gt, pred):
+    if np.all(np.isclose(pred, pred[0])):
+        return 0
+    return scipy.stats.spearmanr(pred, gt).statistic
+
+
 def rs_metric(reslist, resdict):
     all_lists = np.array(reslist)
-    global_r = scipy.stats.spearmanr(all_lists, axis=0).statistic
+    gt, pred = all_lists[:, 0], all_lists[:, 1]
+    global_r = safe_spearman(gt, pred)
     local_r = []
     for system, lists in resdict.items():
         lists = np.array(lists)
-        r = scipy.stats.spearmanr(lists, axis=0).statistic
-        local_r.append(r)
+        gt, pred = lists[:, 0], lists[:, 1]
+        local_r.append(safe_spearman(gt, pred))
     local_r = float(np.mean(local_r))
     return global_r, local_r
 
