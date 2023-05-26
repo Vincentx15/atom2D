@@ -58,7 +58,6 @@ class PSRSurfNet(torch.nn.Module):
         _ = dict_feat.pop('vertices')
 
         processed = self.diff_net_model(**dict_feat)
-        x = torch.max(processed, dim=-2)
-        x = x.values
+        x = torch.max(processed, dim=-2).values
         x = self.top_net(x)
         return x

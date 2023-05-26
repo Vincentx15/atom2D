@@ -127,6 +127,8 @@ class MSPSurfNet(torch.nn.Module):
         # meanpool each graph and concatenate
         orig_emb = torch.mean(orig_nodes, dim=-2)
         mut_emb = torch.mean(mut_nodes, dim=-2)
+        # orig_emb = torch.max(orig_nodes, dim=-2).values TODO : try it out ?
+        # mut_emb = torch.max(mut_nodes, dim=-2).values
         x = torch.cat((orig_emb, mut_emb), dim=-1)
 
         x = self.top_mlp(x)
