@@ -3,29 +3,6 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 
-class PLDataModule2(pl.LightningDataModule):
-    def __init__(self, dataset, data_dir="path/to/data", batch_size=1):
-        super().__init__()
-        self.data_dir = Path(data_dir)
-        self.batch_size = batch_size
-        self.dataset = dataset
-
-    def train_dataloader(self):
-        data_dir = self.data_dir / "train"
-        dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
-
-    def val_dataloader(self):
-        data_dir = self.data_dir / "val"
-        dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
-
-    def test_dataloader(self):
-        data_dir = self.data_dir / "test"
-        dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=6, batch_size=self.batch_size, collate_fn=lambda x: x)
-
-
 class PLDataModule(pl.LightningDataModule):
     def __init__(self, dataset, cfg):
         super().__init__()
@@ -36,14 +13,17 @@ class PLDataModule(pl.LightningDataModule):
     def train_dataloader(self):
         data_dir = self.data_dir / "train"
         dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train, collate_fn=lambda x: x)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
+                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
 
     def val_dataloader(self):
         data_dir = self.data_dir / "val"
         dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val, collate_fn=lambda x: x)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val,
+                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
 
     def test_dataloader(self):
         data_dir = self.data_dir / "test"
         dataset = self.dataset(data_dir)
-        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val, collate_fn=lambda x: x)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val,
+                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
