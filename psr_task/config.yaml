@@ -1,6 +1,6 @@
 run_name: "NA"
 epochs: 100
-device: 0
+device: 1
 seed: 2023
 log_dir: "./"
 
