@@ -22,6 +22,9 @@ model:
   dropout: 0.3
   batch_norm: False
 
+optimizer:
+  lr: 1e-3
+
 train:
   save_top_k: 2
   early_stoping_patience: 10
