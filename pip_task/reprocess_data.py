@@ -18,6 +18,7 @@ from atom2d_utils import atom3dutils
 from data_processing import main
 from data_processing.preprocessor_dataset import Atom3DDataset
 
+
 class PIPReprocess(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/processed_data/geometry/',
@@ -144,7 +145,7 @@ class PIPReprocess(Atom3DDataset):
         if not self.recompute and (os.path.exists(dump_struct_1) and
                                    os.path.exists(dump_struct_2) and
                                    os.path.exists(dump_pairs)):
-            return 0, dirname
+            return 0, dirname, names_used[0], names_used[1]
 
         # If some surfaces are missing, skip the system
         geom_feats_0 = main.get_diffnetfiles(name=names_used[0],
@@ -159,7 +160,7 @@ class PIPReprocess(Atom3DDataset):
                                              recompute=self.recompute)
 
         if geom_feats_0 is None or geom_feats_1 is None:
-            return 1, None
+            return 1, None, None, None
 
         # Get all positives and negative neighbors, filter out non-empty hetero/insertion_code
         pos_neighbors_df = item['atoms_neighbors']
@@ -188,7 +189,7 @@ class PIPReprocess(Atom3DDataset):
         struct_1.to_csv(dump_struct_1)
         struct_2.to_csv(dump_struct_2)
         pos_pairs_res.to_csv(dump_pairs)
-        return 0, dirname
+        return 0, dirname, names_used[0], names_used[1]
 
     def __getitem__(self, index):
         """
@@ -204,26 +205,39 @@ class PIPReprocess(Atom3DDataset):
 
             ################
             # t0 = time.perf_counter()
-            error_code, dirname = self.reprocess(index)
+            error_code, dirname, name1, name2 = self.reprocess(index)
             # print("time dump = ", time.perf_counter() - t0)
-            return error_code, dirname
+            return error_code, dirname, name1, name2
         except IndentationError as e:
-            return 1, None
+            return 1, None, None, None
 
 
 def reprocess_data(data_dir):
     dataset = PIPReprocess(data_dir)
-    df = pd.DataFrame(columns=["system"])
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=6, collate_fn=lambda x: x[0])
+    df = pd.DataFrame(columns=["system", "name1", "name2"])
     dump_csv = os.path.join(data_dir, 'all_systems.csv')
     # For now the time to beat is 0.2s to get the item
-    for i, (error_code, dirname) in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+    for i, (error_code, dirname, name1, name2) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
         if error_code == 0:
-            df.loc[len(df)] = dirname
+            df.loc[len(df)] = dirname, name1, name2
         # if i > 5:
         #     break
     df.to_csv(dump_csv)
 
 
+
+
+
 if __name__ == '__main__':
     data_dir = '../data/PIP/DIPS-split/data/test/'
+
     reprocess_data(data_dir)
+
+    # dataset = NewPIP(data_dir)
+    # dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, collate_fn=lambda x: x[0])
+    # for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+    # # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+    # #     print(i)
+    #     if i > 5:
+    #         break
