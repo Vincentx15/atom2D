@@ -34,6 +34,7 @@ train:
   limit_val_batches: 1.0
   limit_test_batches: 1.0
   overfit_batches: 0.0
+  gradient_clip_val: 1.0
 
 
 hydra:
