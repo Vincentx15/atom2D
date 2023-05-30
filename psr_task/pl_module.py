@@ -67,7 +67,7 @@ class PSRModule(pl.LightningModule):
             return None
 
         self.log_dict({"loss/train": loss.cpu().detach()},
-                      on_step=True, on_epoch=True, prog_bar=True, batch_size=len(logits))
+                      on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
         return loss
 
