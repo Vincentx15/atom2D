@@ -72,11 +72,13 @@ def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
 class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
-                 batch_norm=False):
+                 batch_norm=False, use_max=True, use_xyz=False):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
+        self.use_max = use_max
+        self.use_xyz = use_xyz
         # Create the model
         self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
                                                            C_out=out_channel,
@@ -105,6 +107,11 @@ class MSPSurfNet(torch.nn.Module):
 
         all_dict_feat = [unwrap_feats(geom_feat, device=self.device) for geom_feat in x]
         vertices = [dict_feat.pop('vertices') for dict_feat in all_dict_feat]
+
+        if self.use_xyz:
+            for i, dict_feat in enumerate(all_dict_feat):
+                dict_feat["x_in"] = torch.cat([vertices[i], dict_feat["x_in"]], dim=1)
+
         # We need the vertices to push back the points.
         # We also have to remove them from the dict to feed into diff_net
         processed = [self.diff_net_model(**dict_feat) for dict_feat in all_dict_feat]
@@ -125,10 +132,12 @@ class MSPSurfNet(torch.nn.Module):
         mut_nodes = self.gcn(mut_graph)
 
         # meanpool each graph and concatenate
-        orig_emb = torch.mean(orig_nodes, dim=-2)
-        mut_emb = torch.mean(mut_nodes, dim=-2)
-        # orig_emb = torch.max(orig_nodes, dim=-2).values TODO : try it out ?
-        # mut_emb = torch.max(mut_nodes, dim=-2).values
+        if self.use_max:
+            orig_emb = torch.max(orig_nodes, dim=-2).values
+            mut_emb = torch.max(mut_nodes, dim=-2).values
+        else:
+            orig_emb = torch.mean(orig_nodes, dim=-2)
+            mut_emb = torch.mean(mut_nodes, dim=-2)
         x = torch.cat((orig_emb, mut_emb), dim=-1)
 
         x = self.top_mlp(x)

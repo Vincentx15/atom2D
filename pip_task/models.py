@@ -7,11 +7,13 @@ from atom2d_utils.learning_utils import unwrap_feats
 
 
 class PIPNet(torch.nn.Module):
-    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False):
+    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5, use_xyz=False):
         super().__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
+        self.sigma = sigma
+        self.use_xyz = use_xyz
         # Create the model
         self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
                                                            C_out=out_channel,
@@ -54,6 +56,10 @@ class PIPNet(torch.nn.Module):
         # We also have to remove them from the dict to feed into diff_net
         verts_left = dict_feat_left.pop('vertices')
         verts_right = dict_feat_right.pop('vertices')
+        if self.use_xyz:
+            x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
+            dict_feat_left["x_in"] = torch.cat([verts_left, x_in1], dim=1)
+            dict_feat_right["x_in"] = torch.cat([verts_right, x_in2], dim=1)
 
         processed_left = self.diff_net_model(**dict_feat_left)
         processed_right = self.diff_net_model(**dict_feat_right)
@@ -63,9 +69,9 @@ class PIPNet(torch.nn.Module):
         locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
 
         feats_left = point_cloud_utils.torch_rbf(points_1=verts_left, feats_1=processed_left,
-                                                 points_2=locs_left, concat=True)
+                                                 points_2=locs_left, concat=True, sigma=self.sigma)
         feats_right = point_cloud_utils.torch_rbf(points_1=verts_right, feats_1=processed_right,
-                                                  points_2=locs_right, concat=True)
+                                                  points_2=locs_right, concat=True, sigma=self.sigma)
 
         # Once equiped with the features and confidence scores at each point, feed that into the networks
         x = torch.cat([feats_left, feats_right], dim=1)

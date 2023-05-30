@@ -1,8 +1,6 @@
 import os
 import sys
-
 import math
-import time
 
 import numpy as np
 import pandas as pd
@@ -208,7 +206,7 @@ class PIPReprocess(Atom3DDataset):
             error_code, dirname, name1, name2 = self.reprocess(index)
             # print("time dump = ", time.perf_counter() - t0)
             return error_code, dirname, name1, name2
-        except IndentationError as e:
+        except IndentationError:
             return 1, None, None, None
 
 
@@ -228,8 +226,8 @@ def reprocess_data(data_dir):
 
 class NewPIP(torch.utils.data.Dataset):
     def __init__(self, data_dir, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
-                 geometry_path='../data/processed_data/geometry/',
-                 operator_path='../data/processed_data/operator/',
+                 geometry_path='../../data/processed_data/geometry/',
+                 operator_path='../../data/processed_data/operator/',
                  recompute=False):
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
@@ -323,14 +321,15 @@ class NewPIP(torch.utils.data.Dataset):
 
         if geom_feats_0 is None or geom_feats_1 is None:
             return None, None, None, None, None, None
-        return name1, name2, pos_stack, neg_stack, geom_feats_0, geom_feats_1
+        return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_0, geom_feats_1
 
     def __getitem__(self, index):
         try:
             res = self.get_item(index)
             return res
-        except IndentationError:
-            return None
+        except Exception as e:
+            print(f"Error in __getitem__: {e} index : {index}")
+            return None, None, None, None, None, None
 
 
 if __name__ == '__main__':

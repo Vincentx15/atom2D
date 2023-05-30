@@ -14,16 +14,16 @@ class PLDataModule(pl.LightningDataModule):
         data_dir = self.data_dir / "train"
         dataset = self.dataset(data_dir)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
-                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor, collate_fn=lambda x: x)
 
     def val_dataloader(self):
         data_dir = self.data_dir / "val"
         dataset = self.dataset(data_dir)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val,
-                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor, collate_fn=lambda x: x)
 
     def test_dataloader(self):
         data_dir = self.data_dir / "test"
         dataset = self.dataset(data_dir)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val,
-                          pin_memory=self.cfg.loader.pin_memory, collate_fn=lambda x: x)
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor, collate_fn=lambda x: x)

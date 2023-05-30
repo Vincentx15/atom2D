@@ -15,6 +15,7 @@ loader:
   batch_size_val: 1
   num_workers: 6
   pin_memory: False
+  prefetch_factor: 2
 
 model:
   in_channels: 5
@@ -23,6 +24,8 @@ model:
   N_block: 3
   dropout: 0.3
   batch_norm: False
+  sigma: 2.5
+  use_xyz: False
 
 optimizer:
   lr: 1e-3

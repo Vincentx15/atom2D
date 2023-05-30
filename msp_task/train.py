@@ -59,9 +59,7 @@ def main(cfg=None):
         limit_train_batches=cfg.train.limit_train_batches,
         limit_val_batches=cfg.train.limit_val_batches,
         limit_test_batches=cfg.train.limit_test_batches,
-        overfit_batches=cfg.train.overfit_batches,
-        # gradient clipping
-        gradient_clip_val=cfg.train.gradient_clip_val,
+        overfit_batches=cfg.train.overfit_batches,9090
         # fast_dev_run=True,
         # profiler=True,
         # benchmark=True,

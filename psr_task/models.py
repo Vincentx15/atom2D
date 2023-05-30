@@ -8,11 +8,12 @@ from atom2d_utils.learning_utils import unwrap_feats
 class PSRSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
-                 drate=0.3, batch_norm=False):
+                 drate=0.3, batch_norm=False, use_xyz=False):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
+        self.use_xyz = use_xyz
         # Create the model
         self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
                                                            C_out=out_channel,
@@ -55,7 +56,9 @@ class PSRSurfNet(torch.nn.Module):
 
         # We need the vertices to push back the points.
         # We also have to remove them from the dict to feed into diff_net
-        _ = dict_feat.pop('vertices')
+        verts = dict_feat.pop('vertices')
+        if self.use_xyz:
+            dict_feat["x_in"] = torch.cat([verts, dict_feat["x_in"]], dim=1)
 
         processed = self.diff_net_model(**dict_feat)
         x = torch.max(processed, dim=-2).values
