@@ -1,4 +1,5 @@
 import diff_net
+from scipy.spatial.transform import Rotation as R
 import torch
 import torch.nn as nn
 
@@ -57,7 +58,9 @@ class PIPNet(torch.nn.Module):
         verts_left = dict_feat_left.pop('vertices')
         verts_right = dict_feat_right.pop('vertices')
         if self.use_xyz:
-            verts_leftt, verts_rightt = center_normalize(verts_left, verts_right)
+            verts_leftt = center_normalize([verts_left])[0]
+            verts_rightt = center_normalize([verts_right])[0]
+            verts_rightt = verts_rightt @ torch.from_numpy(R.random().as_matrix()).float().to(device)  # random rotation
             x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
             dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
             dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)

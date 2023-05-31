@@ -2,7 +2,7 @@ import diff_net
 import torch
 import torch.nn as nn
 
-from atom2d_utils.learning_utils import unwrap_feats
+from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 from data_processing.point_cloud_utils import torch_rbf
 
 from torch_geometric.data import Data
@@ -109,6 +109,10 @@ class MSPSurfNet(torch.nn.Module):
         vertices = [dict_feat.pop('vertices') for dict_feat in all_dict_feat]
 
         if self.use_xyz:
+            vertices1, coords0 = center_normalize(vertices[:2], [coords[0]])
+            vertices2, coords1 = center_normalize(vertices[2:], [coords[1]])
+            vertices = vertices1 + vertices2
+            coords = coords0 + coords1
             for i, dict_feat in enumerate(all_dict_feat):
                 dict_feat["x_in"] = torch.cat([vertices[i], dict_feat["x_in"]], dim=1)
 

@@ -2,7 +2,7 @@ import diff_net
 import torch
 import torch.nn as nn
 
-from atom2d_utils.learning_utils import unwrap_feats
+from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 
 class PSRSurfNet(torch.nn.Module):
@@ -58,6 +58,7 @@ class PSRSurfNet(torch.nn.Module):
         # We also have to remove them from the dict to feed into diff_net
         verts = dict_feat.pop('vertices')
         if self.use_xyz:
+            verts = center_normalize([verts])[0]
             dict_feat["x_in"] = torch.cat([verts, dict_feat["x_in"]], dim=1)
 
         processed = self.diff_net_model(**dict_feat)
