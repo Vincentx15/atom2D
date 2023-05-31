@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from data_processing import point_cloud_utils
-from atom2d_utils.learning_utils import unwrap_feats
+from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 
 class PIPNet(torch.nn.Module):
@@ -57,9 +57,10 @@ class PIPNet(torch.nn.Module):
         verts_left = dict_feat_left.pop('vertices')
         verts_right = dict_feat_right.pop('vertices')
         if self.use_xyz:
+            verts_leftt, verts_rightt = center_normalize(verts_left, verts_right)
             x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
-            dict_feat_left["x_in"] = torch.cat([verts_left, x_in1], dim=1)
-            dict_feat_right["x_in"] = torch.cat([verts_right, x_in2], dim=1)
+            dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
+            dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)
 
         processed_left = self.diff_net_model(**dict_feat_left)
         processed_right = self.diff_net_model(**dict_feat_right)

@@ -18,6 +18,19 @@ def unwrap_feats(geom_feat, device='cpu'):
     return dict_return_32
 
 
+def center_normalize(verts1, verts2):
+    """
+    Center and normalize the vertices for the whole system
+    """
+    verts = torch.cat([verts1, verts2], dim=0)
+    mean = verts.mean(dim=0)
+    verts = verts - mean
+    max_dist = verts.norm(dim=1).max()
+    verts = verts / max_dist
+    verts1, verts2 = verts[:verts1.shape[0]], verts[verts1.shape[0]:]
+    return verts1, verts2
+
+
 def list_to_numpy(tensor_list):
     return [to_numpy(x) for x in tensor_list]
 
