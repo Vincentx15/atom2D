@@ -80,6 +80,10 @@ class PIPDataset(Atom3DDataset):
             structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
             names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
 
+            # if not (names_used[0] == '2a06.pdb1.gz_1_C' and
+            #         names_used[1] == '2a06.pdb1.gz_1_R'):
+            #     return 1, None, None, None
+
             # Get all positives and negative neighbors, filter out non-empty hetero/insertion_code
             pos_neighbors_df = item['atoms_neighbors']
             neg_neighbors_df = atom3dutils.get_negatives(pos_neighbors_df, structs_df[0], structs_df[1])
@@ -131,7 +135,15 @@ class PIPDataset(Atom3DDataset):
 if __name__ == '__main__':
     data_dir = '../data/PIP/DIPS-split/data/test/'
     dataset = PIPDataset(data_dir)
-    for i, data in enumerate(dataset):
-        print(i)
-        if i > 5:
+
+    import time
+    import tqdm
+
+    t0 = time.time()
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, collate_fn=lambda x: x[0])
+    for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+        # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+        # print(i)
+        if i > 250:
             break
+    print(time.time() - t0)

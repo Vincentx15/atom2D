@@ -127,6 +127,10 @@ class PIPReprocess(Atom3DDataset):
         structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
         names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
 
+        # if not (names_used[0] == '2a06.pdb1.gz_1_P' and
+        #         names_used[1] == '2a06.pdb1.gz_1_T'):
+        #     return 1, None, None, None
+
         # Naming
         pdb = names_used[0].split('.')[0]
         chain1 = names_used[0][-1]
@@ -210,9 +214,9 @@ class PIPReprocess(Atom3DDataset):
             return 1, None, None, None
 
 
-def reprocess_data(data_dir):
-    dataset = PIPReprocess(data_dir)
-    dataloader = torch.utils.data.DataLoader(dataset, num_workers=6, collate_fn=lambda x: x[0])
+def reprocess_data(data_dir, recompute=False):
+    dataset = PIPReprocess(data_dir, recompute=recompute)
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, collate_fn=lambda x: x[0])
     df = pd.DataFrame(columns=["system", "name1", "name2"])
     dump_csv = os.path.join(data_dir, 'all_systems.csv')
     # For now the time to beat is 0.2s to get the item
@@ -269,6 +273,8 @@ class NewPIP(torch.utils.data.Dataset):
         return len(self.df)
 
     def get_item(self, index):
+        # if not index == 42:
+        #     return None
         row = self.df.iloc[index][["system", "name1", "name2"]]
         dirname, name1, name2 = row.values
         dirpath = naming_utils.name_to_dir(dirname, dir_path=self.dir_path)
@@ -308,6 +314,7 @@ class NewPIP(torch.utils.data.Dataset):
         pos_stack = np.transpose(np.stack((pos_1, pos_2)), axes=(1, 0, 2))
         neg_1, neg_2 = coords_1[neg_array_sampled[0]], coords_2[neg_array_sampled[1]]
         neg_stack = np.transpose(np.stack((neg_1, neg_2)), axes=(1, 0, 2))
+
         geom_feats_0 = main.get_diffnetfiles(name=name1,
                                              df=struct_1,
                                              dump_surf_dir=self.get_geometry_dir(name1),
@@ -324,6 +331,7 @@ class NewPIP(torch.utils.data.Dataset):
         return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_0, geom_feats_1
 
     def __getitem__(self, index):
+        # res = self.get_item(index)
         try:
             res = self.get_item(index)
             return res
@@ -333,14 +341,23 @@ class NewPIP(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
+
+    # Source of bug : missing CA are not removed, yet they are used for coords later on...
+    # TODO : fix with CA filtering
+    # data_dir = '../data/PIP/DIPS-split/data/train/'
+    # reprocess_data(data_dir, recompute=True)
+    # data_dir = '../data/PIP/DIPS-split/data/val/'
+    # reprocess_data(data_dir, recompute=True)
     data_dir = '../data/PIP/DIPS-split/data/test/'
+    # reprocess_data(data_dir, recompute=True)
+    import time
 
-    reprocess_data(data_dir)
-
-    # dataset = NewPIP(data_dir)
-    # dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, collate_fn=lambda x: x[0])
-    # for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
-    # # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
-    # #     print(i)
-    #     if i > 5:
-    #         break
+    t0 = time.perf_counter()
+    dataset = NewPIP(data_dir)
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=8, collate_fn=lambda x: x[0])
+    for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+        # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+        # print(i)
+        if i > 250:
+            break
+    print(time.perf_counter() - t0)
