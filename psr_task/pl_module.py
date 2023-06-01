@@ -66,7 +66,7 @@ class PSRModule(pl.LightningModule):
         if loss is None:
             return None
 
-        self.log_dict({"loss/train": loss.cpu().detach()},
+        self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
         return loss
@@ -82,7 +82,7 @@ class PSRModule(pl.LightningModule):
         self.val_reslist.append(reslist)
         self.val_resdict[name[:4]].append(reslist)
 
-        self.log_dict({"loss/val": loss.cpu().detach()},
+        self.log_dict({"loss/val": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
     def test_step(self, batch, batch_idx: int):
@@ -96,7 +96,7 @@ class PSRModule(pl.LightningModule):
         self.test_reslist.append(reslist)
         self.test_resdict[name[:4]].append(reslist)
 
-        self.log_dict({"loss/test": loss.cpu().detach()},
+        self.log_dict({"loss/test": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
     def on_validation_epoch_end(self):

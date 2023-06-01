@@ -45,7 +45,7 @@ class PIPModule(pl.LightningModule):
         if loss is None:
             return None
 
-        self.log_dict({"loss/train": loss.cpu().detach()},
+        self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
         self.train_accuracy(logits, labels)
@@ -59,7 +59,7 @@ class PIPModule(pl.LightningModule):
         if loss is None:
             return None
 
-        self.log_dict({"loss/val": loss.cpu().detach()},
+        self.log_dict({"loss/val": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         self.val_accuracy(logits, labels)
@@ -72,7 +72,7 @@ class PIPModule(pl.LightningModule):
         if loss is None:
             return None
 
-        self.log_dict({"loss/test": loss.cpu().detach()},
+        self.log_dict({"loss/test": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         self.test_accuracy(logits, labels)
