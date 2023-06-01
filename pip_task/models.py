@@ -62,11 +62,11 @@ class PIPNet(torch.nn.Module):
         if self.use_xyz:
             verts_leftt, locs_leftt = center_normalize([verts_left], [locs_left])
             verts_rightt, locs_rightt = center_normalize([verts_right], [locs_right])
-            verts_leftt, locs_leftt = verts_leftt[0], locs_leftt[0]
-            verts_rightt, locs_rightt = verts_rightt[0], locs_rightt[0]
+            verts_leftt, locs_left = verts_leftt[0], locs_leftt[0]
+            verts_rightt, locs_right = verts_rightt[0], locs_rightt[0]
             rot_mat = torch.from_numpy(R.random().as_matrix()).float().to(device)  # random rotation
             verts_rightt = verts_rightt @ rot_mat  # random rotation
-            locs_rightt = locs_rightt @ rot_mat  # random rotation
+            locs_right = locs_right @ rot_mat  # random rotation
             x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
             dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
             dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)
