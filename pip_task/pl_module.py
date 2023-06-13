@@ -1,7 +1,20 @@
 import torch
 import pytorch_lightning as pl
-import torchmetrics
+# import torchmetrics
+import numpy as np
+from sklearn.metrics import roc_auc_score
 from models import PIPNet
+
+
+def compute_accuracy(predictions, labels):
+    # Convert predictions to binary labels (0 or 1)
+    predicted_labels = torch.round(predictions)
+    # Compare predicted labels with ground truth labels
+    correct_count = (predicted_labels == labels).sum().item()
+    total_count = labels.size(0)
+    # Compute accuracy
+    accuracy = correct_count / total_count
+    return accuracy
 
 
 class PIPModule(pl.LightningModule):
@@ -10,15 +23,15 @@ class PIPModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        accuracy = torchmetrics.Accuracy(task="binary")
-        self.train_accuracy = accuracy.clone()
-        self.val_accuracy = accuracy.clone()
-        self.test_accuracy = accuracy.clone()
+        # accuracy = torchmetrics.Accuracy(task="binary")
+        # self.train_accuracy = accuracy.clone()
+        # self.val_accuracy = accuracy.clone()
+        # self.test_accuracy = accuracy.clone()
 
-        auroc = torchmetrics.AUROC(task="binary")
-        self.train_auroc = auroc.clone()
-        self.val_auroc = auroc.clone()
-        self.test_auroc = auroc.clone()
+        # auroc = torchmetrics.AUROC(task="binary")
+        # self.train_auroc = auroc.clone()
+        # self.val_auroc = auroc.clone()
+        # self.test_auroc = auroc.clone()
 
         self.model = PIPNet(**hparams.model)
         self.criterion = torch.nn.BCELoss()
@@ -48,9 +61,12 @@ class PIPModule(pl.LightningModule):
         self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
-        self.train_accuracy(logits, labels)
-        self.train_auroc(logits, labels)
-        self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True)
+        acc = compute_accuracy(logits, labels)
+        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+
+        # self.train_accuracy(logits, labels)
+        # self.train_auroc(logits, labels)
+        # self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True)
 
         return loss
 
@@ -62,10 +78,15 @@ class PIPModule(pl.LightningModule):
         self.log_dict({"loss/val": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
-        self.val_accuracy(logits, labels)
-        self.val_auroc(logits, labels)
-        self.log_dict({"acc/val": self.val_accuracy, "auroc/val": self.val_auroc}, on_epoch=True)
-        self.log("auroc_val", self.val_auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False)
+        acc = compute_accuracy(logits, labels)
+        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+
+        # self.val_accuracy(logits, labels)
+        # self.val_auroc(logits, labels)
+        # self.log_dict({"acc/val": self.val_accuracy, "auroc/val": self.val_auroc}, on_epoch=True)
+        # self.log("auroc_val", self.val_auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False)
+        self.log_dict({"acc/val": acc, "auroc/val": auroc}, on_epoch=True)
+        self.log("auroc_val", auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False)
 
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
@@ -75,9 +96,13 @@ class PIPModule(pl.LightningModule):
         self.log_dict({"loss/test": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
-        self.test_accuracy(logits, labels)
-        self.test_auroc(logits, labels)
-        self.log_dict({"acc/test": self.test_accuracy, "auroc/test": self.test_auroc}, on_epoch=True)
+        acc = compute_accuracy(logits, labels)
+        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+
+        # self.test_accuracy(logits, labels)
+        # self.test_auroc(logits, labels)
+        # self.log_dict({"acc/test": self.test_accuracy, "auroc/test": self.test_auroc}, on_epoch=True)
+        self.log_dict({"acc/test": acc, "auroc/test": auroc}, on_epoch=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.hparams.optimizer.lr)
