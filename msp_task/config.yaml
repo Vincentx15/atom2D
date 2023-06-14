@@ -24,6 +24,7 @@ model:
   batch_norm: False
   use_max: True
   use_xyz: False
+  pos_weight: 4
 
 optimizer:
   lr: 1e-4

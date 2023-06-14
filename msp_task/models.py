@@ -72,7 +72,7 @@ def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
 class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
-                 batch_norm=False, use_max=True, use_xyz=False):
+                 batch_norm=False, use_max=True, use_xyz=False, **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels

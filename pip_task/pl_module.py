@@ -33,7 +33,8 @@ class PIPModule(pl.LightningModule):
         # self.test_auroc = auroc.clone()
 
         self.model = PIPNet(**hparams.model)
-        self.criterion = torch.nn.BCELoss()
+        # self.criterion = torch.nn.BCELoss()
+        self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
 
     def forward(self, x):
         return self.model(*x)

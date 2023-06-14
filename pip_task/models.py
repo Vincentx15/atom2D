@@ -8,7 +8,7 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 
 class PIPNet(torch.nn.Module):
-    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5, use_xyz=False):
+    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5, use_xyz=False, **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -84,5 +84,6 @@ class PIPNet(torch.nn.Module):
         # Once equiped with the features and confidence scores at each point, feed that into the networks
         x = torch.cat([feats_left, feats_right], dim=1)
         x = self.top_net(x)
-        result = torch.sigmoid(x).view(-1)
+        # result = torch.sigmoid(x).view(-1)
+        result = x.view(-1)
         return result
