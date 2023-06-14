@@ -1,7 +1,6 @@
 import torch
 import pytorch_lightning as pl
 # import torchmetrics
-import numpy as np
 from sklearn.metrics import roc_auc_score
 from models import PIPNet
 
@@ -67,6 +66,7 @@ class PIPModule(pl.LightningModule):
         # self.train_accuracy(logits, labels)
         # self.train_auroc(logits, labels)
         # self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True)
+        self.log_dict({"acc/train": acc, "auroc/train": auroc}, on_epoch=True)
 
         return loss
 
