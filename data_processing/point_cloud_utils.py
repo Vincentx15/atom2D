@@ -107,7 +107,6 @@ if __name__ == '__main__':
     points_2 = torch.randn(size=(50, 1)) * 20
     feats_1 = torch.sin(points_1)
     feats_2, confidence = torch_rbf(points_1=points_1, points_2=points_2, feats_1=feats_1, sigma=0.5)
-
     plt.scatter(points_1.numpy(), feats_1.numpy())
     plt.scatter(points_2.numpy(), feats_2.numpy())
     plt.scatter(points_2.numpy(), torch.tanh(confidence).numpy())

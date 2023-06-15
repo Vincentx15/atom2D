@@ -3,6 +3,9 @@ import sys
 
 import numpy as np
 import torch
+from torch_geometric.data import Data
+
+import atom3d.util.graph as gr
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -144,6 +147,93 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
                                                                                     npz_path=operator_file)
     return features, confidence, vertices, mass, torch.rand(1,
                                                             3), evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces
+
+
+# prot_atoms = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
+prot_atoms = ['C', 'O', 'N', 'S']
+
+import scipy.spatial as ss
+from torch_geometric.utils import to_undirected
+
+
+def one_of_k_encoding_unk(x, allowable_set):
+    """Converts input to 1-hot encoding given a set of allowable values.
+     Additionally maps inputs not in the allowable set to the last element."""
+    if x not in allowable_set:
+        x = allowable_set[-1]
+    return list(map(lambda s: x == s, allowable_set))
+
+
+def prot_df_to_graph(df, feat_col='element', allowable_feats=prot_atoms, edge_dist_cutoff=4.5):
+    r"""
+    Converts protein in dataframe representation to a graph compatible with Pytorch-Geometric, where each node is an atom.
+
+    :param df: Protein structure in dataframe format.
+    :type df: pandas.DataFrame
+    :param node_col: Column of dataframe to find node feature values. For example, for atoms use ``feat_col="element"`` and for residues use ``feat_col="resname"``
+    :type node_col: str, optional
+    :param allowable_feats: List containing all possible values of node type, to be converted into 1-hot node features.
+        Any elements in ``feat_col`` that are not found in ``allowable_feats`` will be added to an appended "unknown" bin (see :func:`atom3d.util.graph.one_of_k_encoding_unk`).
+    :type allowable_feats: list, optional
+    :param edge_dist_cutoff: Maximum distance cutoff (in Angstroms) to define an edge between two atoms, defaults to 4.5.
+    :type edge_dist_cutoff: float, optional
+
+    :return: tuple containing
+
+        - node_feats (torch.FloatTensor): Features for each node, one-hot encoded by values in ``allowable_feats``.
+
+        - edges (torch.LongTensor): Edges in COO format
+
+        - edge_weights (torch.LongTensor): Edge weights, defined as a function of distance between atoms given by :math:`w_{i,j} = \frac{1}{d(i,j)}`, where :math:`d(i, j)` is the Euclidean distance between node :math:`i` and node :math:`j`.
+
+        - node_pos (torch.FloatTensor): x-y-z coordinates of each node
+    :rtype: Tuple
+    """
+    # import time
+    # t0 = time.time()
+    df = df.loc[df['element'] != 'H']  # TODO : maybe consider doing all atom, as they DO NOT do this operation.
+    # TODO : I added it for speed.
+    node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
+    kd_tree = ss.KDTree(node_pos)
+    edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
+    edges = torch.LongTensor(edge_tuples).t().contiguous()
+    edges = to_undirected(edges)
+    node_feats = torch.FloatTensor([one_of_k_encoding_unk(e, allowable_feats) for e in df[feat_col]])
+    # print(f"time to pre_dist : {time.time() - t0}")
+
+    # t0 = time.time()
+    node_a = node_pos[edges[0, :]]
+    node_b = node_pos[edges[1, :]]
+    with torch.no_grad():
+        my_edge_weights_torch = 1 / (torch.linalg.norm(node_a - node_b, axis=1) + 1e-5)
+    # print(f"time to torch : {time.time() - t0}")
+    # t0 = time.time()
+    # edge_weights = torch.FloatTensor(
+    #     [1.0 / (np.linalg.norm(node_pos[i] - node_pos[j]) + 1e-5) for i, j in edges.t()]).view(-1)
+    # print(f"time to do their : {time.time() - t0}")
+    # error_torch = (my_edge_weights_torch - edge_weights).max()
+    # feats = F.one_hot(elems, num_classes=len(atom_int_dict))
+    # print(f"errors, torch : {error_torch}")
+
+    return node_feats, edges, my_edge_weights_torch, node_pos
+
+
+def get_graph(name, df, dump_graph_dir, recompute=False):
+    os.makedirs(dump_graph_dir, exist_ok=True)
+    dump_graph_name = os.path.join(dump_graph_dir, f"{name}.pth")
+    if not os.path.exists(dump_graph_name):
+        if recompute:
+            print(
+                f"For system : {name}, recomputing : graph "
+            )
+            node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, allowable_feats=prot_atoms)
+            graph = Data(node_feats, edge_index, edge_feats, pos=pos)
+            torch.save(graph, dump_graph_name)
+        else:
+            return None
+            # raise FileNotFoundError("The precomputed file could not be found for ", name)
+    graph = torch.load(dump_graph_name)
+    return graph
 
 
 if __name__ == "__main__":

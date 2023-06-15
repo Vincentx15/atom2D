@@ -18,9 +18,13 @@ class MSPDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../../data/MSP/geometry/',
                  operator_path='../../data/MSP/operator/',
+                 graph_path='../../data/MSP/graph',
+                 return_graph=False,
                  recompute=False):
-        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
+                         operator_path=operator_path, graph_path=graph_path)
         self.recompute = recompute
+        self.return_graph = return_graph
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -63,6 +67,7 @@ class MSPDataset(Atom3DDataset):
             names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
             dfs = [left_orig, right_orig, left_mut, right_mut]
+
             geom_feats = [main.get_diffnetfiles(name=name, df=df,
                                                 dump_surf_dir=self.get_geometry_dir(name),
                                                 dump_operator_dir=self.get_operator_dir(name),
@@ -70,6 +75,16 @@ class MSPDataset(Atom3DDataset):
                           for name, df in zip(names, dfs)]
             if any([geom_feat is None for geom_feat in geom_feats]):
                 return None, None, None, None
+
+            if self.return_graph:
+                graph_feats = [main.get_graph(name=name, df=df,
+                                              dump_graph_dir=self.get_graph_dir(name),
+                                              recompute=True)  # TODO : fix
+                               for name, df in zip(names, dfs)]
+                if any([graph_feat is None for graph_feat in graph_feats]):
+                    return None, None, None, None, None
+                return names, geom_feats, coords, torch.tensor([float(item['label'])]), graph_feats
+
             return names, geom_feats, coords, torch.tensor([float(item['label'])])
         except Exception as e:
             print("------------------")
@@ -78,8 +93,12 @@ class MSPDataset(Atom3DDataset):
 
 
 if __name__ == '__main__':
-    data_dir = '../../data/MSP/test/'
-    dataset = MSPDataset(data_dir)
+    data_dir = '../data/MSP/test/'
+    dataset = MSPDataset(data_dir,
+                         geometry_path='../data/MSP/geometry/',
+                         operator_path='../data/MSP/operator/',
+                         graph_path='../data/MSP/graph',
+                         return_graph=True)
     for i, data in enumerate(dataset):
         print(i)
         if i > 5:
