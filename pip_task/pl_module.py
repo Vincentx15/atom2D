@@ -67,7 +67,7 @@ class PIPModule(pl.LightningModule):
         # self.train_accuracy(logits, labels)
         # self.train_auroc(logits, labels)
         # self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True)
-        self.log_dict({"acc/train": acc, "auroc/train": auroc}, on_epoch=True)
+        self.log_dict({"acc/train": acc, "auroc/train": auroc}, on_epoch=True, batch_size=len(logits))
 
         return loss
 

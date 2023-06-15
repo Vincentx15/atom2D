@@ -145,5 +145,5 @@ class MSPSurfNet(torch.nn.Module):
         x = torch.cat((orig_emb, mut_emb), dim=-1)
 
         x = self.top_mlp(x)
-        x = torch.sigmoid(x)
+        # x = torch.sigmoid(x)
         return x
