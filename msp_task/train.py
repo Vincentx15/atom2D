@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import hydra
 import pytorch_lightning as pl
+import torch.cuda
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
 if __name__ == '__main__':
@@ -43,14 +44,18 @@ def main(cfg=None):
         verbose=False,
     )
 
-    early_stop_callback = pl.callbacks.EarlyStopping(monitor='auroc_val', patience=cfg.train.early_stoping_patience, mode='max')
+    early_stop_callback = pl.callbacks.EarlyStopping(monitor='auroc_val', patience=cfg.train.early_stoping_patience,
+                                                     mode='max')
 
     callbacks = [lr_logger, checkpoint_callback, early_stop_callback, CommandLoggerCallback(command)]
 
+    if torch.cuda.is_available():
+        params = {"accelerator": "gpu", "devices": [cfg.device]}
+    else:
+        params = {}
+
     # init trainer
     trainer = pl.Trainer(
-        # accelerator="gpu",
-        # devices=[cfg.device],
         max_epochs=cfg.epochs,
         callbacks=callbacks,
         logger=loggers,
@@ -64,6 +69,7 @@ def main(cfg=None):
         # profiler=True,
         # benchmark=True,
         # deterministic=True,
+        **params
     )
 
     # datamodule
