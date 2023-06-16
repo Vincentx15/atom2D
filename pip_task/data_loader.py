@@ -18,11 +18,14 @@ class PIPDataset(Atom3DDataset):
     def __init__(self, lmdb_path, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../../data/processed_data/geometry/',
                  operator_path='../../data/processed_data/operator/',
+                 return_graph=False,
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
         self.recompute = recompute
+        self.return_graph = return_graph
+
 
     def _num_to_use(self, num_pos, num_neg):
         """

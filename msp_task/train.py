@@ -49,8 +49,8 @@ def main(cfg=None):
 
     # init trainer
     trainer = pl.Trainer(
-        accelerator="gpu",
-        devices=[cfg.device],
+        # accelerator="gpu",
+        # devices=[cfg.device],
         max_epochs=cfg.epochs,
         callbacks=callbacks,
         logger=loggers,

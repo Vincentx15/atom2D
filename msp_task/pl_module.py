@@ -20,6 +20,7 @@ class MSPModule(pl.LightningModule):
         self.val_auroc = auroc.clone()
         self.test_auroc = auroc.clone()
 
+        self.use_graph = hparams.model.use_graph
         self.model = MSPSurfNet(**hparams.model)
         # self.criterion = torch.nn.BCELoss()
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
@@ -28,11 +29,16 @@ class MSPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        name, geom_feats, coords, label = data[0]
+        if self.use_graph:
+            name, geom_feats, coords, label, graphs = data[0]
+            x = (geom_feats, graphs)
+        else:
+            name, geom_feats, coords, label = data[0]
+            x = geom_feats
         if name is None:
             return None, None, None
 
-        output = self((geom_feats, coords))
+        output = self((x, coords))
         loss = self.criterion(output, label)
         return loss, output.flatten(), label
 
@@ -46,7 +52,8 @@ class MSPModule(pl.LightningModule):
 
         self.train_accuracy(logits, labels)
         self.train_auroc(logits, labels)
-        self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True, batch_size=len(logits))
+        self.log_dict({"acc/train": self.train_accuracy, "auroc/train": self.train_auroc}, on_epoch=True,
+                      batch_size=len(logits))
 
         return loss
 
@@ -84,9 +91,16 @@ class MSPModule(pl.LightningModule):
         if batch[0][0] is None:
             return batch
 
-        name, geom_feats, coords, label = batch[0]
+        if self.use_graph:
+            name, geom_feats, coords, label, graphs = batch[0]
+        else:
+            name, geom_feats, coords, label = batch[0]
         label = label.to(self.device)
         geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
         coords = [x.to(self.device) for x in coords]
-        batch = [(name, geom_feats, coords, label)]
+        if self.use_graph:
+            graphs = [graph.to(device) for graph in graphs]
+            batch = [(name, geom_feats, coords, label, graphs)]
+        else:
+            batch = [(name, geom_feats, coords, label)]
         return batch

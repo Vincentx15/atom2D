@@ -23,6 +23,7 @@ model:
   dropout: 0.3
   batch_norm: False
   use_xyz: False
+  use_graph: False
 
 optimizer:
   lr: 1e-4

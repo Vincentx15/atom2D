@@ -156,7 +156,7 @@ class GraphDiffNet(nn.Module):
 
         self.mixer_blocks = []
         for i_block in range(self.N_block):
-            mixer_block = nn.Linear(diffnet_width * 2, diffnet_width)
+            mixer_block = nn.Linear(diffnet_width * 2, diffnet_width if i_block < self.N_block - 1 else C_out)
             self.mixer_blocks.append(mixer_block)
             self.add_module("mixer_" + str(i_block), mixer_block)
 
@@ -228,7 +228,7 @@ class GraphDiffNet(nn.Module):
             graph.x = graph_block(graph)
             diff_on_graph = torch.mm(rbf_weights.T, diff_x[0])
             graph_on_diff = torch.mm(rbf_weights, graph.x)
-            cat_graph = torch.cat((diff_on_graph, graph.x), dim=1) # TODO : two mixers ? sequential model?
+            cat_graph = torch.cat((diff_on_graph, graph.x), dim=1)  # TODO : two mixers ? sequential model?
             cat_diff = torch.cat((diff_x, graph_on_diff[None, ...]), dim=2)
             graph.x = mixer_block(cat_graph)
             diff_x = mixer_block(cat_diff)

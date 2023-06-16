@@ -74,7 +74,7 @@ class MSPDataset(Atom3DDataset):
                                                 recompute=self.recompute)
                           for name, df in zip(names, dfs)]
             if any([geom_feat is None for geom_feat in geom_feats]):
-                return None, None, None, None
+                raise ValueError("A geometric feature is buggy")
 
             if self.return_graph:
                 graph_feats = [main.get_graph(name=name, df=df,
@@ -82,14 +82,17 @@ class MSPDataset(Atom3DDataset):
                                               recompute=True)  # TODO : fix
                                for name, df in zip(names, dfs)]
                 if any([graph_feat is None for graph_feat in graph_feats]):
-                    return None, None, None, None, None
+                    raise ValueError("A graph feature is buggy")
                 return names, geom_feats, coords, torch.tensor([float(item['label'])]), graph_feats
 
             return names, geom_feats, coords, torch.tensor([float(item['label'])])
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            return None, None, None, None
+            if self.return_graph:
+                return None, None, None, None, None
+            else:
+                return None, None, None, None
 
 
 if __name__ == '__main__':

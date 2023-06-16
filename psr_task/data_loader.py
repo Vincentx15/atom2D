@@ -15,9 +15,12 @@ class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../../data/PSR/geometry/',
                  operator_path='../../data/PSR/operator/',
+                 return_graph=False,
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
         self.recompute = recompute
+        self.return_graph = return_graph
+
 
     @staticmethod
     def _extract_mut_idx(df, mutation):

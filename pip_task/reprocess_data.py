@@ -232,6 +232,7 @@ class NewPIP(torch.utils.data.Dataset):
     def __init__(self, data_dir, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../../data/processed_data/geometry/',
                  operator_path='../../data/processed_data/operator/',
+                 return_graph=False,
                  recompute=False):
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
@@ -241,6 +242,8 @@ class NewPIP(torch.utils.data.Dataset):
         self.df = pd.read_csv(csv_path)
         self.geometry_path = geometry_path
         self.operator_path = operator_path
+        self.return_graph = return_graph
+
 
     def get_geometry_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
