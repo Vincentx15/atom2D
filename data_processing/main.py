@@ -150,7 +150,7 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
 
 
 # prot_atoms = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
-prot_atoms = ['C', 'O', 'N', 'S']
+prot_atoms = ['C', 'O', 'N', 'S', 'X']
 
 import scipy.spatial as ss
 from torch_geometric.utils import to_undirected
