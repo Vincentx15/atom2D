@@ -173,6 +173,8 @@ class GraphDiffNet(nn.Module):
             gradY=None,
             edges=None,
             faces=None,
+            # rbf_surf_graph=None,
+            # rbf_graph_surf=None,
     ):
         """
         A forward pass on the MixedNet.
@@ -226,6 +228,9 @@ class GraphDiffNet(nn.Module):
         for graph_block, diff_block, mixer_block in zip(self.gcn_blocks, self.diff_blocks, self.mixer_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
+            # not necessary, cdist is fast
+            # diff_on_graph = torch.sparse.mm(rbf_graph_surf, diff_x[0])
+            # graph_on_diff = torch.sparse.mm(rbf_surf_graph, graph_x)
             diff_on_graph = torch.mm(rbf_weights.T, diff_x[0])
             graph_on_diff = torch.mm(rbf_weights, graph.x)
             cat_graph = torch.cat((diff_on_graph, graph.x), dim=1)  # TODO : two mixers ? sequential model?
