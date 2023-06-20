@@ -2,10 +2,10 @@ import os
 import sys
 
 import numpy as np
+import scipy.spatial as ss
 import torch
 from torch_geometric.data import Data
-
-import atom3d.util.graph as gr
+from torch_geometric.utils import to_undirected
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -13,6 +13,9 @@ if __name__ == "__main__":
 
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
 from atom2d_utils import learning_utils
+
+# prot_atoms = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
+PROT_ATOMS = ['C', 'O', 'N', 'S']
 
 
 def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_number=2000, verbose=False,
@@ -109,6 +112,22 @@ def process_df(df, name, dump_surf_dir, dump_operator_dir, recompute=False, min_
     return is_valid_mesh
 
 
+def surface_exists(name, dump_surf_dir, dump_operator_dir):
+    """
+    Useful in other codes
+
+    :param name:
+    :param dump_surf_dir:
+    :param dump_operator_dir:
+    :return:
+    """
+    dump_surf_outname = os.path.join(dump_surf_dir, name)
+    ply_file = f"{dump_surf_outname}_mesh.ply"
+    features_file = f"{dump_surf_outname}_features.npz"
+    operator_file = f"{dump_operator_dir}/{name}_operator.npz"
+    return os.path.exists(ply_file) and os.path.exists(features_file) and os.path.exists(operator_file)
+
+
 def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True):
     """
     Get all relevant files, potentially recomputing them as needed
@@ -124,8 +143,7 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
     features_file = f"{dump_surf_outname}_features.npz"
     operator_file = f"{dump_operator_dir}/{name}_operator.npz"
 
-    need_recompute = not (os.path.exists(ply_file) and os.path.exists(features_file) and os.path.exists(operator_file))
-    if need_recompute:
+    if not surface_exists(name, dump_surf_dir, dump_operator_dir):
         if recompute:
             print(
                 f"For system : {name}, recomputing : "
@@ -149,22 +167,16 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
                                                             3), evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces
 
 
-# prot_atoms = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
-prot_atoms = ['C', 'O', 'N', 'S', 'X']
-
-import scipy.spatial as ss
-from torch_geometric.utils import to_undirected
-
-
 def one_of_k_encoding_unk(x, allowable_set):
     """Converts input to 1-hot encoding given a set of allowable values.
-     Additionally maps inputs not in the allowable set to the last element."""
+     Additionally, maps inputs not in the allowable set to a default element."""
+    allowable_set.append('X')
     if x not in allowable_set:
         x = allowable_set[-1]
     return list(map(lambda s: x == s, allowable_set))
 
 
-def prot_df_to_graph(df, feat_col='element', allowable_feats=prot_atoms, edge_dist_cutoff=4.5):
+def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_dist_cutoff=4.5):
     r"""
     Converts protein in dataframe representation to a graph compatible with Pytorch-Geometric, where each node is an atom.
 
@@ -226,7 +238,7 @@ def get_graph(name, df, dump_graph_dir, recompute=False):
             print(
                 f"For system : {name}, recomputing : graph "
             )
-            node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, allowable_feats=prot_atoms)
+            node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, allowable_feats=PROT_ATOMS)
             graph = Data(node_feats, edge_index, edge_feats, pos=pos)
             torch.save(graph, dump_graph_name)
         else:

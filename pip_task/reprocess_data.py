@@ -21,100 +21,13 @@ class PIPReprocess(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../data/processed_data/geometry/',
                  operator_path='../data/processed_data/operator/',
-                 recompute=False):
+                 recompute_csv=False,
+                 recompute_surfaces=False
+                 ):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
-        self.neg_to_pos_ratio = 1
-        self.max_pos_regions_per_ensemble = 5
-        self.recompute = recompute
+        self.recompute = recompute_csv
+        self.recompute_surfaces = recompute_surfaces
         self.dump_dir = os.path.join(os.path.dirname(lmdb_path), 'systems')
-
-    # def _num_to_use(self, num_pos, num_neg):
-    #     """
-    #     Depending on the number of pos and neg of the system, we might want to use
-    #         different amounts of positive or negative coordinates.
-    #
-    #     :param num_pos:
-    #     :param num_neg:
-    #     :return:
-    #     """
-    #
-    #     if self.neg_to_pos_ratio == -1:
-    #         num_pos_to_use, num_neg_to_use = num_pos, num_neg
-    #     else:
-    #         num_pos_to_use = min(num_pos, num_neg / self.neg_to_pos_ratio)
-    #         if self.max_pos_regions_per_ensemble != -1:
-    #             num_pos_to_use = min(num_pos_to_use, self.max_pos_regions_per_ensemble)
-    #         num_neg_to_use = num_pos_to_use * self.neg_to_pos_ratio
-    #     num_pos_to_use = int(math.ceil(num_pos_to_use))
-    #     num_neg_to_use = int(math.ceil(num_neg_to_use))
-    #     return num_pos_to_use, num_neg_to_use
-    # @staticmethod
-    # def _get_res_pair_ca_coords(samples_df, structs_df):
-    #     def _get_ca_coord(struct, res):
-    #         coord = struct[(struct.residue == res) & (struct.name == 'CA')][['x', 'y', 'z']].values[0]
-    #         return coord
-    #
-    #     res_pairs = samples_df[['residue0', 'residue1']].values
-    #     cas = []
-    #     for (res0, res1) in res_pairs:
-    #         try:
-    #             coord0 = _get_ca_coord(structs_df[0], res0)
-    #             coord1 = _get_ca_coord(structs_df[1], res1)
-    #             cas.append((res0, res1, coord0, coord1))
-    #         except Exception:
-    #             pass
-    #     return cas
-    # def original_getitem(self, index):
-    #     item = self._lmdb_dataset[index]
-    #
-    #     # Subunits
-    #     wrapped_names, wrapped_structs = atom3dutils.get_subunits(item['atoms_pairs'])
-    #
-    #     bdf0, bdf1, udf0, udf1 = wrapped_structs
-    #     name_bdf0, name_bdf1, name_udf0, name_udf1 = wrapped_names
-    #     structs_df = [udf0, udf1] if udf0 is not None else [bdf0, bdf1]
-    #     names_used = [name_udf0, name_udf1] if name_udf0 is not None else [name_bdf0, name_bdf1]
-    #
-    #     # Get all positives and negative neighbors, filter out non-empty hetero/insertion_code
-    #     pos_neighbors_df = item['atoms_neighbors']
-    #     neg_neighbors_df = atom3dutils.get_negatives(pos_neighbors_df, structs_df[0], structs_df[1])
-    #     non_heteros = []
-    #     for df in structs_df:
-    #         non_heteros.append(df[(df.hetero == ' ') & (df.insertion_code == ' ')].residue.unique())
-    #     pos_neighbors_df = pos_neighbors_df[pos_neighbors_df.residue0.isin(non_heteros[0])
-    #                                         & pos_neighbors_df.residue1.isin(non_heteros[1])]
-    #     neg_neighbors_df = neg_neighbors_df[neg_neighbors_df.residue0.isin(non_heteros[0])
-    #                                         & neg_neighbors_df.residue1.isin(non_heteros[1])]
-    #
-    #     # Sample pos and neg samples
-    #     num_pos = pos_neighbors_df.shape[0]
-    #     num_neg = neg_neighbors_df.shape[0]
-    #     num_pos_to_use, num_neg_to_use = self._num_to_use(num_pos, num_neg)
-    #     if pos_neighbors_df.shape[0] == num_pos_to_use:
-    #         pos_samples_df = pos_neighbors_df.reset_index(drop=True)
-    #     else:
-    #         pos_samples_df = pos_neighbors_df.sample(num_pos_to_use, replace=True).reset_index(drop=True)
-    #     if neg_neighbors_df.shape[0] == num_neg_to_use:
-    #         neg_samples_df = neg_neighbors_df.reset_index(drop=True)
-    #     else:
-    #         neg_samples_df = neg_neighbors_df.sample(num_neg_to_use, replace=True).reset_index(drop=True)
-    #
-    #     pos_pairs_cas = self._get_res_pair_ca_coords(pos_samples_df, structs_df)
-    #     neg_pairs_cas = self._get_res_pair_ca_coords(neg_samples_df, structs_df)
-    #     pos_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in pos_pairs_cas]))
-    #     neg_pairs_cas_arrs = torch.from_numpy(np.asarray([[ca_data[2], ca_data[3]] for ca_data in neg_pairs_cas]))
-    #
-    #     geom_feats_0 = main.get_diffnetfiles(name=names_used[0],
-    #                                          df=structs_df[0],
-    #                                          dump_surf_dir=self.get_geometry_dir(names_used[0]),
-    #                                          dump_operator_dir=self.get_operator_dir(names_used[0]),
-    #                                          recompute=self.recompute)
-    #     geom_feats_1 = main.get_diffnetfiles(name=names_used[1],
-    #                                          df=structs_df[1],
-    #                                          dump_surf_dir=self.get_geometry_dir(names_used[1]),
-    #                                          dump_operator_dir=self.get_operator_dir(names_used[1]),
-    #                                          recompute=self.recompute)
-    #     return names_used[0], names_used[1], pos_pairs_cas_arrs, neg_pairs_cas_arrs, geom_feats_0, geom_feats_1
 
     def reprocess(self, index):
         item = self._lmdb_dataset[index]
@@ -149,43 +62,54 @@ class PIPReprocess(Atom3DDataset):
                                    os.path.exists(dump_pairs)):
             return 0, dirname, names_used[0], names_used[1]
 
-        # If some surfaces are missing, skip the system
-        geom_feats_0 = main.get_diffnetfiles(name=names_used[0],
-                                             df=structs_df[0],
-                                             dump_surf_dir=self.get_geometry_dir(names_used[0]),
-                                             dump_operator_dir=self.get_operator_dir(names_used[0]),
-                                             recompute=self.recompute)
-        geom_feats_1 = main.get_diffnetfiles(name=names_used[1],
-                                             df=structs_df[1],
-                                             dump_surf_dir=self.get_geometry_dir(names_used[1]),
-                                             dump_operator_dir=self.get_operator_dir(names_used[1]),
-                                             recompute=self.recompute)
+        if not self.recompute_surfaces:
+            surface_0_exists = main.surface_exists(name=names_used[0],
+                                                   dump_surf_dir=self.get_geometry_dir(names_used[0]),
+                                                   dump_operator_dir=self.get_operator_dir(names_used[0]), )
+            surface_1_exists = main.surface_exists(name=names_used[1],
+                                                   dump_surf_dir=self.get_geometry_dir(names_used[1]),
+                                                   dump_operator_dir=self.get_operator_dir(names_used[1]))
+            # If some surfaces are missing, skip the system
+            if not (surface_0_exists and surface_1_exists):
+                return 1, None, None, None
+        else:
+            geom_feats_0 = main.get_diffnetfiles(name=names_used[0],
+                                                 df=structs_df[0],
+                                                 dump_surf_dir=self.get_geometry_dir(names_used[0]),
+                                                 dump_operator_dir=self.get_operator_dir(names_used[0]),
+                                                 recompute=self.recompute)
+            geom_feats_1 = main.get_diffnetfiles(name=names_used[1],
+                                                 df=structs_df[1],
+                                                 dump_surf_dir=self.get_geometry_dir(names_used[1]),
+                                                 dump_operator_dir=self.get_operator_dir(names_used[1]),
+                                                 recompute=self.recompute)
 
-        if geom_feats_0 is None or geom_feats_1 is None:
-            return 1, None, None, None
-
-        # Get all positives and negative neighbors, filter out non-empty hetero/insertion_code
-        pos_neighbors_df = item['atoms_neighbors']
-        non_heteros = []
-        for df in structs_df:
-            non_heteros.append(df[(df.hetero == ' ') & (df.insertion_code == ' ')].residue.unique())
-        pos_neighbors_df = pos_neighbors_df[pos_neighbors_df.residue0.isin(non_heteros[0])
-                                            & pos_neighbors_df.residue1.isin(non_heteros[1])]
+            # If some surfaces are missing, skip the system
+            if geom_feats_0 is None or geom_feats_1 is None:
+                return 1, None, None, None
 
         # First let us get all CA positions for both
+        def clean_struct(struct_df):
+            """
+            Filter out non-empty hetero/insertion_code, keep only CA, coordinates and resname
+            """
+            struct_df = struct_df[struct_df.element.isin(main.PROT_ATOMS)]
+            struct_df = struct_df[(struct_df.hetero == ' ') & (struct_df.insertion_code == ' ')]
+            struct_df = struct_df[['chain', 'residue', 'resname', 'name', 'element', 'x', 'y', 'z', ]]
+            struct_df = struct_df.reset_index(drop=True)
+            return struct_df
+
         struct_1, struct_2 = structs_df
-        struct_1 = struct_1[struct_1.residue.isin(non_heteros[0])]
-        struct_1 = struct_1[struct_1.name == 'CA']
-        struct_1 = struct_1[['chain', 'residue', 'resname', 'x', 'y', 'z', ]]
-        struct_1 = struct_1.reset_index(drop=True)
+        struct_1, struct_2 = clean_struct(struct_1), clean_struct(struct_2)
 
-        struct_2 = struct_2[struct_2.residue.isin(non_heteros[1])]
-        struct_2 = struct_2[struct_2.name == 'CA']
-        struct_2 = struct_2[['chain', 'residue', 'resname', 'x', 'y', 'z', ]]
-        struct_2 = struct_2.reset_index(drop=True)
-
-        # Now let us match the ids
-        pos_pairs_res = pos_neighbors_df[['residue0', 'residue1']]
+        # Get all positives and keep only valid ids to get a pair (no missing CA)
+        ca_1 = struct_1[struct_1.name == 'CA']
+        ca_2 = struct_2[struct_2.name == 'CA']
+        res_1, res_2 = ca_1.residue, ca_2.residue
+        pos_neighbors_df = item['atoms_neighbors']
+        pos_neighbors_df_1 = pos_neighbors_df[pos_neighbors_df.residue0.isin(res_1)]
+        pos_neighbors_df_2 = pos_neighbors_df_1[pos_neighbors_df_1.residue1.isin(res_2)]
+        pos_pairs_res = pos_neighbors_df_2[['residue0', 'residue1']]
 
         # Finally dump all relevant files
         struct_1.to_csv(dump_struct_1)
@@ -214,9 +138,9 @@ class PIPReprocess(Atom3DDataset):
             return 1, None, None, None
 
 
-def reprocess_data(data_dir, recompute=False):
-    dataset = PIPReprocess(data_dir, recompute=recompute)
-    dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, collate_fn=lambda x: x[0])
+def reprocess_data(data_dir, recompute_csv=False, recompute_surfaces=False, num_workers=0):
+    dataset = PIPReprocess(data_dir, recompute_csv=recompute_csv, recompute_surfaces=recompute_surfaces)
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=num_workers, collate_fn=lambda x: x[0])
     df = pd.DataFrame(columns=["system", "name1", "name2"])
     dump_csv = os.path.join(data_dir, 'all_systems.csv')
     # For now the time to beat is 0.2s to get the item
@@ -243,7 +167,6 @@ class NewPIP(torch.utils.data.Dataset):
         self.geometry_path = geometry_path
         self.operator_path = operator_path
         self.return_graph = return_graph
-
 
     def get_geometry_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
@@ -290,13 +213,16 @@ class NewPIP(torch.utils.data.Dataset):
         struct_2 = pd.read_csv(dump_struct_2, index_col=0)
         pos_pairs_res = pd.read_csv(dump_pairs, index_col=0)
 
-        mapping_1 = {resindex: i for i, resindex in enumerate(struct_1.residue.values)}
-        mapping_2 = {resindex: i for i, resindex in enumerate(struct_2.residue.values)}
+        # Get CA coords
+        ca_1 = struct_1[struct_1.name == 'CA']
+        ca_2 = struct_2[struct_2.name == 'CA']
+        mapping_1 = {resindex: i for i, resindex in enumerate(ca_1.residue.values)}
+        mapping_2 = {resindex: i for i, resindex in enumerate(ca_2.residue.values)}
 
         pos_as_array_1 = np.array([mapping_1[resi] for resi in pos_pairs_res['residue0']])
         pos_as_array_2 = np.array([mapping_2[resi] for resi in pos_pairs_res['residue1']])
 
-        dense = np.zeros((len(struct_1), len(struct_2)))
+        dense = np.zeros((len(ca_1), len(ca_2)))
         dense[pos_as_array_1, pos_as_array_2] = 1
         negs_1, negs_2 = np.where(dense == 0)
 
@@ -311,8 +237,8 @@ class NewPIP(torch.utils.data.Dataset):
         neg_array_sampled = neg_array[:, neg_array_idx]
 
         # Get all coords, extract the right ones and stack them into (n_pairs, 2, 3)
-        coords_1 = struct_1[['x', 'y', 'z', ]].values
-        coords_2 = struct_2[['x', 'y', 'z', ]].values
+        coords_1 = ca_1[['x', 'y', 'z', ]].values
+        coords_2 = ca_2[['x', 'y', 'z', ]].values
         pos_1, pos_2 = coords_1[pos_array_sampled[0]], coords_2[pos_array_sampled[1]]
         pos_stack = np.transpose(np.stack((pos_1, pos_2)), axes=(1, 0, 2))
         neg_1, neg_2 = coords_1[neg_array_sampled[0]], coords_2[neg_array_sampled[1]]
@@ -344,23 +270,20 @@ class NewPIP(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
-
-    # Source of bug : missing CA are not removed, yet they are used for coords later on...
-    # TODO : fix with CA filtering
-    # data_dir = '../data/PIP/DIPS-split/data/train/'
-    # reprocess_data(data_dir, recompute=True)
-    # data_dir = '../data/PIP/DIPS-split/data/val/'
-    # reprocess_data(data_dir, recompute=True)
+    data_dir = '../data/PIP/DIPS-split/data/train/'
+    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
+    data_dir = '../data/PIP/DIPS-split/data/val/'
+    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
     data_dir = '../data/PIP/DIPS-split/data/test/'
-    # reprocess_data(data_dir, recompute=True)
-    import time
+    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
 
-    t0 = time.perf_counter()
-    dataset = NewPIP(data_dir)
-    dataloader = torch.utils.data.DataLoader(dataset, num_workers=8, collate_fn=lambda x: x[0])
-    for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
-        # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
-        # print(i)
-        if i > 250:
-            break
-    print(time.perf_counter() - t0)
+    # import time
+    # t0 = time.perf_counter()
+    # dataset = NewPIP(data_dir)
+    # dataloader = torch.utils.data.DataLoader(dataset, num_workers=8, collate_fn=lambda x: x[0])
+    # for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+    #     # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+    #     # print(i)
+    #     if i > 250:
+    #         break
+    # print(time.perf_counter() - t0)
