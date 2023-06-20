@@ -169,8 +169,7 @@ def get_diffnetfiles(name, df, dump_surf_dir, dump_operator_dir, recompute=True)
 
 def one_of_k_encoding_unk(x, allowable_set):
     """Converts input to 1-hot encoding given a set of allowable values.
-     Additionally, maps inputs not in the allowable set to a default element."""
-    allowable_set.append('X')
+     Additionally, maps inputs not in the allowable set to the last element."""
     if x not in allowable_set:
         x = allowable_set[-1]
     return list(map(lambda s: x == s, allowable_set))
@@ -210,7 +209,8 @@ def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_di
     edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
     edges = torch.LongTensor(edge_tuples).t().contiguous()
     edges = to_undirected(edges)
-    node_feats = torch.FloatTensor([one_of_k_encoding_unk(e, allowable_feats) for e in df[feat_col]])
+    allowable_set = allowable_feats + ['X']
+    node_feats = torch.FloatTensor([one_of_k_encoding_unk(e, allowable_set) for e in df[feat_col]])
     # print(f"time to pre_dist : {time.time() - t0}")
 
     # t0 = time.time()

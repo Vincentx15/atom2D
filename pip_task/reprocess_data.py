@@ -156,6 +156,7 @@ class NewPIP(torch.utils.data.Dataset):
     def __init__(self, data_dir, neg_to_pos_ratio=1, max_pos_regions_per_ensemble=5,
                  geometry_path='../../data/processed_data/geometry/',
                  operator_path='../../data/processed_data/operator/',
+                 graph_path='../../data/processed_data/graph',
                  return_graph=False,
                  recompute=False):
         self.neg_to_pos_ratio = neg_to_pos_ratio
@@ -166,6 +167,7 @@ class NewPIP(torch.utils.data.Dataset):
         self.df = pd.read_csv(csv_path)
         self.geometry_path = geometry_path
         self.operator_path = operator_path
+        self.graph_path = graph_path
         self.return_graph = return_graph
 
     def get_geometry_dir(self, name):
@@ -173,6 +175,9 @@ class NewPIP(torch.utils.data.Dataset):
 
     def get_operator_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.operator_path)
+
+    def get_graph_dir(self, name):
+        return naming_utils.name_to_dir(name, dir_path=self.graph_path)
 
     def _num_to_use(self, num_pos, num_neg):
         """
@@ -255,6 +260,18 @@ class NewPIP(torch.utils.data.Dataset):
                                              dump_operator_dir=self.get_operator_dir(name2),
                                              recompute=self.recompute)
 
+        if self.return_graph:
+            graph_1 = main.get_graph(name=name1, df=struct_1,
+                                     dump_graph_dir=self.get_graph_dir(name1),
+                                     recompute=True)
+            graph_2 = main.get_graph(name=name2, df=struct_2,
+                                     dump_graph_dir=self.get_graph_dir(name1),
+                                     recompute=True)
+            if graph_1 is None or graph_2 is None:
+                raise ValueError("A graph feature is buggy")
+            return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), \
+                geom_feats_0, geom_feats_1, graph_1, graph_2
+
         if geom_feats_0 is None or geom_feats_1 is None:
             return None, None, None, None, None, None
         return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_0, geom_feats_1
@@ -266,24 +283,31 @@ class NewPIP(torch.utils.data.Dataset):
             return res
         except Exception as e:
             print(f"Error in __getitem__: {e} index : {index}")
+            if self.return_graph:
+                return None, None, None, None, None, None, None, None
             return None, None, None, None, None, None
 
 
 if __name__ == '__main__':
-    data_dir = '../data/PIP/DIPS-split/data/train/'
-    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
-    data_dir = '../data/PIP/DIPS-split/data/val/'
-    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
-    data_dir = '../data/PIP/DIPS-split/data/test/'
-    reprocess_data(data_dir, recompute_csv=True, num_workers=4)
+    # data_dir = '../data/PIP/DIPS-split/data/train/'
+    # reprocess_data(data_dir, recompute_csv=True, num_workers=4)
+    # data_dir = '../data/PIP/DIPS-split/data/val/'
+    # reprocess_data(data_dir, recompute_csv=True, num_workers=4)
+    # data_dir = '../data/PIP/DIPS-split/data/test/'
+    # reprocess_data(data_dir, recompute_csv=True, num_workers=4)
 
-    # import time
-    # t0 = time.perf_counter()
-    # dataset = NewPIP(data_dir)
-    # dataloader = torch.utils.data.DataLoader(dataset, num_workers=8, collate_fn=lambda x: x[0])
-    # for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
-    #     # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
-    #     # print(i)
-    #     if i > 250:
-    #         break
-    # print(time.perf_counter() - t0)
+    import time
+    t0 = time.perf_counter()
+    data_dir = '../data/PIP/DIPS-split/data/test/'
+    dataset = NewPIP(data_dir, return_graph=True,
+                     geometry_path='../data/processed_data/geometry/',
+                     operator_path='../data/processed_data/operator/',
+                     graph_path='../data/processed_data/graph',
+                     )
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=8, collate_fn=lambda x: x[0])
+    for i, res in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+        # for i, res in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+        # print(i)
+        if i > 250:
+            break
+    print(time.perf_counter() - t0)

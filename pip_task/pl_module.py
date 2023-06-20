@@ -22,7 +22,7 @@ def compute_auroc(predictions, labels):
     try:
         auroc = roc_auc_score(y_true=labels, y_score=predictions)
         return auroc
-    except  ValueError as e:
+    except ValueError as e:
         print("Auroc computation failed, ", e)
         return 0.5
 
