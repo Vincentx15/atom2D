@@ -16,6 +16,17 @@ def compute_accuracy(predictions, labels):
     return accuracy
 
 
+def compute_auroc(predictions, labels):
+    labels = labels.detach().cpu().numpy(),
+    predictions = predictions.detach().cpu().numpy()
+    try:
+        auroc = roc_auc_score(y_true=labels, y_score=predictions)
+        return auroc
+    except  ValueError as e:
+        print("Auroc computation failed, ", e)
+        return 0.5
+
+
 class PIPModule(pl.LightningModule):
 
     def __init__(self, hparams) -> None:
@@ -62,7 +73,7 @@ class PIPModule(pl.LightningModule):
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
         acc = compute_accuracy(logits, labels)
-        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+        auroc = compute_auroc(logits, labels)
 
         # self.train_accuracy(logits, labels)
         # self.train_auroc(logits, labels)
@@ -80,7 +91,7 @@ class PIPModule(pl.LightningModule):
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         acc = compute_accuracy(logits, labels)
-        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+        auroc = compute_auroc(logits, labels)
 
         # self.val_accuracy(logits, labels)
         # self.val_auroc(logits, labels)
@@ -98,7 +109,7 @@ class PIPModule(pl.LightningModule):
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
         acc = compute_accuracy(logits, labels)
-        auroc = roc_auc_score(labels.detach().cpu().numpy(), logits.detach().cpu().numpy())
+        auroc = compute_auroc(logits, labels)
 
         # self.test_accuracy(logits, labels)
         # self.test_auroc(logits, labels)
