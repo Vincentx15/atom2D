@@ -259,6 +259,8 @@ class NewPIP(torch.utils.data.Dataset):
                                              dump_surf_dir=self.get_geometry_dir(name2),
                                              dump_operator_dir=self.get_operator_dir(name2),
                                              recompute=self.recompute)
+        if geom_feats_0 is None or geom_feats_1 is None:
+            raise ValueError("A geometric feature is buggy")
 
         if self.return_graph:
             graph_1 = main.get_graph(name=name1, df=struct_1,
@@ -271,9 +273,6 @@ class NewPIP(torch.utils.data.Dataset):
                 raise ValueError("A graph feature is buggy")
             return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), \
                 geom_feats_0, geom_feats_1, graph_1, graph_2
-
-        if geom_feats_0 is None or geom_feats_1 is None:
-            return None, None, None, None, None, None
         return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_0, geom_feats_1
 
     def __getitem__(self, index):
@@ -297,6 +296,7 @@ if __name__ == '__main__':
     # reprocess_data(data_dir, recompute_csv=True, num_workers=4)
 
     import time
+
     t0 = time.perf_counter()
     data_dir = '../data/PIP/DIPS-split/data/test/'
     dataset = NewPIP(data_dir, return_graph=True,

@@ -21,7 +21,6 @@ class PSRDataset(Atom3DDataset):
         self.recompute = recompute
         self.return_graph = return_graph
 
-
     @staticmethod
     def _extract_mut_idx(df, mutation):
         chain, res = mutation[1], int(mutation[2:-1])
@@ -53,7 +52,14 @@ class PSRDataset(Atom3DDataset):
                                                dump_operator_dir=self.get_operator_dir(name),
                                                recompute=self.recompute)
             if geom_feats is None:
-                return None, None, None
+                raise ValueError("A geometric feature is buggy")
+            if self.return_graph:
+                graph_feat = main.get_graph(name=name, df=df,
+                                            dump_graph_dir=self.get_graph_dir(name),
+                                            recompute=True)
+                if graph_feat is None:
+                    raise ValueError("A graph feature is buggy")
+                return name, geom_feats, torch.tensor([scores['gdt_ts']]), graph_feat
             return name, geom_feats, torch.tensor([scores['gdt_ts']])
         except Exception as e:
             print("------------------")
