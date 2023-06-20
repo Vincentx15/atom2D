@@ -4,6 +4,7 @@ import sys
 import torch
 
 from atom3d.util.formats import get_coordinates_from_df
+from atom2d_utils.learning_utils import unwrap_feats
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -77,10 +78,12 @@ class MSPDataset(Atom3DDataset):
                 raise ValueError("A geometric feature is buggy")
 
             if self.return_graph:
+                xyzs = [unwrap_feats(geom_feat)["vertices"] for geom_feat in geom_feats]
                 graph_feats = [main.get_graph(name=name, df=df,
                                               dump_graph_dir=self.get_graph_dir(name),
+                                              # xyz=xyzs[i],
                                               recompute=True)  # TODO : fix
-                               for name, df in zip(names, dfs)]
+                               for i, (name, df) in enumerate(zip(names, dfs))]
                 if any([graph_feat is None for graph_feat in graph_feats]):
                     raise ValueError("A graph feature is buggy")
                 return names, geom_feats, coords, torch.tensor([float(item['label'])]), graph_feats

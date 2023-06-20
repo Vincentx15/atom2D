@@ -230,7 +230,7 @@ def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_di
     return node_feats, edges, my_edge_weights_torch, node_pos
 
 
-def get_graph(name, df, dump_graph_dir, recompute=False):
+def get_graph(name, df, dump_graph_dir, xyz=None, recompute=False):
     os.makedirs(dump_graph_dir, exist_ok=True)
     dump_graph_name = os.path.join(dump_graph_dir, f"{name}.pth")
     if not os.path.exists(dump_graph_name):
@@ -240,6 +240,28 @@ def get_graph(name, df, dump_graph_dir, recompute=False):
             )
             node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, allowable_feats=PROT_ATOMS)
             graph = Data(node_feats, edge_index, edge_feats, pos=pos)
+            if xyz is not None:
+                # !!! not sure if this needed, cdist seems to be quick
+                distance_matrix = torch.cdist(xyz, pos)
+                N, M = distance_matrix.shape
+                k, sigma = 30, 2.5
+
+                _, knn_indices = torch.topk(distance_matrix, k, largest=False, sorted=True, dim=1)
+                row_indices = torch.arange(N).view(-1, 1).expand(-1, k).reshape(-1)
+                knn_distances = torch.gather(distance_matrix, 1, knn_indices)
+                rbf_weight_values = torch.exp(-knn_distances / sigma).reshape(-1)
+                indices = torch.stack((row_indices, knn_indices.reshape(-1)))
+                rbf_surf_graph = torch.sparse.FloatTensor(indices, rbf_weight_values, (N, B.size(0)))
+
+                _, knn_indices = torch.topk(distance_matrix.T, k, largest=False, sorted=True, dim=1)
+                row_indices = torch.arange(M).view(-1, 1).expand(-1, k).reshape(-1)
+                knn_distances = torch.gather(distance_matrix.T, 1, knn_indices)
+                rbf_weight_values = torch.exp(-knn_distances / sigma).reshape(-1)
+                indices = torch.stack((row_indices, knn_indices.reshape(-1)))
+                rbf_graph_surf = torch.sparse.FloatTensor(indices, rbf_weight_values, (N, B.size(0)))
+                graph.rbf_surf_graph = rbf_surf_graph
+                graph.rbf_graph_surf = rbf_graph_surf
+
             torch.save(graph, dump_graph_name)
         else:
             return None
