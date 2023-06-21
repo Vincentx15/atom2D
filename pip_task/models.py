@@ -1,4 +1,4 @@
-import diff_net
+import base_nets
 from scipy.spatial.transform import Rotation as R
 import torch
 import torch.nn as nn
@@ -16,11 +16,11 @@ class PIPNet(torch.nn.Module):
         self.sigma = sigma
         self.use_xyz = use_xyz
         # Create the model
-        self.diff_net_model = diff_net.layers.DiffusionNet(C_in=in_channels,
-                                                           C_out=out_channel,
-                                                           C_width=C_width,
-                                                           N_block=N_block,
-                                                           last_activation=torch.relu)
+        self.diff_net_model = base_nets.layers.DiffusionNet(C_in=in_channels,
+                                                            C_out=out_channel,
+                                                            C_width=C_width,
+                                                            N_block=N_block,
+                                                            last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         in_features = 2 * (out_channel + 1)
         layers = []
@@ -56,7 +56,7 @@ class PIPNet(torch.nn.Module):
         locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
 
         # We need the vertices to push back the points.
-        # We also have to remove them from the dict to feed into diff_net
+        # We also have to remove them from the dict to feed into base_nets
         verts_left = dict_feat_left.pop('vertices')
         verts_right = dict_feat_right.pop('vertices')
         if self.use_xyz:

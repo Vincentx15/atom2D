@@ -11,20 +11,26 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from psr_task import data_loader, pl_module
+from psr_task import data_loader, pl_module, models
 
-ckpt_path = "epoch=99-step=2540000.ckpt"
+# ckpt_path = "epoch=99-step=2540000.ckpt"
 # checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
 # model_weights = checkpoint["state_dict"]
 # model = models.PSRSurfNet()
 # model.load_state_dict(model_weights)
 
-model = pl_module.PSRModule.load_from_checkpoint(ckpt_path, map_location='cpu')
+# model = pl_module.PSRModule.load_from_checkpoint(ckpt_path, map_location='cpu')
 # model = pl_module.PSRModule.load_from_checkpoint(ckpt_path)
-model.eval()
+# model.eval()
 
+return_graph = True
 data_dir = '../data/PSR/test/'
-dataset = data_loader.PSRDataset(data_dir)
+dataset = data_loader.PSRDataset(data_dir,
+                                 geometry_path='../data/PSR/geometry/',
+                                 operator_path='../data/PSR/operator/',
+                                 graph_path='../data/PSR/graphs/',
+                                 return_graph=return_graph)
+model = models.PSRSurfNet(use_graph=return_graph)
 loader = torch.utils.data.DataLoader(dataset=dataset, num_workers=0, collate_fn=lambda x: x)
 device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
 
@@ -34,11 +40,14 @@ for i, item in tqdm(enumerate(loader), total=len(loader)):
     # if i > 2:
     #     break
     with torch.no_grad():
-        name, geom_feats, scores = item[0]
+        if return_graph:
+            name, geom_feats, scores, graphs = item[0]
+            x = (geom_feats, graphs)
+        else:
+            name, x, scores = item[0]
         if name is None:
-            print('None here')
             continue
-        output = model(geom_feats)
+        output = model(x)
         scores = scores.item()
         output = output.item()
         reslist = [output, scores]

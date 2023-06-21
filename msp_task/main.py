@@ -8,7 +8,7 @@ if __name__ == '__main__':
 from msp_task import data_loader, models
 
 data_dir = '../data/MSP/train/'
-return_graph=True
+return_graph = True
 dataset = data_loader.MSPDataset(data_dir,
                                  geometry_path='../data/MSP/geometry/',
                                  operator_path='../data/MSP/operator/',

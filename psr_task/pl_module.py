@@ -46,6 +46,7 @@ class PSRModule(pl.LightningModule):
         self.test_reslist = list()
         self.test_resdict = defaultdict(list)
 
+        self.use_graph = hparams.model.use_graph
         self.model = PSRSurfNet(**hparams.model)
         self.criterion = torch.nn.MSELoss()
 
@@ -53,11 +54,16 @@ class PSRModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, data):
-        name, geom_feats, scores = data[0]
+        if self.use_graph:
+            name, geom_feats, scores, graphs = data[0]
+            x = (geom_feats, graphs)
+        else:
+            name, geom_feats, scores = data[0]
+            x = geom_feats
         if name is None:
             return None, None, None, None
 
-        output = self(geom_feats)
+        output = self(x)
         loss = self.criterion(output, scores)
         return name, loss, output.flatten(), scores
 
@@ -131,8 +137,17 @@ class PSRModule(pl.LightningModule):
         if batch[0][0] is None:
             return batch
 
-        name, geom_feats, scores = batch[0]
+        if self.use_graph:
+            name, geom_feats, scores, graph = batch[0]
+        else:
+            name, geom_feats, scores = batch[0]
+
         geom_feats = [x.to(self.device) for x in geom_feats]
         scores = scores.to(self.device)
-        batch = [(name, geom_feats, scores)]
+
+        if self.use_graph:
+            graph = graph.to(device)
+            batch = [(name, geom_feats, scores, graph)]
+        else:
+            batch = [(name, geom_feats, scores)]
         return batch

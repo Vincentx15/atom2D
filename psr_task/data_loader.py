@@ -15,9 +15,11 @@ class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../../data/PSR/geometry/',
                  operator_path='../../data/PSR/operator/',
+                 graph_path='../../data/PSR/graphs/',
                  return_graph=False,
                  recompute=False):
-        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path, operator_path=operator_path)
+        super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
+                         graph_path=graph_path, operator_path=operator_path)
         self.recompute = recompute
         self.return_graph = return_graph
 
@@ -64,6 +66,8 @@ class PSRDataset(Atom3DDataset):
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
+            if self.return_graph:
+                return None, None, None, None
             return None, None, None
 
 
