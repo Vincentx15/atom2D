@@ -1,7 +1,9 @@
 import os
 import sys
-from pathlib import Path
+
 import hydra
+import torch
+from pathlib import Path
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 
@@ -49,10 +51,13 @@ def main(cfg=None):
 
     callbacks = [lr_logger, checkpoint_callback, early_stop_callback, CommandLoggerCallback(command)]
 
+    if torch.cuda.is_available():
+        params = {"accelerator": "gpu", "devices": [cfg.device]}
+    else:
+        params = {}
+
     # init trainer
     trainer = pl.Trainer(
-        accelerator="gpu",
-        devices=[cfg.device],
         max_epochs=cfg.epochs,
         callbacks=callbacks,
         logger=loggers,
@@ -68,6 +73,7 @@ def main(cfg=None):
         # profiler=True,
         # benchmark=True,
         # deterministic=True,
+        **params
     )
 
     # datamodule

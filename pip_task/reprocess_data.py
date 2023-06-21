@@ -249,17 +249,17 @@ class NewPIP(torch.utils.data.Dataset):
         neg_1, neg_2 = coords_1[neg_array_sampled[0]], coords_2[neg_array_sampled[1]]
         neg_stack = np.transpose(np.stack((neg_1, neg_2)), axes=(1, 0, 2))
 
-        geom_feats_0 = main.get_diffnetfiles(name=name1,
+        geom_feats_1 = main.get_diffnetfiles(name=name1,
                                              df=struct_1,
                                              dump_surf_dir=self.get_geometry_dir(name1),
                                              dump_operator_dir=self.get_operator_dir(name1),
                                              recompute=self.recompute)
-        geom_feats_1 = main.get_diffnetfiles(name=name2,
+        geom_feats_2 = main.get_diffnetfiles(name=name2,
                                              df=struct_2,
                                              dump_surf_dir=self.get_geometry_dir(name2),
                                              dump_operator_dir=self.get_operator_dir(name2),
                                              recompute=self.recompute)
-        if geom_feats_0 is None or geom_feats_1 is None:
+        if geom_feats_1 is None or geom_feats_2 is None:
             raise ValueError("A geometric feature is buggy")
 
         if self.return_graph:
@@ -272,8 +272,8 @@ class NewPIP(torch.utils.data.Dataset):
             if graph_1 is None or graph_2 is None:
                 raise ValueError("A graph feature is buggy")
             return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), \
-                geom_feats_0, geom_feats_1, graph_1, graph_2
-        return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_0, geom_feats_1
+                geom_feats_1, geom_feats_2, graph_1, graph_2
+        return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_1, geom_feats_2
 
     def __getitem__(self, index):
         # res = self.get_item(index)

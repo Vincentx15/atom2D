@@ -43,6 +43,7 @@ class PIPModule(pl.LightningModule):
         # self.val_auroc = auroc.clone()
         # self.test_auroc = auroc.clone()
 
+        self.use_graph = hparams.model.use_graph
         self.model = PIPNet(**hparams.model)
         # self.criterion = torch.nn.BCELoss()
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
@@ -51,13 +52,19 @@ class PIPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_0, geom_feats_1 = data[0]
+        if self.use_graph:
+            names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_1, geom_feats_2, graph_1, graph_2 = data[0]
+            x_1, x_2 = (geom_feats_1, graph_1), (geom_feats_2, graph_2)
+        else:
+            names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_1, geom_feats_2 = data[0]
+            x_1, x_2 = geom_feats_1, geom_feats_2
         if names_0 is None or pos_pairs_cas_arr.numel() == 0 or neg_pairs_cas_arr.numel() == 0:
             return None, None, None
 
         all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
         labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
-        output = self((geom_feats_0, geom_feats_1, all_pairs))
+        # output = self((geom_feats_1, geom_feats_2, all_pairs))
+        output = self((x_1, x_2, all_pairs))
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
 

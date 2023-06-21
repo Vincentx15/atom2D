@@ -8,7 +8,8 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 
 class PIPNet(torch.nn.Module):
-    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5, use_xyz=False, **kwargs):
+    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
+                 use_xyz=False, use_graph=False, **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -16,11 +17,19 @@ class PIPNet(torch.nn.Module):
         self.sigma = sigma
         self.use_xyz = use_xyz
         # Create the model
-        self.diff_net_model = base_nets.layers.DiffusionNet(C_in=in_channels,
-                                                            C_out=out_channel,
-                                                            C_width=C_width,
-                                                            N_block=N_block,
-                                                            last_activation=torch.relu)
+        self.use_graph = use_graph
+        if use_graph:
+            self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
+                                                               C_out=out_channel,
+                                                               C_width=C_width,
+                                                               N_block=N_block,
+                                                               last_activation=torch.relu)
+        else:
+            self.encoder_model = base_nets.layers.DiffusionNet(C_in=in_channels,
+                                                               C_out=out_channel,
+                                                               C_width=C_width,
+                                                               N_block=N_block,
+                                                               last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         in_features = 2 * (out_channel + 1)
         layers = []
@@ -49,16 +58,16 @@ class PIPNet(torch.nn.Module):
         :return:
         """
         device = pairs_loc.device
-
-        dict_feat_left = unwrap_feats(x_left, device=device)
-        dict_feat_right = unwrap_feats(x_right, device=device)
-        # Push this signal onto the CA locations
         locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
 
-        # We need the vertices to push back the points.
-        # We also have to remove them from the dict to feed into base_nets
+        if self.use_graph:
+            x_left, graph_left = x_left
+            x_right, graph_right = x_right
+        dict_feat_left = unwrap_feats(x_left, device=device)
+        dict_feat_right = unwrap_feats(x_right, device=device)
         verts_left = dict_feat_left.pop('vertices')
         verts_right = dict_feat_right.pop('vertices')
+
         if self.use_xyz:
             verts_leftt, locs_leftt = center_normalize([verts_left], [locs_left])
             verts_rightt, locs_rightt = center_normalize([verts_right], [locs_right])
@@ -71,11 +80,16 @@ class PIPNet(torch.nn.Module):
             dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
             dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)
 
-        processed_left = self.diff_net_model(**dict_feat_left)
-        processed_right = self.diff_net_model(**dict_feat_right)
+        if self.use_graph:
+            processed_left = self.encoder_model(graph=graph_left, vertices=verts_left, **dict_feat_left)
+            processed_right = self.encoder_model(graph=graph_right, vertices=verts_right, **dict_feat_right)
+        else:
+            processed_left = self.encoder_model(**dict_feat_left)
+            processed_right = self.encoder_model(**dict_feat_right)
 
         # TODO remove double from loading... probably also in the dumping
 
+        # Push this signal onto the CA locations
         feats_left = point_cloud_utils.torch_rbf(points_1=verts_left, feats_1=processed_left,
                                                  points_2=locs_left, concat=True, sigma=self.sigma)
         feats_right = point_cloud_utils.torch_rbf(points_1=verts_right, feats_1=processed_right,
