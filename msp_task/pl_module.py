@@ -83,9 +83,16 @@ class MSPModule(pl.LightningModule):
         self.log_dict({"acc/test": self.test_accuracy, "auroc/test": self.test_auroc}, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.hparams.optimizer.lr)
-        return optimizer
-        # return [optimizer], [lr_scheduler]
+        opt_params = self.hparams.hparams.optimizer
+        optimizer = torch.optim.Adam(self.parameters(), lr=opt_params.lr)
+        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience, factor=opt_params.factor, mode='max'),
+                     'monitor': "auroc_val",
+                     'interval': "epoch",
+                     'frequency': 1,
+                     "strict": True,
+                     'name': "epoch/lr"}
+        # return optimizer
+        return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
         if batch[0][0] is None:

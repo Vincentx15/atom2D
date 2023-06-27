@@ -27,6 +27,8 @@ model:
 
 optimizer:
   lr: 1e-4
+  patience: 100
+  factor: 0.5
 
 train:
   save_top_k: 2
