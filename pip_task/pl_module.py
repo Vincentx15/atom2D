@@ -133,4 +133,4 @@ class PIPModule(pl.LightningModule):
                      "strict": True,
                      'name': "epoch/lr"}
         # return optimizer
-        return [optimizer], [lr_scheduler]
+        return [optimizer], [scheduler]

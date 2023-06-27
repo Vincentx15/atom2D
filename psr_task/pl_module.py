@@ -138,7 +138,7 @@ class PSRModule(pl.LightningModule):
                      "strict": True,
                      'name': "epoch/lr"}
         # return optimizer
-        return [optimizer], [lr_scheduler]
+        return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
         if batch[0][0] is None:
