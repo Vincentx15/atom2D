@@ -29,16 +29,12 @@ class MSPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        if self.use_graph:
-            name, geom_feats, coords, label, graphs = data[0]
-            x = (geom_feats, graphs)
-        else:
-            name, geom_feats, coords, label = data[0]
-            x = geom_feats
-        if name is None:
+        if "names" not in data:
             return None, None, None
 
-        output = self((x, coords))
+        x = (data.geom_feats, data.graph_feats) if self.use_graph else data.geom_feats
+        label = data.label
+        output = self((x, data.coords))
         loss = self.criterion(output, label)
         return loss, output.flatten(), label
 
@@ -95,19 +91,6 @@ class MSPModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        if batch[0][0] is None:
-            return batch
-
-        if self.use_graph:
-            name, geom_feats, coords, label, graphs = batch[0]
-        else:
-            name, geom_feats, coords, label = batch[0]
-        label = label.to(self.device)
-        geom_feats = [[y.to(self.device) for y in x] for x in geom_feats]
-        coords = [x.to(self.device) for x in coords]
-        if self.use_graph:
-            graphs = [graph.to(device) for graph in graphs]
-            batch = [(name, geom_feats, coords, label, graphs)]
-        else:
-            batch = [(name, geom_feats, coords, label)]
+        batch = batch[0]
+        batch = batch.to(device)
         return batch

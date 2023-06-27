@@ -2,7 +2,7 @@ import os
 import sys
 
 import torch
-
+from torch_geometric.data import Data
 from atom3d.util.formats import get_coordinates_from_df
 from atom2d_utils.learning_utils import unwrap_feats
 
@@ -77,6 +77,7 @@ class MSPDataset(Atom3DDataset):
             if any([geom_feat is None for geom_feat in geom_feats]):
                 raise ValueError("A geometric feature is buggy")
 
+            batch = Data(names=names, geom_feats=geom_feats, coords=coords, label=torch.tensor([float(item['label'])]))
             if self.return_graph:
                 xyzs = [unwrap_feats(geom_feat)["vertices"] for geom_feat in geom_feats]
                 graph_feats = [main.get_graph(name=name, df=df,
@@ -86,16 +87,15 @@ class MSPDataset(Atom3DDataset):
                                for i, (name, df) in enumerate(zip(names, dfs))]
                 if any([graph_feat is None for graph_feat in graph_feats]):
                     raise ValueError("A graph feature is buggy")
-                return names, geom_feats, coords, torch.tensor([float(item['label'])]), graph_feats
+                batch.graph_feats = graph_feats
 
-            return names, geom_feats, coords, torch.tensor([float(item['label'])])
+            return batch
+
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            if self.return_graph:
-                return None, None, None, None, None
-            else:
-                return None, None, None, None
+            batch = Data()
+            return batch
 
 
 if __name__ == '__main__':
