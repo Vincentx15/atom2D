@@ -54,15 +54,10 @@ class PSRModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, data):
-        if self.use_graph:
-            name, geom_feats, scores, graphs = data[0]
-            x = (geom_feats, graphs)
-        else:
-            name, geom_feats, scores = data[0]
-            x = geom_feats
+        name, geom_feats, scores = data.name, data.geom_feats, data.scores
         if name is None:
             return None, None, None, None
-
+        x = (geom_feats, data.graph_feat) if self.use_graph else geom_feats
         output = self(x)
         loss = self.criterion(output, scores)
         return name, loss, output.flatten(), scores
@@ -141,20 +136,6 @@ class PSRModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        if batch[0][0] is None:
-            return batch
-
-        if self.use_graph:
-            name, geom_feats, scores, graph = batch[0]
-        else:
-            name, geom_feats, scores = batch[0]
-
-        geom_feats = [x.to(self.device) for x in geom_feats]
-        scores = scores.to(self.device)
-
-        if self.use_graph:
-            graph = graph.to(device)
-            batch = [(name, geom_feats, scores, graph)]
-        else:
-            batch = [(name, geom_feats, scores)]
+        batch = batch[0]
+        batch = batch.to(device)
         return batch

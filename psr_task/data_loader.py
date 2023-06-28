@@ -2,6 +2,7 @@ import os
 import sys
 
 import torch
+from torch_geometric.data import Data
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -55,20 +56,22 @@ class PSRDataset(Atom3DDataset):
                                                recompute=self.recompute)
             if geom_feats is None:
                 raise ValueError("A geometric feature is buggy")
+
+            batch = Data(name=name, geom_feats=geom_feats, scores=torch.tensor([scores['gdt_ts']]))
             if self.return_graph:
                 graph_feat = main.get_graph(name=name, df=df,
                                             dump_graph_dir=self.get_graph_dir(name),
                                             recompute=True)
                 if graph_feat is None:
                     raise ValueError("A graph feature is buggy")
-                return name, geom_feats, torch.tensor([scores['gdt_ts']]), graph_feat
-            return name, geom_feats, torch.tensor([scores['gdt_ts']])
+                batch.graph_feat = graph_feat
+            return batch
+
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            if self.return_graph:
-                return None, None, None, None
-            return None, None, None
+            batch = Data()
+            return batch
 
 
 if __name__ == '__main__':
