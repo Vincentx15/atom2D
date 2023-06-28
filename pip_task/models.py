@@ -9,7 +9,7 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
-                 use_xyz=False, use_graph=False, **kwargs):
+                 use_xyz=False, use_graph=False, use_graph_only=False, **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -17,8 +17,14 @@ class PIPNet(torch.nn.Module):
         self.sigma = sigma
         self.use_xyz = use_xyz
         # Create the model
-        self.use_graph = use_graph
-        if use_graph:
+        self.use_graph = use_graph or use_graph_only
+        if use_graph_only:
+            self.encoder_model = base_nets.layers.GraphNet(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=C_width,
+                                                           N_block=N_block,
+                                                           last_activation=torch.relu)
+        elif not use_graph:
             self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
                                                                C_out=out_channel,
                                                                C_width=C_width,

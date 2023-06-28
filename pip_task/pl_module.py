@@ -43,7 +43,7 @@ class PIPModule(pl.LightningModule):
         # self.val_auroc = auroc.clone()
         # self.test_auroc = auroc.clone()
 
-        self.use_graph = hparams.model.use_graph
+        self.use_graph = hparams.model.use_graph or hparams.model.use_graph_only
         self.model = PIPNet(**hparams.model)
         # self.criterion = torch.nn.BCELoss()
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
