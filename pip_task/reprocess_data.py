@@ -5,6 +5,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
+from torch_geometric.data import Data
 import tqdm
 
 if __name__ == '__main__':
@@ -262,6 +263,9 @@ class NewPIP(torch.utils.data.Dataset):
         if geom_feats_1 is None or geom_feats_2 is None:
             raise ValueError("A geometric feature is buggy")
 
+        batch = Data(name1=name1, name2=name2, pos_stack=torch.from_numpy(pos_stack), neg_stack=torch.from_numpy(neg_stack),
+                     geom_feats_1=geom_feats_1, geom_feats_2=geom_feats_2)
+
         if self.return_graph:
             graph_1 = main.get_graph(name=name1, df=struct_1,
                                      dump_graph_dir=self.get_graph_dir(name1),
@@ -271,9 +275,10 @@ class NewPIP(torch.utils.data.Dataset):
                                      recompute=True)
             if graph_1 is None or graph_2 is None:
                 raise ValueError("A graph feature is buggy")
-            return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), \
-                geom_feats_1, geom_feats_2, graph_1, graph_2
-        return name1, name2, torch.from_numpy(pos_stack), torch.from_numpy(neg_stack), geom_feats_1, geom_feats_2
+            batch.graph_1 = graph_1
+            batch.graph_2 = graph_2
+
+        return batch
 
     def __getitem__(self, index):
         # res = self.get_item(index)
@@ -282,9 +287,8 @@ class NewPIP(torch.utils.data.Dataset):
             return res
         except Exception as e:
             print(f"Error in __getitem__: {e} index : {index}")
-            if self.return_graph:
-                return None, None, None, None, None, None, None, None
-            return None, None, None, None, None, None
+            batch = Data()
+            return batch
 
 
 if __name__ == '__main__':

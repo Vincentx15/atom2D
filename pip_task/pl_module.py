@@ -52,18 +52,14 @@ class PIPModule(pl.LightningModule):
         return self.model(*x)
 
     def step(self, data):
-        if self.use_graph:
-            names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_1, geom_feats_2, graph_1, graph_2 = data[0]
-            x_1, x_2 = (geom_feats_1, graph_1), (geom_feats_2, graph_2)
-        else:
-            names_0, _, pos_pairs_cas_arr, neg_pairs_cas_arr, geom_feats_1, geom_feats_2 = data[0]
-            x_1, x_2 = geom_feats_1, geom_feats_2
+        names_0, pos_pairs_cas_arr, neg_pairs_cas_arr = (data.name1, data.pos_stack, data.neg_stack) if "name1" in data else (None, None, None)
         if names_0 is None or pos_pairs_cas_arr.numel() == 0 or neg_pairs_cas_arr.numel() == 0:
             return None, None, None
-
+        geom_feats_1, geom_feats_2 = data.geom_feats_1, data.geom_feats_2
+        x_1, x_2 = ((geom_feats_1, data.graph_1), (geom_feats_2, data.graph_2)) if self.use_graph else (geom_feats_1, geom_feats_2)
         all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
         labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
-        # output = self((geom_feats_1, geom_feats_2, all_pairs))
+
         output = self((x_1, x_2, all_pairs))
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
@@ -134,3 +130,8 @@ class PIPModule(pl.LightningModule):
                      'name': "epoch/lr"}
         # return optimizer
         return [optimizer], [scheduler]
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        batch = batch[0]
+        batch = batch.to(device)
+        return batch
