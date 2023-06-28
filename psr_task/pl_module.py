@@ -46,7 +46,7 @@ class PSRModule(pl.LightningModule):
         self.test_reslist = list()
         self.test_resdict = defaultdict(list)
 
-        self.use_graph = hparams.model.use_graph
+        self.use_graph = hparams.model.use_graph or hparams.model.use_graph_only
         self.model = PSRSurfNet(**hparams.model)
         self.criterion = torch.nn.MSELoss()
 

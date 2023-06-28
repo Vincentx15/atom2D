@@ -24,6 +24,7 @@ model:
   batch_norm: False
   use_xyz: False
   use_graph: False
+  use_graph_only: False
 
 optimizer:
   lr: 1e-4
