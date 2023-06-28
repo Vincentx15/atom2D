@@ -647,3 +647,88 @@ class GraphDiffNet(nn.Module):
             x_out = x_out.squeeze(0)
 
         return x_out
+
+
+class GraphNet(nn.Module):
+    def __init__(
+            self,
+            C_in,
+            C_out,
+            C_width=128,
+            N_block=4,
+            last_activation=None,
+            dropout=True,
+    ):
+        """
+        Construct a GraphNet.
+        Parameters:
+            C_in (int):                     input dimension
+            C_out (int):                    output dimension
+            last_activation (func)          a function to apply to the final outputs of the network, such as torch.nn.functional.log_softmax (default: None)
+            outputs_at (string)             produce outputs at various mesh elements by averaging from vertices. One of ['vertices', 'edges', 'faces'].
+            (default 'vertices', aka points for a point cloud)
+            C_width (int):                  dimension of internal graph blocks (default: 128)
+            N_block (int):                  number of DiffusionNet blocks (default: 4)
+        """
+
+        super().__init__()
+
+        # # Store parameters
+
+        # Basic parameters
+        self.C_in = C_in
+        self.C_out = C_out
+        self.C_width = C_width
+        self.N_block = N_block
+
+        # Outputs
+        self.last_activation = last_activation
+        self.dropout = True
+
+        # First and last affine layers
+        self.first_lin = nn.Linear(C_in, C_width)
+        self.last_lin = nn.Linear(C_width, C_out)
+
+        self.gcn_blocks = []
+        for i_block in range(self.N_block):
+            gcn_block = GCN(C_width, C_width, C_width, drate=0.5 if dropout else 0, )
+            self.gcn_blocks.append(gcn_block)
+            self.add_module("gcn_block_" + str(i_block), gcn_block)
+
+    def forward(
+            self,
+            graph,
+            vertices,
+            *largs,
+            **kwargs,
+            # rbf_surf_graph=None,
+            # rbf_graph_surf=None,
+    ):
+        """
+        A forward pass on the MixedNet.
+        """
+
+        # Precompute distance
+        sigma = 2.5
+        with torch.no_grad():
+            all_dists = torch.cdist(vertices, graph.pos)
+            rbf_weights = torch.exp(-all_dists / sigma)
+
+        # Apply the first linear layer
+        graph.x = self.first_lin(graph.x)
+
+        # Apply each of the blocks
+        for graph_block in self.gcn_blocks:
+            graph.x = graph_block(graph)
+
+        # Apply the last linear layer
+        graph.x = self.last_lin(graph.x)
+
+        # project features to surface
+        x_out = torch.mm(rbf_weights, graph.x)
+
+        # Apply last nonlinearity if specified
+        if self.last_activation is not None:
+            x_out = self.last_activation(x_out)
+
+        return x_out
