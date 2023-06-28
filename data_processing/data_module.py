@@ -8,7 +8,7 @@ class PLDataModule(pl.LightningDataModule):
         super().__init__()
         self.dataset = dataset
         self.data_dir = Path(cfg.dataset.data_dir)
-        self.return_graph = cfg.model.use_graph
+        self.return_graph = cfg.model.use_graph or cfg.model.use_graph_only
         self.cfg = cfg
 
     def train_dataloader(self):
