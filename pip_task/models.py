@@ -24,7 +24,7 @@ class PIPNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu)
-        elif not use_graph:
+        elif use_graph:
             self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
                                                                C_out=out_channel,
                                                                C_width=C_width,
