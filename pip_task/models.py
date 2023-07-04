@@ -2,6 +2,7 @@ import base_nets
 from scipy.spatial.transform import Rotation as R
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from data_processing import point_cloud_utils
 from atom2d_utils.learning_utils import unwrap_feats, center_normalize
@@ -18,12 +19,13 @@ class PIPNet(torch.nn.Module):
         self.use_xyz = use_xyz
         # Create the model
         self.use_graph = use_graph or use_graph_only
+        self.use_graph_only = use_graph_only
         if use_graph_only:
-            self.encoder_model = base_nets.layers.GraphNet(C_in=in_channels,
-                                                           C_out=out_channel,
-                                                           C_width=C_width,
-                                                           N_block=N_block,
-                                                           last_activation=torch.relu)
+            self.encoder_model = base_nets.layers.AtomNetGraph(C_in=in_channels,
+                                                               C_out=out_channel,
+                                                               C_width=C_width)
+            self.fc1 = nn.Linear(C_width * 4, C_width * 4)
+            self.fc2 = nn.Linear(C_width * 4, 1)
         elif use_graph:
             self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
                                                                C_out=out_channel,
@@ -93,17 +95,34 @@ class PIPNet(torch.nn.Module):
             processed_left = self.encoder_model(**dict_feat_left)
             processed_right = self.encoder_model(**dict_feat_right)
 
-        # TODO remove double from loading... probably also in the dumping
+        if self.use_graph_only:
+            # find nearest neighbors between doing last layers
+            dists = torch.cdist(locs_left, graph_left.pos)
+            min_indices = torch.argmin(dists, dim=1)
+            processed_left = processed_left[min_indices]
+            dists = torch.cdist(locs_right, graph_right.pos)
+            min_indices = torch.argmin(dists, dim=1)
+            processed_right = processed_right[min_indices]
 
-        # Push this signal onto the CA locations
-        feats_left = point_cloud_utils.torch_rbf(points_1=verts_left, feats_1=processed_left,
-                                                 points_2=locs_left, concat=True, sigma=self.sigma)
-        feats_right = point_cloud_utils.torch_rbf(points_1=verts_right, feats_1=processed_right,
-                                                  points_2=locs_right, concat=True, sigma=self.sigma)
+            x = torch.cat((processed_left, processed_right), dim=1)
+            x = F.relu(self.fc1(x))
+            x = F.dropout(x, p=0.25, training=self.training)
+            x = self.fc2(x)
+            # no need for sigmoid since we use BCEWithLogitsLoss
+        else:
+            # TODO remove double from loading... probably also in the dumping
 
-        # Once equiped with the features and confidence scores at each point, feed that into the networks
-        x = torch.cat([feats_left, feats_right], dim=1)
-        x = self.top_net(x)
-        # result = torch.sigmoid(x).view(-1)
+            # Push this signal onto the CA locations
+            feats_left = point_cloud_utils.torch_rbf(points_1=verts_left, feats_1=processed_left,
+                                                     points_2=locs_left, concat=True, sigma=self.sigma)
+            feats_right = point_cloud_utils.torch_rbf(points_1=verts_right, feats_1=processed_right,
+                                                      points_2=locs_right, concat=True, sigma=self.sigma)
+
+            # Once equiped with the features and confidence scores at each point, feed that into the networks
+            x = torch.cat([feats_left, feats_right], dim=1)
+            x = self.top_net(x)
+            # no need for sigmoid since we use BCEWithLogitsLoss
+            # result = torch.sigmoid(x).view(-1)
+
         result = x.view(-1)
         return result

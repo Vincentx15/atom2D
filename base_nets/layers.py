@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch import nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import GCNConv
 
@@ -647,6 +646,40 @@ class GraphDiffNet(nn.Module):
             x_out = x_out.squeeze(0)
 
         return x_out
+
+
+class AtomNetGraph(torch.nn.Module):
+    def __init__(self, C_in, C_out, C_width):
+        super().__init__()
+
+        self.conv1 = GCNConv(C_in, C_width)
+        self.bn1 = nn.BatchNorm1d(C_width)
+        self.conv2 = GCNConv(C_width, C_width * 2)
+        self.bn2 = nn.BatchNorm1d(C_width * 2)
+        self.conv3 = GCNConv(C_width * 2, C_width * 4)
+        self.bn3 = nn.BatchNorm1d(C_width * 4)
+        self.conv4 = GCNConv(C_width * 4, C_width * 4)
+        self.bn4 = nn.BatchNorm1d(C_width * 4)
+        self.conv5 = GCNConv(C_width * 4, C_width * 2)
+        self.bn5 = nn.BatchNorm1d(C_width * 2)
+
+    def forward(self, graph, *largs, **kwargs,):
+        x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_weight
+        x = self.conv1(x, edge_index, edge_weight)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index, edge_weight)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index, edge_weight)
+        x = self.bn3(x)
+        x = F.relu(x)
+        x = self.conv4(x, edge_index, edge_weight)
+        x = self.bn4(x)
+        x = F.relu(x)
+        x = self.conv5(x, edge_index, edge_weight)
+        x = self.bn5(x)
+        return x
 
 
 class GraphNet(nn.Module):
