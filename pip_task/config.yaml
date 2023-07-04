@@ -3,6 +3,7 @@ epochs: 100
 device: 0
 seed: 2023
 log_dir: "./"
+path_model: version_xxx/checkpoints/last.ckpt
 
 dataset:
   data_dir: "../../data/PIP/DIPS-split/data/"
