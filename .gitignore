@@ -153,6 +153,7 @@ dmypy.json
 cython_debug/
 
 data/
+data_hdd/
 .idea/
 msms.1
 msms.html
