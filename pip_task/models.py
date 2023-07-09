@@ -125,9 +125,9 @@ class PIPNet(torch.nn.Module):
             # no need for sigmoid since we use BCEWithLogitsLoss
             # result = torch.sigmoid(x).view(-1)
 
+        result = x.view(-1)
+
         if self.clip_output:
             # clip the values such that after applying sigmoid we get 0.01 and 0.99
             result = torch.clamp(result, min=-4.6, max=4.6)
-
-        result = x.view(-1)
         return result
