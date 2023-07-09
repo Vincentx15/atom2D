@@ -10,7 +10,7 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
-                 use_xyz=False, use_graph=False, use_graph_only=False, **kwargs):
+                 use_xyz=False, use_graph=False, use_graph_only=False, clip_output=False, **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -20,6 +20,7 @@ class PIPNet(torch.nn.Module):
         # Create the model
         self.use_graph = use_graph or use_graph_only
         self.use_graph_only = use_graph_only
+        self.clip_output = clip_output
         if use_graph_only:
             self.encoder_model = base_nets.layers.AtomNetGraph(C_in=in_channels,
                                                                C_out=out_channel,
@@ -123,6 +124,10 @@ class PIPNet(torch.nn.Module):
             x = self.top_net(x)
             # no need for sigmoid since we use BCEWithLogitsLoss
             # result = torch.sigmoid(x).view(-1)
+
+        if self.clip_output:
+            # clip the values such that after applying sigmoid we get 0.01 and 0.99
+            result = torch.clamp(result, min=-4.6, max=4.6)
 
         result = x.view(-1)
         return result
