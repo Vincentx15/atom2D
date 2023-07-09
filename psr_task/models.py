@@ -1,6 +1,7 @@
 import base_nets
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
@@ -16,12 +17,14 @@ class PSRSurfNet(torch.nn.Module):
         self.use_xyz = use_xyz
         # Create the model
         self.use_graph = use_graph or use_graph_only
+        self.use_graph_only = use_graph_only
         if use_graph_only:
-            self.encoder_model = base_nets.layers.GraphNet(C_in=in_channels,
-                                                           C_out=out_channel,
-                                                           C_width=C_width,
-                                                           N_block=N_block,
-                                                           last_activation=torch.relu)
+            self.encoder_model = base_nets.layers.AtomNetGraph(C_in=in_channels,
+                                                               C_out=out_channel,
+                                                               C_width=C_width,
+                                                               last_factor=4)
+            self.fc1 = nn.Linear(C_width * 4, C_width * 2)
+            self.fc2 = nn.Linear(C_width * 2, 1)
         elif not use_graph:
             self.encoder_model = base_nets.layers.DiffusionNet(C_in=in_channels,
                                                                C_out=out_channel,
@@ -83,6 +86,14 @@ class PSRSurfNet(torch.nn.Module):
             processed = self.encoder_model(**dict_feat)
         else:
             processed = self.encoder_model(graph=graph, vertices=verts, **dict_feat)
+
         x = torch.max(processed, dim=-2).values
-        x = self.top_net(x)
+
+        if self.use_graph_only:
+            x = F.relu(x)
+            x = F.relu(self.fc1(x))
+            x = F.dropout(x, p=0.25, training=self.training)
+            x = self.fc2(x).view(-1)
+        else:
+            x = self.top_net(x)
         return x

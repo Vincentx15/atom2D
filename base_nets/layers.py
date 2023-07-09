@@ -649,7 +649,7 @@ class GraphDiffNet(nn.Module):
 
 
 class AtomNetGraph(torch.nn.Module):
-    def __init__(self, C_in, C_out, C_width):
+    def __init__(self, C_in, C_out, C_width, last_factor=2):
         super().__init__()
 
         self.conv1 = GCNConv(C_in, C_width)
@@ -660,8 +660,8 @@ class AtomNetGraph(torch.nn.Module):
         self.bn3 = nn.BatchNorm1d(C_width * 4)
         self.conv4 = GCNConv(C_width * 4, C_width * 4)
         self.bn4 = nn.BatchNorm1d(C_width * 4)
-        self.conv5 = GCNConv(C_width * 4, C_width * 2)
-        self.bn5 = nn.BatchNorm1d(C_width * 2)
+        self.conv5 = GCNConv(C_width * 4, C_width * last_factor)
+        self.bn5 = nn.BatchNorm1d(C_width * last_factor)
 
     def forward(self, graph, *largs, **kwargs,):
         x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_weight
