@@ -54,9 +54,9 @@ class PSRModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, data):
-        name, geom_feats, scores = data.name, data.geom_feats, data.scores
-        if name is None:
+        if "name" not in data:
             return None, None, None, None
+        name, geom_feats, scores = data.name, data.geom_feats, data.scores
         x = (geom_feats, data.graph_feat) if self.use_graph else geom_feats
         output = self(x)
         loss = self.criterion(output, scores)
