@@ -1,3 +1,4 @@
+from copy import deepcopy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -528,7 +529,8 @@ class GraphDiffNet(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin2 = nn.Linear(C_in, diffnet_width)
 
         # DiffusionNet blocks
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]
@@ -619,8 +621,8 @@ class GraphDiffNet(nn.Module):
             rbf_weights = torch.exp(-all_dists / sigma)
 
         # Apply the first linear layer
-        diff_x = self.first_lin(x_in)
-        graph.x = self.first_lin(graph.x)
+        diff_x = self.first_lin1(x_in)
+        graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
         for graph_block, diff_block, mixer_block in zip(self.gcn_blocks, self.diff_blocks, self.mixer_blocks):
@@ -635,6 +637,315 @@ class GraphDiffNet(nn.Module):
             cat_diff = torch.cat((diff_x, graph_on_diff[None, ...]), dim=2)
             graph.x = mixer_block(cat_graph)
             diff_x = mixer_block(cat_diff)
+
+        x_out = diff_x
+        # Apply last nonlinearity if specified
+        if self.last_activation is not None:
+            x_out = self.last_activation(x_out)
+
+        # Remove batch dim if we added it
+        if appended_batch_dim:
+            x_out = x_out.squeeze(0)
+
+        return x_out
+
+
+class GraphDiffNetSequential(nn.Module):
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True, with_gradient_features=True,
+                 with_gradient_rotations=True, diffusion_method="spectral"):
+        """
+        Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
+        instead of the // architecture GraphDiffNet
+        Parameters:
+            C_in (int):                     input dimension
+            C_out (int):                    output dimension
+            last_activation (func)          a function to apply to the final outputs of the network, such as torch.nn.functional.log_softmax (default: None)
+            outputs_at (string)             produce outputs at various mesh elements by averaging from vertices. One of ['vertices', 'edges', 'faces'].
+            (default 'vertices', aka points for a point cloud)
+            C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
+            N_block (int):                  number of DiffusionNet blocks (default: 4)
+            mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
+            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
+            saving precompute.
+            with_gradient_features (bool):  if True, use gradient features (default: True)
+            with_gradient_rotations (bool): if True, use gradient also learn a rotation of each gradient.
+            Set to True if your surface has consistently oriented normals, and False otherwise (default: True)
+        """
+
+        super().__init__()
+
+        # # Store parameters
+
+        # Basic parameters
+        self.C_in = C_in
+        self.C_out = C_out
+        self.C_width = C_width
+        self.N_block = N_block
+
+        # Outputs
+        self.last_activation = last_activation
+        self.dropout = True
+
+        # Diffusion
+        self.diffusion_method = diffusion_method
+        if diffusion_method not in ["spectral", "implicit_dense"]:
+            raise ValueError("invalid setting for diffusion_method")
+
+        # Gradient features
+        self.with_gradient_features = with_gradient_features
+        self.with_gradient_rotations = with_gradient_rotations
+
+        # # Set up the network
+        # channels are split into graphs and diff_block channels, then convoluted, then mixed
+        diffnet_width = C_width // 2
+
+        # First and last affine layers
+        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin2 = nn.Linear(C_in, diffnet_width)
+        self.last_lin = nn.Linear(diffnet_width, C_out)
+
+        # DiffusionNet blocks
+        self.mlp_hidden_dims = [diffnet_width, diffnet_width]
+        self.diff_blocks = []
+        for i_block in range(self.N_block):
+            diffnet_block = base_nets.layers.DiffusionNetBlock(
+                C_width=diffnet_width,
+                mlp_hidden_dims=self.mlp_hidden_dims,
+                dropout=dropout,
+                diffusion_method=diffusion_method,
+                with_gradient_features=with_gradient_features,
+                with_gradient_rotations=with_gradient_rotations,
+            )
+
+            self.diff_blocks.append(diffnet_block)
+            self.add_module("diffnet_block_" + str(i_block), self.diff_blocks[-1])
+
+        self.gcn_blocks = []
+        for i_block in range(self.N_block):
+            gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width, drate=0.5 if dropout else 0, )
+            self.gcn_blocks.append(gcn_block)
+            self.add_module("gcn_block_" + str(i_block), gcn_block)
+
+    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+        """
+        A forward pass on the MixedNet.
+        """
+
+        # # Check dimensions, and append batch dimension if not given
+        if x_in.shape[-1] != self.C_in:
+            raise ValueError(
+                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
+                    self.C_in, x_in.shape[-1]
+                )
+            )
+        if len(x_in.shape) == 2:
+            appended_batch_dim = True
+
+            # add a batch dim to all inputs
+            x_in = x_in.unsqueeze(0)
+            mass = mass.unsqueeze(0)
+            if L is not None:
+                L = L.unsqueeze(0)
+            if evals is not None:
+                evals = evals.unsqueeze(0)
+            if evecs is not None:
+                evecs = evecs.unsqueeze(0)
+            if gradX is not None:
+                gradX = gradX.unsqueeze(0)
+            if gradY is not None:
+                gradY = gradY.unsqueeze(0)
+            if edges is not None:
+                edges = edges.unsqueeze(0)
+            if faces is not None:
+                faces = faces.unsqueeze(0)
+
+        elif len(x_in.shape) == 3:
+            appended_batch_dim = False
+
+        else:
+            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+
+        # Precompute distance
+        sigma = 2.5
+        with torch.no_grad():
+            all_dists = torch.cdist(vertices, graph.pos)
+            rbf_weights = torch.exp(-all_dists / sigma)
+
+        # Apply the first linear layer
+        diff_x = self.first_lin1(x_in)
+        graph.x = self.first_lin2(graph.x)
+
+        # Apply each of the blocks
+        for graph_block, diff_block in zip(self.gcn_blocks, self.diff_blocks):
+            diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
+            graph.x = torch.mm(rbf_weights.T, diff_x[0])
+            graph.x = graph_block(graph)
+            diff_x = torch.mm(rbf_weights, graph.x)[None, ...]
+
+        # Apply the last linear layer
+        diff_x = self.last_lin(diff_x)
+
+        x_out = diff_x
+        # Apply last nonlinearity if specified
+        if self.last_activation is not None:
+            x_out = self.last_activation(x_out)
+
+        # Remove batch dim if we added it
+        if appended_batch_dim:
+            x_out = x_out.squeeze(0)
+
+        return x_out
+
+
+class GraphDiffNetAttention(nn.Module):
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True, with_gradient_features=True,
+                 with_gradient_rotations=True, diffusion_method="spectral"
+    ):
+        """
+        Construct a MixedNet.
+        Channels are split into graphs and diff_block channels, then convoluted, then mixed
+        Parameters:
+            C_in (int):                     input dimension
+            C_out (int):                    output dimension
+            last_activation (func)          a function to apply to the final outputs of the network, such as torch.nn.functional.log_softmax (default: None)
+            outputs_at (string)             produce outputs at various mesh elements by averaging from vertices. One of ['vertices', 'edges', 'faces'].
+            (default 'vertices', aka points for a point cloud)
+            C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
+            N_block (int):                  number of DiffusionNet blocks (default: 4)
+            mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
+            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
+            saving precompute.
+            with_gradient_features (bool):  if True, use gradient features (default: True)
+            with_gradient_rotations (bool): if True, use gradient also learn a rotation of each gradient.
+            Set to True if your surface has consistently oriented normals, and False otherwise (default: True)
+        """
+
+        super().__init__()
+
+        # # Store parameters
+
+        # Basic parameters
+        self.C_in = C_in
+        self.C_out = C_out
+        self.C_width = C_width
+        self.N_block = N_block
+
+        # Outputs
+        self.last_activation = last_activation
+        self.dropout = True
+
+        # Diffusion
+        self.diffusion_method = diffusion_method
+        if diffusion_method not in ["spectral", "implicit_dense"]:
+            raise ValueError("invalid setting for diffusion_method")
+
+        # Gradient features
+        self.with_gradient_features = with_gradient_features
+        self.with_gradient_rotations = with_gradient_rotations
+
+        # # Set up the network
+        # channels are split into graphs and diff_block channels, then convoluted, then mixed
+        diffnet_width = C_width // 2
+
+        # First and last affine layers
+        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin2 = nn.Linear(C_in, diffnet_width)
+        self.last_lin = nn.Linear(diffnet_width, C_out)
+
+        # DiffusionNet blocks
+        self.mlp_hidden_dims = [diffnet_width, diffnet_width]
+        self.diff_blocks = []
+        for i_block in range(self.N_block):
+            diffnet_block = base_nets.layers.DiffusionNetBlock(
+                C_width=diffnet_width,
+                mlp_hidden_dims=self.mlp_hidden_dims,
+                dropout=dropout,
+                diffusion_method=diffusion_method,
+                with_gradient_features=with_gradient_features,
+                with_gradient_rotations=with_gradient_rotations,
+            )
+
+            self.diff_blocks.append(diffnet_block)
+            self.add_module("diffnet_block_" + str(i_block), self.diff_blocks[-1])
+
+        self.gcn_blocks = []
+        for i_block in range(self.N_block):
+            gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width, drate=0.5 if dropout else 0, )
+            self.gcn_blocks.append(gcn_block)
+            self.add_module("gcn_block_" + str(i_block), gcn_block)
+
+        self.att_graph_blocks = []
+        for i_block in range(self.N_block):
+            att_block = AttentionalPropagation(diffnet_width, num_heads=4)
+            self.att_graph_blocks.append(att_block)
+            self.add_module("att_graph_blocks_" + str(i_block), att_block)
+
+        self.att_diff_blocks = []
+        for i_block in range(self.N_block):
+            att_block = AttentionalPropagation(diffnet_width, num_heads=4)
+            self.att_diff_blocks.append(att_block)
+            self.add_module("att_diff_blocks_" + str(i_block), att_block)
+
+    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+        """
+        A forward pass on the MixedNet.
+        """
+
+        # # Check dimensions, and append batch dimension if not given
+        if x_in.shape[-1] != self.C_in:
+            raise ValueError(
+                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
+                    self.C_in, x_in.shape[-1]
+                )
+            )
+        if len(x_in.shape) == 2:
+            appended_batch_dim = True
+
+            # add a batch dim to all inputs
+            x_in = x_in.unsqueeze(0)
+            mass = mass.unsqueeze(0)
+            if L is not None:
+                L = L.unsqueeze(0)
+            if evals is not None:
+                evals = evals.unsqueeze(0)
+            if evecs is not None:
+                evecs = evecs.unsqueeze(0)
+            if gradX is not None:
+                gradX = gradX.unsqueeze(0)
+            if gradY is not None:
+                gradY = gradY.unsqueeze(0)
+            if edges is not None:
+                edges = edges.unsqueeze(0)
+            if faces is not None:
+                faces = faces.unsqueeze(0)
+
+        elif len(x_in.shape) == 3:
+            appended_batch_dim = False
+
+        else:
+            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+
+        # Precompute distance
+        sigma = 2.5
+        with torch.no_grad():
+            all_dists = torch.cdist(vertices, graph.pos)
+            rbf_weights = torch.exp(-all_dists / sigma)
+
+        # Apply the first linear layer
+        diff_x = self.first_lin1(x_in)
+        graph.x = self.first_lin2(graph.x)
+
+        # Apply each of the blocks
+        for graph_block, diff_block, att_graph_block, att_diff_block in zip(self.gcn_blocks, self.diff_blocks, self.att_graph_blocks, self.att_diff_blocks):
+            diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
+            graph.x = graph_block(graph)
+            diff_x = att_diff_block(diff_x, graph.x)
+            graph.x = att_graph_block(graph.x, diff_x)
+
+        # Apply the last linear layer
+        diff_x = self.last_lin(diff_x)
 
         x_out = diff_x
         # Apply last nonlinearity if specified
@@ -765,3 +1076,68 @@ class GraphNet(nn.Module):
             x_out = self.last_activation(x_out)
 
         return x_out
+
+
+def MLP(channels: list, do_bn=True):
+    """ Multi-layer perceptron """
+    n = len(channels)
+    layers = []
+    for i in range(1, n):
+        layers.append(nn.Conv1d(channels[i - 1], channels[i], kernel_size=1, bias=True))
+        if i < (n - 1):
+            if do_bn:
+                layers.append(nn.InstanceNorm1d(channels[i]))
+            layers.append(nn.ReLU())
+    return nn.Sequential(*layers)
+
+
+def attention(query, key, value):
+    dim = query.shape[1]
+    scores = torch.einsum("bdhn,bdhm->bhnm", query, key) / dim ** 0.5
+    torch.cuda.empty_cache()
+    prob = torch.nn.functional.softmax(scores, dim=-1)
+    torch.cuda.empty_cache()
+    result = torch.einsum("bhnm,bdhm->bdhn", prob, value)
+    torch.cuda.empty_cache()
+    return result, prob
+
+
+class MultiHeadedAttention(nn.Module):
+    """ Multi-head attention to increase model expressivitiy """
+
+    def __init__(self, num_heads: int, d_model: int):
+        super().__init__()
+        assert d_model % num_heads == 0
+        self.dim = d_model // num_heads
+        self.num_heads = num_heads
+        self.merge = nn.Conv1d(d_model, d_model, kernel_size=1)
+        self.proj = nn.ModuleList([deepcopy(self.merge) for _ in range(3)])
+
+    def forward(self, query, key, value):
+        batch_dim = query.size(0)
+        query, key, value = [ll(x).view(batch_dim, self.dim, self.num_heads, -1) for ll, x in zip(self.proj, (query, key, value))]
+        x, _ = attention(query, key, value)
+        return self.merge(x.contiguous().view(batch_dim, self.dim * self.num_heads, -1))
+
+
+class AttentionalPropagation(nn.Module):
+    def __init__(self, feature_dim: int, num_heads: int):
+        super().__init__()
+        self.attn = MultiHeadedAttention(num_heads, feature_dim)
+        self.mlp = MLP([feature_dim * 2, feature_dim * 2, feature_dim])
+        nn.init.constant_(self.mlp[-1].bias, 0.0)
+
+    def forward(self, x, source):
+        add_dim = False
+        if x.ndim == 2:
+            x = x.unsqueeze(0)
+            add_dim = True
+        if source.ndim == 2:
+            source = source.unsqueeze(0)
+        x, source = x.transpose(1, 2), source.transpose(1, 2)
+
+        message = self.attn(x, source, source)
+        x = self.mlp(torch.cat([x, message], dim=1)).transpose(1, 2)
+        if add_dim:
+            x = x.squeeze(0)
+        return x
