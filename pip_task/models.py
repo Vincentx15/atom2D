@@ -10,7 +10,7 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
-                 use_xyz=False, use_graph=False, use_graph_only=False, clip_output=False, **kwargs):
+                 use_xyz=False, use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -28,11 +28,24 @@ class PIPNet(torch.nn.Module):
             self.fc1 = nn.Linear(C_width * 4, C_width * 4)
             self.fc2 = nn.Linear(C_width * 4, 1)
         elif use_graph:
-            self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
-                                                               C_out=out_channel,
-                                                               C_width=C_width,
-                                                               N_block=N_block,
-                                                               last_activation=torch.relu)
+            if graph_model == 'parallel':
+                self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
+                                                                   C_out=out_channel,
+                                                                   C_width=C_width,
+                                                                   N_block=N_block,
+                                                                   last_activation=torch.relu)
+            elif graph_model == 'sequential':
+                self.encoder_model = base_nets.layers.GraphDiffNetSequential(C_in=in_channels,
+                                                                             C_out=out_channel,
+                                                                             C_width=C_width,
+                                                                             N_block=N_block,
+                                                                             last_activation=torch.relu)
+            elif graph_model == 'attention':
+                self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
+                                                                            C_out=out_channel,
+                                                                            C_width=C_width,
+                                                                            N_block=N_block,
+                                                                            last_activation=torch.relu)
         else:
             self.encoder_model = base_nets.layers.DiffusionNet(C_in=in_channels,
                                                                C_out=out_channel,
