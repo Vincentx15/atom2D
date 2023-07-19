@@ -68,7 +68,7 @@ def main(cfg=None):
         # fast_dev_run=True,
         # profiler=True,
         # benchmark=True,
-        # deterministic=True,
+        deterministic=cfg.train.deterministic,
         **params
     )
 
