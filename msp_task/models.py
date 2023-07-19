@@ -12,7 +12,7 @@ from data_processing.point_cloud_utils import torch_rbf
 class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
-                 batch_norm=False, use_max=True, use_mean=False, use_xyz=False, use_graph=False, use_graph_only=False, **kwargs):
+                 batch_norm=False, use_max=True, use_mean=False, use_xyz=False, use_graph=False, use_graph_only=False, graph_model='parallel', **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -37,11 +37,27 @@ class MSPSurfNet(torch.nn.Module):
                                                                N_block=N_block,
                                                                last_activation=torch.relu)
         else:
-            self.encoder_model = GraphDiffNet(C_in=in_channels,
-                                              C_out=out_channel,
-                                              C_width=C_width,
-                                              N_block=N_block,
-                                              last_activation=torch.relu)
+            print("#" * 50)
+            print("Using graph model", graph_model)
+            if graph_model == 'parallel':
+                self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
+                                                                   C_out=out_channel,
+                                                                   C_width=C_width,
+                                                                   N_block=N_block,
+                                                                   last_activation=torch.relu)
+            elif graph_model == 'sequential':
+                self.encoder_model = base_nets.layers.GraphDiffNetSequential(C_in=in_channels,
+                                                                             C_out=out_channel,
+                                                                             C_width=C_width,
+                                                                             N_block=N_block,
+                                                                             last_activation=torch.relu)
+            elif graph_model == 'attention':
+                self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
+                                                                            C_out=out_channel,
+                                                                            C_width=C_width,
+                                                                            N_block=N_block,
+                                                                            last_activation=torch.relu)
+
         self.gcn = GCN(num_features=2 * (out_channel + 1), hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)
         self.top_mlp = get_mlp(in_features=2 * out_channel,
