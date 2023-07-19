@@ -37,8 +37,6 @@ class MSPSurfNet(torch.nn.Module):
                                                                N_block=N_block,
                                                                last_activation=torch.relu)
         else:
-            print("#" * 50)
-            print("Using graph model", graph_model)
             if graph_model == 'parallel':
                 self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
                                                                    C_out=out_channel,
