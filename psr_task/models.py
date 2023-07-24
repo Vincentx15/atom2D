@@ -9,7 +9,8 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 class PSRSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
-                 drate=0.3, batch_norm=False, use_xyz=False, use_graph=False, use_graph_only=False, graph_model='parallel', **kwargs):
+                 drate=0.3, batch_norm=False, use_xyz=False, use_graph=False, use_graph_only=False,
+                 graph_model='parallel', **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -45,6 +46,12 @@ class PSRSurfNet(torch.nn.Module):
                                                                              N_block=N_block,
                                                                              last_activation=torch.relu)
             elif graph_model == 'attention':
+                self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
+                                                                            C_out=out_channel,
+                                                                            C_width=C_width,
+                                                                            N_block=N_block,
+                                                                            last_activation=torch.relu)
+            elif graph_model == 'bipartite':
                 self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
                                                                             C_out=out_channel,
                                                                             C_width=C_width,

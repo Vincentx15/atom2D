@@ -12,7 +12,8 @@ from data_processing.point_cloud_utils import torch_rbf
 class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
-                 batch_norm=False, use_max=True, use_mean=False, use_xyz=False, use_graph=False, use_graph_only=False, graph_model='parallel', **kwargs):
+                 batch_norm=False, use_max=True, use_mean=False, use_xyz=False, use_graph=False, use_graph_only=False,
+                 graph_model='parallel', **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -51,6 +52,12 @@ class MSPSurfNet(torch.nn.Module):
                                                                              last_activation=torch.relu)
             elif graph_model == 'attention':
                 self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
+                                                                            C_out=out_channel,
+                                                                            C_width=C_width,
+                                                                            N_block=N_block,
+                                                                            last_activation=torch.relu)
+            elif graph_model == 'bipartite':
+                self.encoder_model = base_nets.layers.GraphDiffNetBipartite(C_in=in_channels,
                                                                             C_out=out_channel,
                                                                             C_width=C_width,
                                                                             N_block=N_block,

@@ -14,11 +14,8 @@ dataset = data_loader.MSPDataset(data_dir,
                                  operator_path='../data/MSP/operator/',
                                  graph_path='../data/MSP/graph',
                                  return_graph=return_graph)
-model = models.MSPSurfNet(use_graph=return_graph)
+model = models.MSPSurfNet(graph_model='bipartite', use_graph=True)
 if return_graph:
-    name, geom_feats, coords, label, graph = dataset[0]
-    out = model((geom_feats, graph), coords)
-else:
-    name, geom_feats, coords, label = dataset[0]
-    out = model(geom_feats, coords)
-print(out)
+    data = dataset[0]
+    x = (data.geom_feats, data.graph_feats)
+    output = model(x, data.coords)

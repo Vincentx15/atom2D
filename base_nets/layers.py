@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import GCNConv
+from torch_geometric.data import Data
 
 import base_nets
 from .geometry import to_basis, from_basis
@@ -651,7 +652,8 @@ class GraphDiffNet(nn.Module):
 
 
 class GraphDiffNetSequential(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True, with_gradient_features=True,
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+                 with_gradient_features=True,
                  with_gradient_rotations=True, diffusion_method="spectral"):
         """
         Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
@@ -727,7 +729,8 @@ class GraphDiffNetSequential(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
-    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None,
+                faces=None):
         """
         A forward pass on the MixedNet.
         """
@@ -799,9 +802,11 @@ class GraphDiffNetSequential(nn.Module):
 
 
 class GraphDiffNetAttention(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True, with_gradient_features=True,
-                 with_gradient_rotations=True, diffusion_method="spectral"
-    ):
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+                 with_gradient_features=True,
+                 with_gradient_rotations=True,
+                 diffusion_method="spectral"
+                 ):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed
@@ -888,7 +893,8 @@ class GraphDiffNetAttention(nn.Module):
             self.att_diff_blocks.append(att_block)
             self.add_module("att_diff_blocks_" + str(i_block), att_block)
 
-    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None,
+                faces=None):
         """
         A forward pass on the MixedNet.
         """
@@ -938,7 +944,9 @@ class GraphDiffNetAttention(nn.Module):
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
-        for graph_block, diff_block, att_graph_block, att_diff_block in zip(self.gcn_blocks, self.diff_blocks, self.att_graph_blocks, self.att_diff_blocks):
+        for graph_block, diff_block, att_graph_block, att_diff_block in zip(self.gcn_blocks, self.diff_blocks,
+                                                                            self.att_graph_blocks,
+                                                                            self.att_diff_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
             diff_x = att_diff_block(diff_x, graph.x)
@@ -946,6 +954,224 @@ class GraphDiffNetAttention(nn.Module):
 
         # Apply the last linear layer
         diff_x = self.last_lin(diff_x)
+
+        x_out = diff_x
+        # Apply last nonlinearity if specified
+        if self.last_activation is not None:
+            x_out = self.last_activation(x_out)
+
+        # Remove batch dim if we added it
+        if appended_batch_dim:
+            x_out = x_out.squeeze(0)
+
+        return x_out
+
+
+class GraphDiffNetBipartite(nn.Module):
+    def __init__(
+            self,
+            C_in,
+            C_out,
+            C_width=128,
+            N_block=4,
+            last_activation=None,
+            dropout=True,
+            with_gradient_features=True,
+            with_gradient_rotations=True,
+            diffusion_method="spectral",
+    ):
+        """
+        Construct a MixedNet.
+        Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
+        Parameters:
+            C_in (int):                     input dimension
+            C_out (int):                    output dimension
+            last_activation (func)          a function to apply to the final outputs of the network, such as torch.nn.functional.log_softmax (default: None)
+            outputs_at (string)             produce outputs at various mesh elements by averaging from vertices. One of ['vertices', 'edges', 'faces'].
+            (default 'vertices', aka points for a point cloud)
+            C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
+            N_block (int):                  number of DiffusionNet blocks (default: 4)
+            mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
+            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
+            saving precompute.
+            with_gradient_features (bool):  if True, use gradient features (default: True)
+            with_gradient_rotations (bool): if True, use gradient also learn a rotation of each gradient.
+            Set to True if your surface has consistently oriented normals, and False otherwise (default: True)
+        """
+
+        super(GraphDiffNetBipartite, self).__init__()
+
+        # # Store parameters
+
+        # Basic parameters
+        self.C_in = C_in
+        self.C_out = C_out
+        self.C_width = C_width
+        self.N_block = N_block
+
+        # Outputs
+        self.last_activation = last_activation
+        self.dropout = True
+
+        # Diffusion
+        self.diffusion_method = diffusion_method
+        if diffusion_method not in ["spectral", "implicit_dense"]:
+            raise ValueError("invalid setting for diffusion_method")
+
+        # Gradient features
+        self.with_gradient_features = with_gradient_features
+        self.with_gradient_rotations = with_gradient_rotations
+
+        # # Set up the network
+        # channels are split into graphs and diff_block channels, then convoluted, then mixed
+        diffnet_width = C_width // 2
+
+        # First and last affine layers
+        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin2 = nn.Linear(C_in, diffnet_width)
+
+        # DiffusionNet blocks
+        self.mlp_hidden_dims = [diffnet_width, diffnet_width]
+        self.diff_blocks = []
+        for i_block in range(self.N_block):
+            diffnet_block = base_nets.layers.DiffusionNetBlock(
+                C_width=diffnet_width,
+                mlp_hidden_dims=self.mlp_hidden_dims,
+                dropout=dropout,
+                diffusion_method=diffusion_method,
+                with_gradient_features=with_gradient_features,
+                with_gradient_rotations=with_gradient_rotations,
+            )
+
+            self.diff_blocks.append(diffnet_block)
+            self.add_module("diffnet_block_" + str(i_block), self.diff_blocks[-1])
+
+        self.gcn_blocks = []
+        for i_block in range(self.N_block):
+            gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width, drate=0.5 if dropout else 0, )
+            self.gcn_blocks.append(gcn_block)
+            self.add_module("gcn_block_" + str(i_block), gcn_block)
+
+        self.graphsurf_blocks = []
+        for i_block in range(self.N_block):
+            graphsurf_block = GCNConv(diffnet_width,
+                                      diffnet_width if i_block < self.N_block - 1 else C_out,
+                                      # add_self_loops=False,
+                                      )
+            self.graphsurf_blocks.append(graphsurf_block)
+            self.add_module("graphsurf_block_" + str(i_block), graphsurf_block)
+
+        self.surfgraph_blocks = []
+        for i_block in range(self.N_block):
+            surfgraph_block = GCNConv(diffnet_width,
+                                      diffnet_width if i_block < self.N_block - 1 else C_out,
+                                      # add_self_loops=False,
+                                      )
+            self.surfgraph_blocks.append(surfgraph_block)
+            self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
+
+    def forward(
+            self,
+            graph,
+            vertices,
+            x_in,
+            mass,
+            L=None,
+            evals=None,
+            evecs=None,
+            gradX=None,
+            gradY=None,
+            edges=None,
+            faces=None,
+            # rbf_surf_graph=None,
+            # rbf_graph_surf=None,
+    ):
+        """
+        A forward pass on the MixedNet.
+        """
+
+        # # Check dimensions, and append batch dimension if not given
+        if x_in.shape[-1] != self.C_in:
+            raise ValueError(
+                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
+                    self.C_in, x_in.shape[-1]
+                )
+            )
+        if len(x_in.shape) == 2:
+            appended_batch_dim = True
+
+            # add a batch dim to all inputs
+            x_in = x_in.unsqueeze(0)
+            mass = mass.unsqueeze(0)
+            if L is not None:
+                L = L.unsqueeze(0)
+            if evals is not None:
+                evals = evals.unsqueeze(0)
+            if evecs is not None:
+                evecs = evecs.unsqueeze(0)
+            if gradX is not None:
+                gradX = gradX.unsqueeze(0)
+            if gradY is not None:
+                gradY = gradY.unsqueeze(0)
+            if edges is not None:
+                edges = edges.unsqueeze(0)
+            if faces is not None:
+                faces = faces.unsqueeze(0)
+
+        elif len(x_in.shape) == 3:
+            appended_batch_dim = False
+
+        else:
+            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+
+        # Precompute bipartite graph
+        sigma = 4
+        with torch.no_grad():
+            all_dists = torch.cdist(vertices, graph.pos)
+            neighbors = torch.where(all_dists < 8)
+            # Slicing requires tuple
+            dists = all_dists[neighbors]
+            dists = torch.exp(-dists / sigma)
+            neighbors = torch.stack(neighbors).long()
+            neighbors[1] += len(vertices)
+            reverse_neighbors = torch.flip(neighbors, dims=(0,))
+            all_pos = torch.cat((vertices, graph.pos))
+            bipartite_surfgraph = Data(all_pos=all_pos, edge_index=neighbors, edge_weight=dists)
+            bipartite_graphsurf = Data(all_pos=all_pos, edge_index=reverse_neighbors, edge_weight=dists)
+
+        # Apply the first linear layer
+        diff_x = self.first_lin1(x_in)
+        graph.x = self.first_lin2(graph.x)
+
+        # Apply each of the blocks
+        for graph_block, diff_block, graphsurf_block, surfgraph_block in zip(self.gcn_blocks,
+                                                                             self.diff_blocks,
+                                                                             self.graphsurf_blocks,
+                                                                             self.surfgraph_blocks):
+            diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
+            graph.x = graph_block(graph)
+
+            # Now use this for message passing. We can't use self loop with two GCN so average for now
+            # (maybe mixer later ?)
+            input_feats = torch.cat((diff_x[0], graph.x))
+            out_surf = graphsurf_block(input_feats,
+                                       bipartite_graphsurf.edge_index,
+                                       bipartite_graphsurf.edge_weight)
+
+            # The connectivity is well taken into account, but removing self loop yields zero outputs
+            # TODO: debug
+            # out_surf_test = graphsurf_block(input_feats,
+            #                                 bipartite_graphsurf.edge_index[:, :-5],
+            #                                 bipartite_graphsurf.edge_weight[:-5])
+
+            out_graph = surfgraph_block(input_feats,
+                                        bipartite_surfgraph.edge_index,
+                                        bipartite_surfgraph.edge_weight)
+            output_feat = torch.stack((out_surf, out_graph), dim=0)
+            output_feat = torch.mean(output_feat, dim=0)
+            diff_x = output_feat[:len(vertices)][None, ...]
+            graph.x = output_feat[len(vertices):]
 
         x_out = diff_x
         # Apply last nonlinearity if specified
@@ -974,7 +1200,7 @@ class AtomNetGraph(torch.nn.Module):
         self.conv5 = GCNConv(C_width * 4, C_width * last_factor)
         self.bn5 = nn.BatchNorm1d(C_width * last_factor)
 
-    def forward(self, graph, *largs, **kwargs,):
+    def forward(self, graph, *largs, **kwargs, ):
         x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_weight
         x = self.conv1(x, edge_index, edge_weight)
         x = self.bn1(x)
@@ -1115,7 +1341,8 @@ class MultiHeadedAttention(nn.Module):
 
     def forward(self, query, key, value):
         batch_dim = query.size(0)
-        query, key, value = [ll(x).view(batch_dim, self.dim, self.num_heads, -1) for ll, x in zip(self.proj, (query, key, value))]
+        query, key, value = [ll(x).view(batch_dim, self.dim, self.num_heads, -1) for ll, x in
+                             zip(self.proj, (query, key, value))]
         x, _ = attention(query, key, value)
         return self.merge(x.contiguous().view(batch_dim, self.dim * self.num_heads, -1))
 

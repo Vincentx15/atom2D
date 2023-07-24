@@ -46,6 +46,12 @@ class PIPNet(torch.nn.Module):
                                                                             C_width=C_width,
                                                                             N_block=N_block,
                                                                             last_activation=torch.relu)
+            elif graph_model == 'bipartite':
+                self.encoder_model = base_nets.layers.GraphDiffNetBipartite(C_in=in_channels,
+                                                                            C_out=out_channel,
+                                                                            C_width=C_width,
+                                                                            N_block=N_block,
+                                                                            last_activation=torch.relu)
         else:
             self.encoder_model = base_nets.layers.DiffusionNet(C_in=in_channels,
                                                                C_out=out_channel,
