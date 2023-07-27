@@ -64,14 +64,15 @@ class MSPDataset(Atom3DDataset):
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
             batch = Data(names=names, coords=coords, label=torch.tensor([float(item['label'])]))
 
+            # Then get the split dfs and names, and retrieve the surfaces
+            # Apparently this is faster than split
+            left_orig = orig_df[orig_df['chain'].isin(list(chains_left))]
+            right_orig = orig_df[orig_df['chain'].isin(list(chains_right))]
+            left_mut = mut_df[mut_df['chain'].isin(list(chains_left))]
+            right_mut = mut_df[mut_df['chain'].isin(list(chains_right))]
+            dfs = [left_orig, right_orig, left_mut, right_mut]
+
             if self.return_surface:
-                # Then get the split dfs and names, and retrieve the surfaces
-                # Apparently this is faster than split
-                left_orig = orig_df[orig_df['chain'].isin(list(chains_left))]
-                right_orig = orig_df[orig_df['chain'].isin(list(chains_right))]
-                left_mut = mut_df[mut_df['chain'].isin(list(chains_left))]
-                right_mut = mut_df[mut_df['chain'].isin(list(chains_right))]
-                dfs = [left_orig, right_orig, left_mut, right_mut]
                 geom_feats = [main.get_diffnetfiles(name=name,
                                                     df=df,
                                                     dump_surf_dir=self.get_geometry_dir(name),
@@ -83,11 +84,9 @@ class MSPDataset(Atom3DDataset):
                 batch.geom_feats = geom_feats
 
             if self.return_graph:
-                xyzs = [unwrap_feats(geom_feat)["vertices"] for geom_feat in geom_feats]
                 graph_feats = [main.get_graph(name=name, df=df,
                                               dump_graph_dir=self.get_graph_dir(name),
-                                              # xyz=xyzs[i],
-                                              recompute=True)  # TODO : fix
+                                              recompute=True)
                                for i, (name, df) in enumerate(zip(names, dfs))]
                 if any([graph_feat is None for graph_feat in graph_feats]):
                     raise ValueError("A graph feature is buggy")
