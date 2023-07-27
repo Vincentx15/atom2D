@@ -7,6 +7,7 @@ log_dir: "./"
 dataset:
   data_dir: "../../data/MSP/"
   recompute: False
+  big_graphs: False
 
 loader:
   batch_size_train: 1
@@ -14,6 +15,7 @@ loader:
   num_workers: 6
   pin_memory: False
   prefetch_factor: 2
+
 
 model:
   in_channels: 5

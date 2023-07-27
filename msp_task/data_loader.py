@@ -21,8 +21,12 @@ class MSPDataset(Atom3DDataset):
                  operator_path='../../data/MSP/operator/',
                  graph_path='../../data/MSP/graph',
                  return_graph=False,
+                 big_graphs=False,
                  return_surface=True,
                  recompute=False):
+        self.big_graphs = big_graphs
+        if big_graphs:
+            graph_path = graph_path.replace('graphs', 'big_graphs')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          operator_path=operator_path, graph_path=graph_path)
         self.recompute = recompute
@@ -86,6 +90,7 @@ class MSPDataset(Atom3DDataset):
             if self.return_graph:
                 graph_feats = [main.get_graph(name=name, df=df,
                                               dump_graph_dir=self.get_graph_dir(name),
+                                              big=self.big_graphs,
                                               recompute=True)
                                for i, (name, df) in enumerate(zip(names, dfs))]
                 if any([graph_feat is None for graph_feat in graph_feats]):

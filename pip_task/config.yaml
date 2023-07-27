@@ -10,6 +10,7 @@ dataset:
   neg_to_pos_ratio: 1
   max_pos_regions_per_ensemble: 5
   recompute: False
+  big_graphs: False
 
 loader:
   batch_size_train: 1

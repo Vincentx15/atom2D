@@ -14,7 +14,7 @@ if __name__ == "__main__":
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
 from atom2d_utils import learning_utils
 
-# PROT_ATOMS = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
+PROT_ATOMS_BIG = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
 PROT_ATOMS = ['C', 'O', 'N', 'S']
 
 
@@ -175,7 +175,7 @@ def one_of_k_encoding_unk(x, allowable_set):
     return list(map(lambda s: x == s, allowable_set))
 
 
-def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_dist_cutoff=4.5):
+def prot_df_to_graph(df, feat_col='element', edge_dist_cutoff=4.5, big=False):
     r"""
     Converts protein in dataframe representation to a graph compatible with Pytorch-Geometric, where each node is an atom.
 
@@ -202,8 +202,11 @@ def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_di
     """
     # import time
     # t0 = time.time()
-    df = df.loc[df['element'] != 'H']  # TODO : maybe consider doing all atom, as they DO NOT do this operation.
-    # TODO : I added it for speed.
+    if big:
+        allowable_feats = PROT_ATOMS_BIG
+    else:
+        allowable_feats = PROT_ATOMS
+        df = df.loc[df['element'] != 'H']
     node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
     kd_tree = ss.KDTree(node_pos)
     edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
@@ -230,7 +233,7 @@ def prot_df_to_graph(df, feat_col='element', allowable_feats=PROT_ATOMS, edge_di
     return node_feats, edges, my_edge_weights_torch, node_pos
 
 
-def get_graph(name, df, dump_graph_dir, xyz=None, recompute=False):
+def get_graph(name, df, dump_graph_dir, xyz=None, recompute=False, big=False):
     os.makedirs(dump_graph_dir, exist_ok=True)
     dump_graph_name = os.path.join(dump_graph_dir, f"{name}.pth")
     if not os.path.exists(dump_graph_name):
@@ -238,7 +241,7 @@ def get_graph(name, df, dump_graph_dir, xyz=None, recompute=False):
             print(
                 f"For system : {name}, recomputing : graph "
             )
-            node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, allowable_feats=PROT_ATOMS)
+            node_feats, edge_index, edge_feats, pos = prot_df_to_graph(df, big=big)
             graph = Data(node_feats, edge_index, edge_feats, pos=pos)
             if xyz is not None:
                 # !!! not sure if this needed, cdist seems to be quick

@@ -21,9 +21,13 @@ class NewPIP(torch.utils.data.Dataset):
                  geometry_path='../../data/processed_data/geometry/',
                  operator_path='../../data/processed_data/operator/',
                  graph_path='../../data/processed_data/graph',
+                 big_graphs=False,
                  return_graph=False,
                  return_surface=True,
                  recompute=False):
+        self.big_graphs = big_graphs
+        if big_graphs:
+            graph_path = graph_path.replace('graphs', 'big_graphs')
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
         self.recompute = recompute
@@ -137,9 +141,11 @@ class NewPIP(torch.utils.data.Dataset):
         if self.return_graph:
             graph_1 = main.get_graph(name=name1, df=struct_1,
                                      dump_graph_dir=self.get_graph_dir(name1),
+                                     big=self.big_graphs,
                                      recompute=True)
             graph_2 = main.get_graph(name=name2, df=struct_2,
                                      dump_graph_dir=self.get_graph_dir(name1),
+                                     big=self.big_graphs,
                                      recompute=True)
             if graph_1 is None or graph_2 is None:
                 raise ValueError("A graph feature is buggy")

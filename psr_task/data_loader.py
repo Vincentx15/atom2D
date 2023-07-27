@@ -17,14 +17,19 @@ class PSRDataset(Atom3DDataset):
                  geometry_path='../../data/PSR/geometry/',
                  operator_path='../../data/PSR/operator/',
                  graph_path='../../data/PSR/graphs/',
+                 big_graphs=False,
                  return_graph=False,
                  return_surface=True,
                  recompute=False):
+        self.big_graphs = big_graphs
+        if big_graphs:
+            graph_path = graph_path.replace('graphs', 'big_graphs')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          graph_path=graph_path, operator_path=operator_path)
         self.recompute = recompute
         self.return_graph = return_graph
         self.return_surface = return_surface
+        self.big_graphs = big_graphs
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -62,6 +67,7 @@ class PSRDataset(Atom3DDataset):
 
             if self.return_graph:
                 graph_feat = main.get_graph(name=name, df=df,
+                                            big=self.big_graphs,
                                             dump_graph_dir=self.get_graph_dir(name),
                                             recompute=True)
                 if graph_feat is None:
