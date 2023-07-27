@@ -41,8 +41,8 @@ class PLDataModule(pl.LightningDataModule):
         # sampler = SkipBatchesSampler(dataset)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
-                          collate_fn=lambda x: x,
-                          #sampler=sampler
+                          shuffle=self.cfg.loader.shuffle, collate_fn=lambda x: x,
+                          # sampler=sampler
                           )
 
     def val_dataloader(self):

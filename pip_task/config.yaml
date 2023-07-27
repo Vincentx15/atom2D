@@ -18,6 +18,7 @@ loader:
   num_workers: 6
   pin_memory: False
   prefetch_factor: 2
+  shuffle: True
 
 model:
   in_channels: 5
