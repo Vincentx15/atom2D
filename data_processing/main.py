@@ -14,7 +14,7 @@ if __name__ == "__main__":
 from data_processing import df_utils, point_cloud_utils, surface_utils, get_operators
 from atom2d_utils import learning_utils
 
-# prot_atoms = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
+# PROT_ATOMS = ['C', 'H', 'O', 'N', 'S', 'P', 'ZN', 'NA', 'FE', 'CA', 'MN', 'NI', 'CO', 'MG', 'CU', 'CL', 'SE', 'F']
 PROT_ATOMS = ['C', 'O', 'N', 'S']
 
 

@@ -151,7 +151,6 @@ def reprocess_data(data_dir, recompute_csv=False, recompute_surfaces=False, num_
         #     break
     df.to_csv(dump_csv)
 
-
 if __name__ == '__main__':
     data_dir = '../data/PIP/DIPS-split/data/train/'
     reprocess_data(data_dir, recompute_csv=True, num_workers=4)

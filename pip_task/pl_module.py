@@ -61,13 +61,9 @@ class PIPModule(pl.LightningModule):
         return loss, output.flatten(), labels.flatten()
 
     def training_step(self, batch, batch_idx):
-        # t0 = time.perf_counter()
         loss, logits, labels = self.step(batch)
-        # torch.cuda.synchronize()
-        # print(f"Time for one step  : {time.perf_counter()-t0}")
         if loss is None:
             return None
-
         self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
 
