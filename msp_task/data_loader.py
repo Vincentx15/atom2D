@@ -21,11 +21,13 @@ class MSPDataset(Atom3DDataset):
                  operator_path='../../data/MSP/operator/',
                  graph_path='../../data/MSP/graph',
                  return_graph=False,
+                 return_surface=True,
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          operator_path=operator_path, graph_path=graph_path)
         self.recompute = recompute
         self.return_graph = return_graph
+        self.return_surface = return_surface
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -58,26 +60,28 @@ class MSPDataset(Atom3DDataset):
             coords = list_from_numpy(coords)
             coords = [x.float() for x in coords]
 
-            # Then get the split dfs and names, and retrieve the surfaces
-            # Apparently this is faster than split
-            left_orig = orig_df[orig_df['chain'].isin(list(chains_left))]
-            right_orig = orig_df[orig_df['chain'].isin(list(chains_right))]
-            left_mut = mut_df[mut_df['chain'].isin(list(chains_left))]
-            right_mut = mut_df[mut_df['chain'].isin(list(chains_right))]
-
             names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
-            dfs = [left_orig, right_orig, left_mut, right_mut]
+            batch = Data(names=names, coords=coords, label=torch.tensor([float(item['label'])]))
 
-            geom_feats = [main.get_diffnetfiles(name=name, df=df,
-                                                dump_surf_dir=self.get_geometry_dir(name),
-                                                dump_operator_dir=self.get_operator_dir(name),
-                                                recompute=self.recompute)
-                          for name, df in zip(names, dfs)]
-            if any([geom_feat is None for geom_feat in geom_feats]):
-                raise ValueError("A geometric feature is buggy")
+            if self.return_surface:
+                # Then get the split dfs and names, and retrieve the surfaces
+                # Apparently this is faster than split
+                left_orig = orig_df[orig_df['chain'].isin(list(chains_left))]
+                right_orig = orig_df[orig_df['chain'].isin(list(chains_right))]
+                left_mut = mut_df[mut_df['chain'].isin(list(chains_left))]
+                right_mut = mut_df[mut_df['chain'].isin(list(chains_right))]
+                dfs = [left_orig, right_orig, left_mut, right_mut]
+                geom_feats = [main.get_diffnetfiles(name=name,
+                                                    df=df,
+                                                    dump_surf_dir=self.get_geometry_dir(name),
+                                                    dump_operator_dir=self.get_operator_dir(name),
+                                                    recompute=self.recompute)
+                              for name, df in zip(names, dfs)]
+                if any([geom_feat is None for geom_feat in geom_feats]):
+                    raise ValueError("A geometric feature is buggy")
+                batch.geom_feats = geom_feats
 
-            batch = Data(names=names, geom_feats=geom_feats, coords=coords, label=torch.tensor([float(item['label'])]))
             if self.return_graph:
                 xyzs = [unwrap_feats(geom_feat)["vertices"] for geom_feat in geom_feats]
                 graph_feats = [main.get_graph(name=name, df=df,

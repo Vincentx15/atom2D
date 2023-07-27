@@ -18,11 +18,13 @@ class PSRDataset(Atom3DDataset):
                  operator_path='../../data/PSR/operator/',
                  graph_path='../../data/PSR/graphs/',
                  return_graph=False,
+                 return_surface=True,
                  recompute=False):
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          graph_path=graph_path, operator_path=operator_path)
         self.recompute = recompute
         self.return_graph = return_graph
+        self.return_surface = return_surface
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -40,7 +42,6 @@ class PSRDataset(Atom3DDataset):
 
         try:
             item = self._lmdb_dataset[index]
-
             df = item['atoms'].reset_index(drop=True)
             # item[id] has a weird formatting
             name = item['id']
@@ -48,16 +49,17 @@ class PSRDataset(Atom3DDataset):
             target, decoy = target[2:-1], decoy[2:-1]
             name = f"{target}_{decoy}"
             scores = item['scores']
+            batch = Data(name=name, scores=torch.tensor([scores['gdt_ts']]))
+            if self.return_surface:
+                geom_feats = main.get_diffnetfiles(name=name,
+                                                   df=df,
+                                                   dump_surf_dir=self.get_geometry_dir(name),
+                                                   dump_operator_dir=self.get_operator_dir(name),
+                                                   recompute=self.recompute)
+                if geom_feats is None:
+                    raise ValueError("A geometric feature is buggy")
+                batch.geom_feats = geom_feats
 
-            geom_feats = main.get_diffnetfiles(name=name,
-                                               df=df,
-                                               dump_surf_dir=self.get_geometry_dir(name),
-                                               dump_operator_dir=self.get_operator_dir(name),
-                                               recompute=self.recompute)
-            if geom_feats is None:
-                raise ValueError("A geometric feature is buggy")
-
-            batch = Data(name=name, geom_feats=geom_feats, scores=torch.tensor([scores['gdt_ts']]))
             if self.return_graph:
                 graph_feat = main.get_graph(name=name, df=df,
                                             dump_graph_dir=self.get_graph_dir(name),
