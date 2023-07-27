@@ -53,47 +53,50 @@ class PSRModule(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def step(self, data):
-        if "name" not in data:
+    def step(self, batch):
+        filtered_batch = [data for data in batch if "name" in data]
+        if len(filtered_batch) == 0:
             return None, None, None, None
-        output = self(data)
-        loss = self.criterion(output, data.scores)
-        return data.name, loss, output.flatten(), data.scores
+        names = [data.name for data in filtered_batch]
+        scores = torch.cat([data.scores for data in filtered_batch])
+        output = self(filtered_batch)
+        loss = self.criterion(output, scores)
+        return names, loss, output.flatten(), scores
 
     def training_step(self, batch, batch_idx):
-        name, loss, logits, labels = self.step(batch)
+        names, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
-
         self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
-
         return loss
 
     def validation_step(self, batch, batch_idx: int):
-        name, loss, logits, labels = self.step(batch)
+        names, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
 
-        scores = logits.item()
-        output = labels.item()
-        reslist = [output, scores]
-        self.val_reslist.append(reslist)
-        self.val_resdict[name[:4]].append(reslist)
+        scores = logits.detach().cpu().numpy()
+        outputs = labels.detach().cpu().numpy()
+        for name, output, score in zip(names, outputs, scores):
+            reslist = [output, score]
+            self.val_reslist.append(reslist)
+            self.val_resdict[name[:4]].append(reslist)
 
         self.log_dict({"loss/val": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
 
     def test_step(self, batch, batch_idx: int):
-        name, loss, logits, labels = self.step(batch)
+        names, loss, logits, labels = self.step(batch)
         if loss is None:
             return None
 
-        scores = logits.item()
-        output = labels.item()
-        reslist = [output, scores]
-        self.test_reslist.append(reslist)
-        self.test_resdict[name[:4]].append(reslist)
+        scores = logits.detach().cpu().numpy()
+        outputs = labels.detach().cpu().numpy()
+        for name, output, score in zip(names, outputs, scores):
+            reslist = [output, score]
+            self.test_reslist.append(reslist)
+            self.test_resdict[name[:4]].append(reslist)
 
         self.log_dict({"loss/test": loss.item()},
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
@@ -135,6 +138,5 @@ class PSRModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        batch = batch[0]
-        batch = batch.to(device)
+        batch = [data.to(device) for data in batch]
         return batch

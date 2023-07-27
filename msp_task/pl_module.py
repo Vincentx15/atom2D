@@ -29,12 +29,14 @@ class MSPModule(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def step(self, data):
-        if "names" not in data:
+    def step(self, batch):
+        filtered_batch = [data for data in batch if "names" in data]
+        if len(filtered_batch) == 0:
             return None, None, None
-        output = self(data)
-        loss = self.criterion(output, data.label)
-        return loss, output.flatten(), data.label
+        label = torch.cat([data.label for data in filtered_batch])
+        output = self(filtered_batch)
+        loss = self.criterion(output, label)
+        return loss, output.flatten(), label
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
@@ -90,6 +92,5 @@ class MSPModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        batch = batch[0]
-        batch = batch.to(device)
+        batch = [data.to(device) for data in batch]
         return batch

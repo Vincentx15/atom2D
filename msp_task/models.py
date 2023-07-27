@@ -74,7 +74,7 @@ class MSPSurfNet(torch.nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(self, data):
+    def forward(self, batch):
         """
         Here inputs are supposed to contain :
           [left_orig, right_orig, left_mut, right_mut] or
@@ -83,6 +83,8 @@ class MSPSurfNet(torch.nn.Module):
         :param data:
         :return:
         """
+        assert len(batch) == 1
+        data = batch[0]
         coords = data.coords
 
         # Unpack data
@@ -110,7 +112,8 @@ class MSPSurfNet(torch.nn.Module):
         elif self.use_graph_only:
             processed = [self.encoder_model(graph) for graph in all_graphs]
         else:
-            processed = [self.encoder_model(graph=graph, **dict_feat) for dict_feat, graph in zip(all_dict_feat, all_graphs)]
+            processed = [self.encoder_model(graph=graph, **dict_feat) for dict_feat, graph in
+                         zip(all_dict_feat, all_graphs)]
 
         # Project it onto the coords
         if self.use_graph_only:
