@@ -13,8 +13,7 @@ if __name__ == '__main__':
 
 from pl_module import PIPModule
 from data_processing.data_module import PLDataModule
-# from data_loader import PIPDataset
-from reprocess_data import NewPIP
+from data_loader import NewPIP
 from atom2d_utils.callbacks import CommandLoggerCallback
 
 
@@ -76,8 +75,6 @@ def main(cfg=None):
         **params
     )
 
-    # datamodule
-    # datamodule = PLDataModule(PIPDataset, cfg)
     datamodule = PLDataModule(NewPIP, cfg)
 
     # train

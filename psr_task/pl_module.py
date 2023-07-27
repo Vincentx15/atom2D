@@ -56,11 +56,9 @@ class PSRModule(pl.LightningModule):
     def step(self, data):
         if "name" not in data:
             return None, None, None, None
-        name, geom_feats, scores = data.name, data.geom_feats, data.scores
-        x = (geom_feats, data.graph_feat) if self.use_graph else geom_feats
-        output = self(x)
-        loss = self.criterion(output, scores)
-        return name, loss, output.flatten(), scores
+        output = self(data)
+        loss = self.criterion(output, data.scores)
+        return data.name, loss, output.flatten(), data.scores
 
     def training_step(self, batch, batch_idx):
         name, loss, logits, labels = self.step(batch)
@@ -126,7 +124,8 @@ class PSRModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_params = self.hparams.hparams.optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=opt_params.lr)
-        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience, factor=opt_params.factor, mode='max'),
+        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience,
+                                                                             factor=opt_params.factor, mode='max'),
                      'monitor': "global_r_val",
                      'interval': "epoch",
                      'frequency': 1,

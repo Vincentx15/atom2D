@@ -44,23 +44,19 @@ class PIPModule(pl.LightningModule):
         # self.test_auroc = auroc.clone()
 
         self.use_graph = hparams.model.use_graph or hparams.model.use_graph_only
+        self.use_graph_only = hparams.model.use_graph_only
         self.model = PIPNet(**hparams.model)
         # self.criterion = torch.nn.BCELoss()
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
 
     def forward(self, x):
-        return self.model(*x)
+        return self.model(x)
 
     def step(self, data):
-        names_0, pos_pairs_cas_arr, neg_pairs_cas_arr = (data.name1, data.pos_stack, data.neg_stack) if "name1" in data else (None, None, None)
-        if names_0 is None or pos_pairs_cas_arr.numel() == 0 or neg_pairs_cas_arr.numel() == 0:
+        if not "name1" in data or data.name1 is None or data.pos_stack.numel() == 0 or data.neg_stack.numel() == 0:
             return None, None, None
-        geom_feats_1, geom_feats_2 = data.geom_feats_1, data.geom_feats_2
-        x_1, x_2 = ((geom_feats_1, data.graph_1), (geom_feats_2, data.graph_2)) if self.use_graph else (geom_feats_1, geom_feats_2)
-        all_pairs = torch.cat((pos_pairs_cas_arr, neg_pairs_cas_arr), dim=-3)
-        labels = torch.cat((torch.ones(len(pos_pairs_cas_arr)), torch.zeros(len(neg_pairs_cas_arr)))).to(self.device)
-
-        output = self((x_1, x_2, all_pairs))
+        labels = torch.cat((torch.ones(len(data.pos_stack)), torch.zeros(len(data.neg_stack)))).to(self.device)
+        output = self(data)
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
 
@@ -122,7 +118,8 @@ class PIPModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_params = self.hparams.hparams.optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=opt_params.lr)
-        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience, factor=opt_params.factor, mode='max'),
+        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience,
+                                                                             factor=opt_params.factor, mode='max'),
                      'monitor': "auroc_val",
                      'interval': "epoch",
                      'frequency': 1,

@@ -21,22 +21,20 @@ class MSPModule(pl.LightningModule):
         self.test_auroc = auroc.clone()
 
         self.use_graph = hparams.model.use_graph or hparams.model.use_graph_only
+        self.use_graph_only = hparams.model.use_graph_only
         self.model = MSPSurfNet(**hparams.model)
         # self.criterion = torch.nn.BCELoss()
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
 
     def forward(self, x):
-        return self.model(*x)
+        return self.model(x)
 
     def step(self, data):
         if "names" not in data:
             return None, None, None
-
-        x = (data.geom_feats, data.graph_feats) if self.use_graph else data.geom_feats
-        label = data.label
-        output = self((x, data.coords))
-        loss = self.criterion(output, label)
-        return loss, output.flatten(), label
+        output = self(data)
+        loss = self.criterion(output, data.label)
+        return loss, output.flatten(), data.label
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
@@ -81,7 +79,8 @@ class MSPModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_params = self.hparams.hparams.optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=opt_params.lr)
-        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience, factor=opt_params.factor, mode='max'),
+        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience,
+                                                                             factor=opt_params.factor, mode='max'),
                      'monitor': "auroc_val",
                      'interval': "epoch",
                      'frequency': 1,

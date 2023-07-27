@@ -81,7 +81,7 @@ class PSRSurfNet(torch.nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(self, x):
+    def forward(self, data):
         """
         Both inputs should unwrap as (features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces)
         pairs_loc are the coordinates of points shape (n_pairs, 2, 3)
@@ -90,26 +90,25 @@ class PSRSurfNet(torch.nn.Module):
         :return:
         """
 
-        if not self.use_graph:
-            geom_feat = x
-        else:
-            geom_feat, graph = x
-        dict_feat = unwrap_feats(geom_feat, device=self.device)
-
-        # We need the vertices to push back the points.
-        # We also have to remove them from the dict to feed into base_nets
-        verts = dict_feat.pop('vertices')
-        if self.use_xyz:
-            verts = center_normalize([verts])[0]
-            dict_feat["x_in"] = torch.cat([verts, dict_feat["x_in"]], dim=1)
+        if not self.use_graph_only:
+            dict_feat = unwrap_feats(data.geom_feat, device=self.device)
+            verts = dict_feat.pop('vertices')
+            if self.use_xyz:
+                # We need the vertices to push back the points.
+                # We also have to remove them from the dict to feed into base_nets
+                verts = center_normalize([verts])[0]
+                dict_feat["x_in"] = torch.cat([verts, dict_feat["x_in"]], dim=1)
+        if self.use_graph:
+            graph = data.graph_feat
 
         if not self.use_graph:
             processed = self.encoder_model(**dict_feat)
+        elif self.use_graph_only:
+            processed = self.encoder_model(graph=graph)
         else:
             processed = self.encoder_model(graph=graph, vertices=verts, **dict_feat)
 
         x = torch.max(processed, dim=-2).values
-
         if self.use_graph_only:
             x = F.relu(x)
             x = F.relu(self.fc1(x))

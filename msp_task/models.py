@@ -74,41 +74,45 @@ class MSPSurfNet(torch.nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(self, x, coords):
+    def forward(self, data):
         """
-        Here inputs are [left_orig, right_orig, left_mut, right_mut] or
+        Here inputs are supposed to contain :
+          [left_orig, right_orig, left_mut, right_mut] or
          ([left_orig, right_orig, left_mut, right_mut], graphs)
 
-        :param x:
-        :param coords: orig_coords, mut_coords
+        :param data:
         :return:
         """
+        coords = data.coords
 
-        if not self.use_graph:
-            all_dict_feat = [unwrap_feats(geom_feat, device=self.device) for geom_feat in x]
-            vertices = [dict_feat.pop('vertices') for dict_feat in all_dict_feat]
-        else:
-            all_dict_feat = [unwrap_feats(geom_feat, device=self.device) for geom_feat in x[0]]
-            all_graphs = [graph.to(self.device) for graph in x[1]]
+        # Unpack data
+        if not self.use_graph_only:
+            all_dict_feat = [unwrap_feats(geom_feat, device=self.device) for geom_feat in data.geom_feats]
             vertices = [dict_feat['vertices'] for dict_feat in all_dict_feat]
+            if self.use_xyz:
+                # We need the vertices to push back the points.
+                # We also have to remove them from the dict to feed into base_nets
+                vertices1, coords0 = center_normalize(vertices[:2], [coords[0]])
+                vertices2, coords1 = center_normalize(vertices[2:], [coords[1]])
+                vertices = vertices1 + vertices2
+                coords = coords0 + coords1
+                for i, dict_feat in enumerate(all_dict_feat):
+                    dict_feat["x_in"] = torch.cat([vertices[i], dict_feat["x_in"]], dim=1)
+                # TODO : align graphs
+        if self.use_graph:
+            all_graphs = [graph.to(self.device) for graph in data.graph_feats]
 
-        if self.use_xyz:
-            vertices1, coords0 = center_normalize(vertices[:2], [coords[0]])
-            vertices2, coords1 = center_normalize(vertices[2:], [coords[1]])
-            vertices = vertices1 + vertices2
-            coords = coords0 + coords1
-            for i, dict_feat in enumerate(all_dict_feat):
-                dict_feat["x_in"] = torch.cat([vertices[i], dict_feat["x_in"]], dim=1)
-
-            # TODO : align graphs
-
-        # We need the vertices to push back the points.
-        # We also have to remove them from the dict to feed into base_nets
+        # Run it through encoder
         if not self.use_graph:
+            # We need to remove vertices here
+            _ = [dict_feat.pop("vertices") for dict_feat in all_dict_feat]
             processed = [self.encoder_model(**dict_feat) for dict_feat in all_dict_feat]
+        elif self.use_graph_only:
+            processed = [self.encoder_model(graph) for graph in all_graphs]
         else:
-            processed = [self.encoder_model(graph, **dict_feat) for dict_feat, graph in zip(all_dict_feat, all_graphs)]
+            processed = [self.encoder_model(graph=graph, **dict_feat) for dict_feat, graph in zip(all_dict_feat, all_graphs)]
 
+        # Project it onto the coords
         if self.use_graph_only:
             feat_left_orig = find_nn_feat(coords[0], all_graphs[0].pos, processed[0])
             feat_right_orig = find_nn_feat(coords[0], all_graphs[1].pos, processed[1])
@@ -130,9 +134,9 @@ class MSPSurfNet(torch.nn.Module):
             x = F.dropout(x, p=0.25, training=self.training)
             x = self.fc2(x).view(-1)
         else:
-            # Now project each part onto its points
             projected_left_orig = torch_rbf(points_1=vertices[0], feats_1=processed[0], points_2=coords[0], concat=True)
-            projected_right_orig = torch_rbf(points_1=vertices[1], feats_1=processed[1], points_2=coords[0], concat=True)
+            projected_right_orig = torch_rbf(points_1=vertices[1], feats_1=processed[1], points_2=coords[0],
+                                             concat=True)
             projected_left_mut = torch_rbf(points_1=vertices[2], feats_1=processed[2], points_2=coords[1], concat=True)
             projected_right_mut = torch_rbf(points_1=vertices[3], feats_1=processed[3], points_2=coords[1], concat=True)
             projected_orig = torch.cat((projected_left_orig, projected_right_orig), dim=-1)
@@ -159,7 +163,6 @@ class MSPSurfNet(torch.nn.Module):
 
             x = self.top_mlp(x)
             # x = torch.sigmoid(x)
-
         return x
 
 

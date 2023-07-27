@@ -10,7 +10,8 @@ from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
-                 use_xyz=False, use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', **kwargs):
+                 use_xyz=False, use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel',
+                 **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -77,7 +78,7 @@ class PIPNet(torch.nn.Module):
         layers.append(nn.Linear(in_features, 1))
         self.top_net = nn.Sequential(*layers)
 
-    def forward(self, x_left, x_right, pairs_loc):
+    def forward(self, data):
         """
         Both inputs should unwrap as (features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces)
         pairs_loc are the coordinates of points shape (n_pairs, 2, 3)
@@ -85,35 +86,40 @@ class PIPNet(torch.nn.Module):
         :param x_right:
         :return:
         """
+
+        pairs_loc = torch.cat((data.pos_stack, data.neg_stack), dim=-3)
         device = pairs_loc.device
         locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
 
+        if not self.use_graph_only:
+            dict_feat_left = unwrap_feats(data.geom_feats_1, device=device)
+            dict_feat_right = unwrap_feats(data.geom_feats_2, device=device)
+            verts_left = dict_feat_left.pop('vertices')
+            verts_right = dict_feat_right.pop('vertices')
+            if self.use_xyz:
+                verts_leftt, locs_leftt = center_normalize([verts_left], [locs_left])
+                verts_rightt, locs_rightt = center_normalize([verts_right], [locs_right])
+                verts_leftt, locs_left = verts_leftt[0], locs_leftt[0]
+                verts_rightt, locs_right = verts_rightt[0], locs_rightt[0]
+                rot_mat = torch.from_numpy(R.random().as_matrix()).float().to(device)  # random rotation
+                verts_rightt = verts_rightt @ rot_mat  # random rotation
+                locs_right = locs_right @ rot_mat  # random rotation
+                x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
+                dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
+                dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)
         if self.use_graph:
-            x_left, graph_left = x_left
-            x_right, graph_right = x_right
-        dict_feat_left = unwrap_feats(x_left, device=device)
-        dict_feat_right = unwrap_feats(x_right, device=device)
-        verts_left = dict_feat_left.pop('vertices')
-        verts_right = dict_feat_right.pop('vertices')
+            graph_left = data.graph_1
+            graph_right = data.graph_2
 
-        if self.use_xyz:
-            verts_leftt, locs_leftt = center_normalize([verts_left], [locs_left])
-            verts_rightt, locs_rightt = center_normalize([verts_right], [locs_right])
-            verts_leftt, locs_left = verts_leftt[0], locs_leftt[0]
-            verts_rightt, locs_right = verts_rightt[0], locs_rightt[0]
-            rot_mat = torch.from_numpy(R.random().as_matrix()).float().to(device)  # random rotation
-            verts_rightt = verts_rightt @ rot_mat  # random rotation
-            locs_right = locs_right @ rot_mat  # random rotation
-            x_in1, x_in2 = dict_feat_left["x_in"], dict_feat_right["x_in"]
-            dict_feat_left["x_in"] = torch.cat([verts_leftt, x_in1], dim=1)
-            dict_feat_right["x_in"] = torch.cat([verts_rightt, x_in2], dim=1)
-
-        if self.use_graph:
-            processed_left = self.encoder_model(graph=graph_left, vertices=verts_left, **dict_feat_left)
-            processed_right = self.encoder_model(graph=graph_right, vertices=verts_right, **dict_feat_right)
-        else:
+        if not self.use_graph:
             processed_left = self.encoder_model(**dict_feat_left)
             processed_right = self.encoder_model(**dict_feat_right)
+        elif self.use_graph_only:
+            processed_left = self.encoder_model(graph=graph_left)
+            processed_right = self.encoder_model(graph=graph_right)
+        else:
+            processed_left = self.encoder_model(graph=graph_left, vertices=verts_left, **dict_feat_left)
+            processed_right = self.encoder_model(graph=graph_right, vertices=verts_right, **dict_feat_right)
 
         if self.use_graph_only:
             # find nearest neighbors between doing last layers
