@@ -81,7 +81,8 @@ class MSPDataset(Atom3DDataset):
                                                     df=df,
                                                     dump_surf_dir=self.get_geometry_dir(name),
                                                     dump_operator_dir=self.get_operator_dir(name),
-                                                    recompute=self.recompute)
+                                                    recompute=self.recompute
+                                                    )
                               for name, df in zip(names, dfs)]
                 if any([geom_feat is None for geom_feat in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
