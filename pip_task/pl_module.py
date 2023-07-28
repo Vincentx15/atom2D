@@ -52,11 +52,21 @@ class PIPModule(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def step(self, data):
+    def filter_batch(self, data):
         if not "name1" in data or data.name1 is None or data.pos_stack.numel() == 0 or data.neg_stack.numel() == 0:
+            return False
+        return True
+
+    def step(self, batch):
+        filtered_batch = [data for data in batch if self.filter_batch(data)]
+        if len(filtered_batch) == 0:
             return None, None, None
-        labels = torch.cat((torch.ones(len(data.pos_stack)), torch.zeros(len(data.neg_stack)))).to(self.device)
-        output = self(data)
+        all_labels = []
+        for data in filtered_batch:
+            all_labels.append(torch.ones(len(data.pos_stack)))
+            all_labels.append(torch.zeros(len(data.neg_stack)))
+        labels = torch.cat(all_labels).to(self.device)
+        output = self(filtered_batch)
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
 
@@ -125,6 +135,5 @@ class PIPModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        batch = batch[0]
-        batch = batch.to(device)
+        batch = [data.to(device) for data in batch]
         return batch

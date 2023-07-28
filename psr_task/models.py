@@ -2,6 +2,7 @@ import base_nets
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.data import Batch
 
 from atom2d_utils.learning_utils import unwrap_feats, center_normalize
 
@@ -102,7 +103,6 @@ class PSRSurfNet(torch.nn.Module):
                 dict_feat["x_in"] = torch.cat([verts, dict_feat["x_in"]], dim=1)
         if self.use_graph:
             all_graphs = [data.graph_feat for data in batch]
-            from torch_geometric.data import Batch
             graph = Batch.from_data_list(all_graphs)
 
         if not self.use_graph:
