@@ -7,7 +7,8 @@ from torch_geometric.data import Batch
 from base_nets import DiffusionNet, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph
 
 from data_processing import point_cloud_utils
-from atom2d_utils.learning_utils import unwrap_feats, center_normalize
+from atom2d_utils.learning_utils import unwrap_feats
+from data_processing.transforms import center_normalize
 
 
 class PIPNet(torch.nn.Module):

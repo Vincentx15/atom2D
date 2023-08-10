@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Batch
 
-from atom2d_utils.learning_utils import unwrap_feats, center_normalize
+from atom2d_utils.learning_utils import unwrap_feats
+from data_processing.transforms import center_normalize
 from base_nets import DiffusionNet, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph, GCN
 from base_nets.diffusion_net.layers import get_mlp
 from base_nets.utils import create_pyg_graph_object
