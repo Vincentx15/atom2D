@@ -1,9 +1,10 @@
-import base_nets
 from scipy.spatial.transform import Rotation as R
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Batch
+
+from base_nets import DiffusionNet, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph
 
 from data_processing import point_cloud_utils
 from atom2d_utils.learning_utils import unwrap_feats, center_normalize
@@ -24,42 +25,42 @@ class PIPNet(torch.nn.Module):
         self.use_graph_only = use_graph_only
         self.clip_output = clip_output
         if use_graph_only:
-            self.encoder_model = base_nets.layers.AtomNetGraph(C_in=in_channels,
-                                                               C_out=out_channel,
-                                                               C_width=C_width)
+            self.encoder_model = AtomNetGraph(C_in=in_channels,
+                                              C_out=out_channel,
+                                              C_width=C_width)
             self.fc1 = nn.Linear(C_width * 4, C_width * 4)
             self.fc2 = nn.Linear(C_width * 4, 1)
         elif use_graph:
             if graph_model == 'parallel':
-                self.encoder_model = base_nets.layers.GraphDiffNet(C_in=in_channels,
-                                                                   C_out=out_channel,
-                                                                   C_width=C_width,
-                                                                   N_block=N_block,
-                                                                   last_activation=torch.relu)
+                self.encoder_model = GraphDiffNet(C_in=in_channels,
+                                                  C_out=out_channel,
+                                                  C_width=C_width,
+                                                  N_block=N_block,
+                                                  last_activation=torch.relu)
             elif graph_model == 'sequential':
-                self.encoder_model = base_nets.layers.GraphDiffNetSequential(C_in=in_channels,
-                                                                             C_out=out_channel,
-                                                                             C_width=C_width,
-                                                                             N_block=N_block,
-                                                                             last_activation=torch.relu)
+                self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
+                                                            C_out=out_channel,
+                                                            C_width=C_width,
+                                                            N_block=N_block,
+                                                            last_activation=torch.relu)
             elif graph_model == 'attention':
-                self.encoder_model = base_nets.layers.GraphDiffNetAttention(C_in=in_channels,
-                                                                            C_out=out_channel,
-                                                                            C_width=C_width,
-                                                                            N_block=N_block,
-                                                                            last_activation=torch.relu)
+                self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=C_width,
+                                                           N_block=N_block,
+                                                           last_activation=torch.relu)
             elif graph_model == 'bipartite':
-                self.encoder_model = base_nets.layers.GraphDiffNetBipartite(C_in=in_channels,
-                                                                            C_out=out_channel,
-                                                                            C_width=C_width,
-                                                                            N_block=N_block,
-                                                                            last_activation=torch.relu)
+                self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
+                                                           C_out=out_channel,
+                                                           C_width=C_width,
+                                                           N_block=N_block,
+                                                           last_activation=torch.relu)
         else:
-            self.encoder_model = base_nets.layers.DiffusionNet(C_in=in_channels,
-                                                               C_out=out_channel,
-                                                               C_width=C_width,
-                                                               N_block=N_block,
-                                                               last_activation=torch.relu)
+            self.encoder_model = DiffusionNet(C_in=in_channels,
+                                              C_out=out_channel,
+                                              C_width=C_width,
+                                              N_block=N_block,
+                                              last_activation=torch.relu)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         in_features = 2 * (out_channel + 1)
         layers = []
