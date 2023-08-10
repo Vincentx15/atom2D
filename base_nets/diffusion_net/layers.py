@@ -463,6 +463,7 @@ class DiffusionNetBlockBatch(nn.Module):
         # Diffusion block
         x_diffuse = [self.diffusion(x.unsqueeze(0), L_, mass_, evals_, evecs_)[0]
                      for x, L_, mass_, evals_, evecs_ in zip(x_in, L, mass, evals, evecs)]
+
         x_diffuse_batch = torch.cat(x_diffuse, dim=0)
 
         # Compute gradient features, if using
@@ -476,7 +477,7 @@ class DiffusionNetBlockBatch(nn.Module):
                 x_gradY = torch.mm(gradY[b], x_diffuse[b])
                 x_grads.append(torch.stack((x_gradX, x_gradY), dim=-1))
 
-            x_grad_batch = x_in_batch = torch.cat(x_grads, dim=0)
+            x_grad_batch = torch.cat(x_grads, dim=0)
 
             # Evaluate gradient features
             x_grad_features_batch = self.gradient_features(x_grad_batch)
@@ -549,7 +550,7 @@ class DiffusionNetBatch(nn.Module):
             self.blocks.append(block)
             self.add_module("block_" + str(i_block), self.blocks[-1])
 
-    def forward(self, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, surface, graph=None):
         """
         all the inputs are in list format
         A forward pass on the DiffusionNet.
@@ -573,6 +574,8 @@ class DiffusionNetBatch(nn.Module):
         Returns:
             x_out (tensor):    Output with dimension [N,C_out] or [B,N,C_out]
         """
+        x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
+
         assert isinstance(x_in, list), "inputs to `DiffusionNetBatch` must be a lists"
         assert x_in[0].shape[-1] == self.C_in, f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in[0].shape[-1]}"
 

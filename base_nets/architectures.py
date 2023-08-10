@@ -117,59 +117,16 @@ class GraphDiffNet(nn.Module):
             self.mixer_blocks.append(mixer_block)
             self.add_module("mixer_" + str(i_block), mixer_block)
 
-    def forward(
-            self,
-            graph,
-            vertices,
-            x_in,
-            mass,
-            L=None,
-            evals=None,
-            evecs=None,
-            gradX=None,
-            gradY=None,
-            edges=None,
-            faces=None,
-            # rbf_surf_graph=None,
-            # rbf_graph_surf=None,
-    ):
+    def forward(self, graph=None, surface=None, x_in=None, mass=None, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
         """
         A forward pass on the MixedNet.
         """
-
-        # # Check dimensions, and append batch dimension if not given
-        if x_in.shape[-1] != self.C_in:
-            raise ValueError(
-                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
-                    self.C_in, x_in.shape[-1]
-                )
-            )
-        if len(x_in.shape) == 2:
-            appended_batch_dim = True
-
-            # add a batch dim to all inputs
-            x_in = x_in.unsqueeze(0)
-            mass = mass.unsqueeze(0)
-            if L is not None:
-                L = L.unsqueeze(0)
-            if evals is not None:
-                evals = evals.unsqueeze(0)
-            if evecs is not None:
-                evecs = evecs.unsqueeze(0)
-            if gradX is not None:
-                gradX = gradX.unsqueeze(0)
-            if gradY is not None:
-                gradY = gradY.unsqueeze(0)
-            if edges is not None:
-                edges = edges.unsqueeze(0)
-            if faces is not None:
-                faces = faces.unsqueeze(0)
-
-        elif len(x_in.shape) == 3:
-            appended_batch_dim = False
-
-        else:
-            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+        x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
+        vertices = surface.vertices
+        mass = [m.unsqueeze(0) for m in mass]
+        L = [ll.unsqueeze(0) for ll in L]
+        evals = [e.unsqueeze(0) for e in evals]
+        evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute distance
         sigma = 2.5
@@ -182,6 +139,7 @@ class GraphDiffNet(nn.Module):
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
+        # todo update communication with batch
         for graph_block, diff_block, mixer_block in zip(self.gcn_blocks, self.diff_blocks, self.mixer_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
@@ -199,10 +157,6 @@ class GraphDiffNet(nn.Module):
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = self.last_activation(x_out)
-
-        # Remove batch dim if we added it
-        if appended_batch_dim:
-            x_out = x_out.squeeze(0)
 
         return x_out
 
@@ -775,7 +729,7 @@ class AtomNetGraph(torch.nn.Module):
         return x
 
 
-class GraphNet(nn.Module):
+class GraphNet(nn.Module):  # deprecated
     def __init__(
             self,
             C_in,
