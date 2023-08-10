@@ -1,5 +1,5 @@
 from base_nets.diffusion_net.layers import DiffusionNet, DiffusionNetBatch, DiffusionNetBlock
-from architectures import GCN, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph, GraphNet
+from base_nets.architectures import GCN, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph, GraphNet
 
 
 __all__ = [
