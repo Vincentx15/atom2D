@@ -54,12 +54,12 @@ class PSRModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, batch):
-        filtered_batch = [data for data in batch if "name" in data]
-        if len(filtered_batch) == 0:
+        if not hasattr(batch, "surface") and not hasattr(batch, "graph"):
             return None, None, None, None
-        names = [data.name for data in filtered_batch]
-        scores = torch.cat([data.scores for data in filtered_batch])
-        output = self(filtered_batch)
+
+        names = batch.name
+        scores = batch.scores.flatten()
+        output = self(batch).flatten()
         loss = self.criterion(output, scores)
         return names, loss, output.flatten(), scores
 
@@ -138,5 +138,5 @@ class PSRModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        batch = [data.to(device) for data in batch]
+        batch = batch.to(device)
         return batch

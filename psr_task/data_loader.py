@@ -2,14 +2,17 @@ import os
 import sys
 
 import torch
+import torch_geometric.transforms as T
 from torch_geometric.data import Data
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing import main
+from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
+from data_processing.data_module import SurfaceObject
+from data_processing.transforms import AddXYZTransform
 
 
 class PSRDataset(Atom3DDataset):
@@ -20,7 +23,8 @@ class PSRDataset(Atom3DDataset):
                  big_graphs=False,
                  return_graph=False,
                  return_surface=True,
-                 recompute=False):
+                 recompute=False,
+                 use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
             graph_path = graph_path.replace('graphs', 'big_graphs')
@@ -30,6 +34,10 @@ class PSRDataset(Atom3DDataset):
         self.return_graph = return_graph
         self.return_surface = return_surface
         self.big_graphs = big_graphs
+        self.use_xyz = use_xyz
+
+        transforms = [AddXYZTransform(use_xyz)]
+        self.transform = T.Compose(transforms)
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -55,24 +63,34 @@ class PSRDataset(Atom3DDataset):
             name = f"{target}_{decoy}"
             scores = item['scores']
             batch = Data(name=name, scores=torch.tensor([scores['gdt_ts']]))
+            graph_feat, surface = None, None
             if self.return_surface:
-                geom_feats = main.get_diffnetfiles(name=name,
-                                                   df=df,
-                                                   dump_surf_dir=self.get_geometry_dir(name),
-                                                   dump_operator_dir=self.get_operator_dir(name),
-                                                   recompute=self.recompute)
+                geom_feats = get_diffnetfiles(name=name,
+                                              df=df,
+                                              dump_surf_dir=self.get_geometry_dir(name),
+                                              dump_operator_dir=self.get_operator_dir(name),
+                                              recompute=self.recompute)
                 if geom_feats is None:
                     raise ValueError("A geometric feature is buggy")
-                batch.geom_feats = geom_feats
+
+                surface = SurfaceObject(*geom_feats) if geom_feats is not None else None
+                surface = self.transform(surface)
 
             if self.return_graph:
-                graph_feat = main.get_graph(name=name, df=df,
-                                            big=self.big_graphs,
-                                            dump_graph_dir=self.get_graph_dir(name),
-                                            recompute=True)
+                graph_feat = get_graph(name=name, df=df,
+                                       big=self.big_graphs,
+                                       dump_graph_dir=self.get_graph_dir(name),
+                                       recompute=True)
                 if graph_feat is None:
                     raise ValueError("A graph feature is buggy")
-                batch.graph_feat = graph_feat
+
+            # if both surface and graph are needed, but only one is available, return None to skip the batch
+            if (graph_feat is None and self.return_graph) or (surface is None and self.return_surface):
+                graph_feat, surface = None, None
+
+            batch.graph = graph_feat
+            batch.surface = surface
+
             return batch
 
         except Exception as e:

@@ -8,6 +8,7 @@ dataset:
   data_dir: "../../data/PSR/"
   recompute: False
   big_graphs: False
+  use_xyz: False
 
 loader:
   batch_size_train: 1
@@ -24,7 +25,6 @@ model:
   N_block: 3
   dropout: 0.3
   batch_norm: False
-  use_xyz: False
   use_graph: False
   use_graph_only: False
   graph_model: 'parallel'
