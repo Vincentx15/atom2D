@@ -5,7 +5,7 @@ from torch.nn import functional as F
 from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data
 
-from base_nets import DiffusionNetBlock
+from base_nets import DiffusionNetBlockBatch
 
 
 class GCN(torch.nn.Module):
@@ -93,7 +93,7 @@ class GraphDiffNet(nn.Module):
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]
         self.diff_blocks = []
         for i_block in range(self.N_block):
-            diffnet_block = DiffusionNetBlock(
+            diffnet_block = DiffusionNetBlockBatch(
                 C_width=diffnet_width,
                 mlp_hidden_dims=self.mlp_hidden_dims,
                 dropout=dropout,
@@ -117,7 +117,7 @@ class GraphDiffNet(nn.Module):
             self.mixer_blocks.append(mixer_block)
             self.add_module("mixer_" + str(i_block), mixer_block)
 
-    def forward(self, graph=None, surface=None, x_in=None, mass=None, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
+    def forward(self, graph=None, surface=None):
         """
         A forward pass on the MixedNet.
         """
@@ -131,40 +131,39 @@ class GraphDiffNet(nn.Module):
         # Precompute distance
         sigma = 2.5
         with torch.no_grad():
-            all_dists = torch.cdist(vertices, graph.pos)
-            rbf_weights = torch.exp(-all_dists / sigma)
+            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+            rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
 
         # Apply the first linear layer
-        diff_x = self.first_lin1(x_in)
+        split_sizes = [tensor.size(0) for tensor in x_in]
+        diff_x = torch.split(self.first_lin1(torch.cat(x_in, dim=0)), split_sizes, dim=0)
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
-        # todo update communication with batch
         for graph_block, diff_block, mixer_block in zip(self.gcn_blocks, self.diff_blocks, self.mixer_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
             # not necessary, cdist is fast
             # diff_on_graph = torch.sparse.mm(rbf_graph_surf, diff_x[0])
             # graph_on_diff = torch.sparse.mm(rbf_surf_graph, graph_x)
-            diff_on_graph = torch.mm(rbf_weights.T, diff_x[0])
-            graph_on_diff = torch.mm(rbf_weights, graph.x)
-            cat_graph = torch.cat((diff_on_graph, graph.x), dim=1)  # TODO : two mixers ? sequential model?
-            cat_diff = torch.cat((diff_x, graph_on_diff[None, ...]), dim=2)
-            graph.x = mixer_block(cat_graph)
-            diff_x = mixer_block(cat_diff)
+            diff_on_graph = [torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)]
+            graph_on_diff = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in zip(rbf_weights, graph.to_data_list())]
+            cat_graph = [torch.cat((diff_on_graph[i], mini_graph.x), dim=1) for i, mini_graph in enumerate(graph.to_data_list())]
+            cat_diff = [torch.cat((diff_x[i], graph_on_diff[i]), dim=1) for i in range(len(diff_x))]
+            diff_x = torch.split(mixer_block(torch.cat(cat_diff, dim=0)), split_sizes, dim=0)
+            graph.x = mixer_block(torch.cat(cat_graph, dim=0))  # todo check if this is correct (or should we use .from_data_list)
 
         x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
-            x_out = self.last_activation(x_out)
+            x_out = [self.last_activation(x) for x in x_out]
 
         return x_out
 
 
 class GraphDiffNetSequential(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
-                 with_gradient_features=True,
-                 with_gradient_rotations=True, diffusion_method="spectral"):
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral"):
         """
         Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
         instead of the // architecture GraphDiffNet
@@ -221,7 +220,7 @@ class GraphDiffNetSequential(nn.Module):
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]
         self.diff_blocks = []
         for i_block in range(self.N_block):
-            diffnet_block = DiffusionNetBlock(
+            diffnet_block = DiffusionNetBlockBatch(
                 C_width=diffnet_width,
                 mlp_hidden_dims=self.mlp_hidden_dims,
                 dropout=dropout,
@@ -239,84 +238,51 @@ class GraphDiffNetSequential(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
-    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None,
-                faces=None):
+    def forward(self, graph=None, surface=None):
         """
         A forward pass on the MixedNet.
         """
 
-        # # Check dimensions, and append batch dimension if not given
-        if x_in.shape[-1] != self.C_in:
-            raise ValueError(
-                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
-                    self.C_in, x_in.shape[-1]
-                )
-            )
-        if len(x_in.shape) == 2:
-            appended_batch_dim = True
-
-            # add a batch dim to all inputs
-            x_in = x_in.unsqueeze(0)
-            mass = mass.unsqueeze(0)
-            if L is not None:
-                L = L.unsqueeze(0)
-            if evals is not None:
-                evals = evals.unsqueeze(0)
-            if evecs is not None:
-                evecs = evecs.unsqueeze(0)
-            if gradX is not None:
-                gradX = gradX.unsqueeze(0)
-            if gradY is not None:
-                gradY = gradY.unsqueeze(0)
-            if edges is not None:
-                edges = edges.unsqueeze(0)
-            if faces is not None:
-                faces = faces.unsqueeze(0)
-
-        elif len(x_in.shape) == 3:
-            appended_batch_dim = False
-
-        else:
-            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+        x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
+        vertices = surface.vertices
+        mass = [m.unsqueeze(0) for m in mass]
+        L = [ll.unsqueeze(0) for ll in L]
+        evals = [e.unsqueeze(0) for e in evals]
+        evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute distance
         sigma = 2.5
         with torch.no_grad():
-            all_dists = torch.cdist(vertices, graph.pos)
-            rbf_weights = torch.exp(-all_dists / sigma)
+            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+            rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
 
         # Apply the first linear layer
-        diff_x = self.first_lin1(x_in)
+        split_sizes = [tensor.size(0) for tensor in x_in]
+        diff_x = torch.split(self.first_lin1(torch.cat(x_in, dim=0)), split_sizes, dim=0)
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
         for graph_block, diff_block in zip(self.gcn_blocks, self.diff_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
-            graph.x = torch.mm(rbf_weights.T, diff_x[0])
+            # todo check if this is correct (or should we use .from_data_list)
+            graph.x = torch.cat([torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)], dim=0)
             graph.x = graph_block(graph)
-            diff_x = torch.mm(rbf_weights, graph.x)[None, ...]
+            diff_x = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in zip(rbf_weights, graph.to_data_list())]
 
         # Apply the last linear layer
-        diff_x = self.last_lin(diff_x)
+        diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
 
         x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
-            x_out = self.last_activation(x_out)
-
-        # Remove batch dim if we added it
-        if appended_batch_dim:
-            x_out = x_out.squeeze(0)
+            x_out = [self.last_activation(x) for x in x_out]
 
         return x_out
 
 
 class GraphDiffNetAttention(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
-                 with_gradient_features=True,
-                 with_gradient_rotations=True,
-                 diffusion_method="spectral"
-                 ):
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral"):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed
@@ -373,7 +339,7 @@ class GraphDiffNetAttention(nn.Module):
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]
         self.diff_blocks = []
         for i_block in range(self.N_block):
-            diffnet_block = DiffusionNetBlock(
+            diffnet_block = DiffusionNetBlockBatch(
                 C_width=diffnet_width,
                 mlp_hidden_dims=self.mlp_hidden_dims,
                 dropout=dropout,
@@ -403,54 +369,20 @@ class GraphDiffNetAttention(nn.Module):
             self.att_diff_blocks.append(att_block)
             self.add_module("att_diff_blocks_" + str(i_block), att_block)
 
-    def forward(self, graph, vertices, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None,
-                faces=None):
+    def forward(self, graph=None, surface=None):
         """
         A forward pass on the MixedNet.
         """
 
-        # # Check dimensions, and append batch dimension if not given
-        if x_in.shape[-1] != self.C_in:
-            raise ValueError(
-                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
-                    self.C_in, x_in.shape[-1]
-                )
-            )
-        if len(x_in.shape) == 2:
-            appended_batch_dim = True
-
-            # add a batch dim to all inputs
-            x_in = x_in.unsqueeze(0)
-            mass = mass.unsqueeze(0)
-            if L is not None:
-                L = L.unsqueeze(0)
-            if evals is not None:
-                evals = evals.unsqueeze(0)
-            if evecs is not None:
-                evecs = evecs.unsqueeze(0)
-            if gradX is not None:
-                gradX = gradX.unsqueeze(0)
-            if gradY is not None:
-                gradY = gradY.unsqueeze(0)
-            if edges is not None:
-                edges = edges.unsqueeze(0)
-            if faces is not None:
-                faces = faces.unsqueeze(0)
-
-        elif len(x_in.shape) == 3:
-            appended_batch_dim = False
-
-        else:
-            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
-
-        # Precompute distance (not used for now)
-        # sigma = 2.5
-        # with torch.no_grad():
-        #     all_dists = torch.cdist(vertices, graph.pos)
-        #     rbf_weights = torch.exp(-all_dists / sigma)
+        x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
+        mass = [m.unsqueeze(0) for m in mass]
+        L = [ll.unsqueeze(0) for ll in L]
+        evals = [e.unsqueeze(0) for e in evals]
+        evecs = [e.unsqueeze(0) for e in evecs]
 
         # Apply the first linear layer
-        diff_x = self.first_lin1(x_in)
+        split_sizes = [tensor.size(0) for tensor in x_in]
+        diff_x = torch.split(self.first_lin1(torch.cat(x_in, dim=0)), split_sizes, dim=0)
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
@@ -459,37 +391,24 @@ class GraphDiffNetAttention(nn.Module):
                                                                             self.att_diff_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
-            diff_x = att_diff_block(diff_x, graph.x)
-            graph.x = att_graph_block(graph.x, diff_x)
+            diff_x = [att_diff_block(diff_x[i], mini_graph.x) for i, mini_graph in enumerate(graph.to_data_list())]
+            # todo check if this is correct (or should we use .from_data_list)
+            graph.x = torch.cat([att_graph_block(mini_graph.x, diff_x[i]) for i, mini_graph in enumerate(graph.to_data_list())], dim=0)
 
         # Apply the last linear layer
-        diff_x = self.last_lin(diff_x)
+        diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
 
         x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
-            x_out = self.last_activation(x_out)
-
-        # Remove batch dim if we added it
-        if appended_batch_dim:
-            x_out = x_out.squeeze(0)
+            x_out = [self.last_activation(x) for x in x_out]
 
         return x_out
 
 
 class GraphDiffNetBipartite(nn.Module):
-    def __init__(
-            self,
-            C_in,
-            C_out,
-            C_width=128,
-            N_block=4,
-            last_activation=None,
-            dropout=True,
-            with_gradient_features=True,
-            with_gradient_rotations=True,
-            diffusion_method="spectral",
-    ):
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral",):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -545,7 +464,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]
         self.diff_blocks = []
         for i_block in range(self.N_block):
-            diffnet_block = DiffusionNetBlock(
+            diffnet_block = DiffusionNetBlockBatch(
                 C_width=diffnet_width,
                 mlp_hidden_dims=self.mlp_hidden_dims,
                 dropout=dropout,
@@ -581,77 +500,36 @@ class GraphDiffNetBipartite(nn.Module):
             self.surfgraph_blocks.append(surfgraph_block)
             self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
 
-    def forward(
-            self,
-            graph,
-            vertices,
-            x_in,
-            mass,
-            L=None,
-            evals=None,
-            evecs=None,
-            gradX=None,
-            gradY=None,
-            edges=None,
-            faces=None,
-            # rbf_surf_graph=None,
-            # rbf_graph_surf=None,
-    ):
+    def forward(self, graph=None, surface=None):
         """
         A forward pass on the MixedNet.
         """
-
-        # # Check dimensions, and append batch dimension if not given
-        if x_in.shape[-1] != self.C_in:
-            raise ValueError(
-                "DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(
-                    self.C_in, x_in.shape[-1]
-                )
-            )
-        if len(x_in.shape) == 2:
-            appended_batch_dim = True
-
-            # add a batch dim to all inputs
-            x_in = x_in.unsqueeze(0)
-            mass = mass.unsqueeze(0)
-            if L is not None:
-                L = L.unsqueeze(0)
-            if evals is not None:
-                evals = evals.unsqueeze(0)
-            if evecs is not None:
-                evecs = evecs.unsqueeze(0)
-            if gradX is not None:
-                gradX = gradX.unsqueeze(0)
-            if gradY is not None:
-                gradY = gradY.unsqueeze(0)
-            if edges is not None:
-                edges = edges.unsqueeze(0)
-            if faces is not None:
-                faces = faces.unsqueeze(0)
-
-        elif len(x_in.shape) == 3:
-            appended_batch_dim = False
-
-        else:
-            raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
+        x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
+        vertices = surface.vertices
+        mass = [m.unsqueeze(0) for m in mass]
+        L = [ll.unsqueeze(0) for ll in L]
+        evals = [e.unsqueeze(0) for e in evals]
+        evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute bipartite graph
         sigma = 4
         with torch.no_grad():
-            all_dists = torch.cdist(vertices, graph.pos)
-            neighbors = torch.where(all_dists < 8)
+            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+            neighbors = [torch.where(x < 8) for x in all_dists]
             # Slicing requires tuple
-            dists = all_dists[neighbors]
-            dists = torch.exp(-dists / sigma)
-            neighbors = torch.stack(neighbors).long()
-            neighbors[1] += len(vertices)
-            reverse_neighbors = torch.flip(neighbors, dims=(0,))
-            all_pos = torch.cat((vertices, graph.pos))
-            bipartite_surfgraph = Data(all_pos=all_pos, edge_index=neighbors, edge_weight=dists)
-            bipartite_graphsurf = Data(all_pos=all_pos, edge_index=reverse_neighbors, edge_weight=dists)
+            dists = [all_dist[neigh] for all_dist, neigh in zip(all_dists, neighbors)]
+            dists = [torch.exp(-x / sigma) for x in dists]
+            neighbors = [torch.stack(x).long() for x in neighbors]
+            for i, neighbor in enumerate(neighbors):
+                neighbor[1] += len(vertices[i])
+            reverse_neighbors = [torch.flip(neigh, dims=(0,)) for neigh in neighbors]
+            all_pos = [torch.cat((vert, mini_graph.pos)) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+            bipartite_surfgraph = [Data(all_pos=pos, edge_index=neighbor, edge_weight=dist) for pos, neighbor, dist in zip(all_pos, neighbors, dists)]
+            bipartite_graphsurf = [Data(all_pos=pos, edge_index=rneighbor, edge_weight=dist) for pos, rneighbor, dist in zip(all_pos, reverse_neighbors, dists)]
 
         # Apply the first linear layer
-        diff_x = self.first_lin1(x_in)
+        split_sizes = [tensor.size(0) for tensor in x_in]
+        diff_x = torch.split(self.first_lin1(torch.cat(x_in, dim=0)), split_sizes, dim=0)
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
@@ -664,10 +542,9 @@ class GraphDiffNetBipartite(nn.Module):
 
             # Now use this for message passing. We can't use self loop with two GCN so average for now
             # (maybe mixer later ?)
-            input_feats = torch.cat((diff_x[0], graph.x))
-            out_surf = graphsurf_block(input_feats,
-                                       bipartite_graphsurf.edge_index,
-                                       bipartite_graphsurf.edge_weight)
+            input_feats = [torch.cat((diff, mini_graph.x)) for diff, mini_graph in zip(diff_x, graph.to_data_list())]
+            out_surf = [graphsurf_block(input_feat, bigraphsurf.edge_index, bigraphsurf.edge_weight)
+                        for input_feat, bigraphsurf in zip(input_feats, bipartite_graphsurf)]
 
             # The connectivity is well taken into account, but removing self loop yields zero outputs
             # TODO: debug
@@ -675,22 +552,19 @@ class GraphDiffNetBipartite(nn.Module):
             #                                 bipartite_graphsurf.edge_index[:, :-5],
             #                                 bipartite_graphsurf.edge_weight[:-5])
 
-            out_graph = surfgraph_block(input_feats,
-                                        bipartite_surfgraph.edge_index,
-                                        bipartite_surfgraph.edge_weight)
-            output_feat = torch.stack((out_surf, out_graph), dim=0)
-            output_feat = torch.mean(output_feat, dim=0)
-            diff_x = output_feat[:len(vertices)][None, ...]
-            graph.x = output_feat[len(vertices):]
+            out_graph = [surfgraph_block(input_feat, bisurfgraph.edge_index, bisurfgraph.edge_weight)
+                         for input_feat, bisurfgraph in zip(input_feats, bipartite_surfgraph)]
+
+            output_feat = [torch.stack((out_s, out_g), dim=0) for out_s, out_g in zip(out_surf, out_graph)]
+            output_feat = [torch.mean(out, dim=0) for out in output_feat]
+            diff_x = [out[:len(vert)] for out, vert in zip(output_feat, vertices)]
+            # todo check if this is correct (or should we use .from_data_list)
+            graph.x = torch.cat([out[len(vert):] for out, vert in zip(output_feat, vertices)], dim=0)
 
         x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
-            x_out = self.last_activation(x_out)
-
-        # Remove batch dim if we added it
-        if appended_batch_dim:
-            x_out = x_out.squeeze(0)
+            x_out = [self.last_activation(x) for x in x_out]
 
         return x_out
 
