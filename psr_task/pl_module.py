@@ -54,7 +54,7 @@ class PSRModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, batch):
-        if not hasattr(batch, "surface") and not hasattr(batch, "graph"):
+        if not hasattr(batch, "surface") and not hasattr(batch, "graph"):  # if no surface and no graph, then the full batch was filtered out
             return None, None, None, None
 
         names = batch.name

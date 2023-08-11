@@ -21,7 +21,7 @@ class PSRSurfNet(torch.nn.Module):
                                               C_out=out_channel,
                                               C_width=C_width,
                                               last_factor=4)
-            self.top_net_graph = nn.Sequential([
+            self.top_net_graph = nn.Sequential(*[
                 nn.ReLU(),
                 nn.Linear(C_width * 4, C_width * 2),
                 nn.ReLU(),

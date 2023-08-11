@@ -27,7 +27,7 @@ class AddXYZTransform(object):
 
     def __call__(self, data):
         if self.add_xyz:
-            verts, x = data.vertices, data.x
+            verts, x = data.vertices.clone(), data.x
             verts = center_normalize([verts])[0]
             data.x = torch.cat((verts, x), dim=1)
 
