@@ -99,12 +99,8 @@ class PSRSurfNet(torch.nn.Module):
         if self.use_graph:
             graph = batch.graph
 
-        if not self.use_graph:  # todo add surface to other model
-            processed = self.encoder_model(graph=graph, surface=surface)
-        elif self.use_graph_only:
-            processed = self.encoder_model(graph=graph, surface=surface)
-        else:
-            processed = self.encoder_model(graph=graph, surface=surface)  # , vertices=verts, **dict_feat)
+        # forward pass
+        processed = self.encoder_model(graph=graph, surface=surface)
 
         if self.use_graph_only:
             graph.x = processed
