@@ -30,13 +30,13 @@ class MSPModule(pl.LightningModule):
         return self.model(x)
 
     def step(self, batch):
-        filtered_batch = [data for data in batch if "names" in data]
-        if len(filtered_batch) == 0:
+        if not hasattr(batch, "surface_lo") and not hasattr(batch, "graph_lo"):
             return None, None, None
-        label = torch.cat([data.label for data in filtered_batch])
-        output = self(filtered_batch)
+
+        label = batch.label.flatten()
+        output = self(batch)
         loss = self.criterion(output, label)
-        return loss, output.flatten(), label
+        return loss, output, label
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
@@ -92,5 +92,5 @@ class MSPModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
-        batch = [data.to(device) for data in batch]
+        batch = batch.to(device)
         return batch

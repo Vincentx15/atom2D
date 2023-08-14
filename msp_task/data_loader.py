@@ -2,16 +2,18 @@ import os
 import sys
 
 import torch
+import torch_geometric.transforms as T
 from torch_geometric.data import Data
 from atom3d.util.formats import get_coordinates_from_df
-from atom2d_utils.learning_utils import unwrap_feats
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing import main
+from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
+from data_processing.data_module import SurfaceObject
+from data_processing.transforms import AddMSPTransform
 from atom2d_utils.learning_utils import list_from_numpy
 
 
@@ -23,7 +25,8 @@ class MSPDataset(Atom3DDataset):
                  return_graph=False,
                  big_graphs=False,
                  return_surface=True,
-                 recompute=False):
+                 recompute=False,
+                 use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
             graph_path = graph_path.replace('graphs', 'big_graphs')
@@ -32,6 +35,10 @@ class MSPDataset(Atom3DDataset):
         self.recompute = recompute
         self.return_graph = return_graph
         self.return_surface = return_surface
+        self.use_xyz = use_xyz
+
+        transforms = [AddMSPTransform(use_xyz)]
+        self.transform = T.Compose(transforms)
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -76,27 +83,59 @@ class MSPDataset(Atom3DDataset):
             right_mut = mut_df[mut_df['chain'].isin(list(chains_right))]
             dfs = [left_orig, right_orig, left_mut, right_mut]
 
+            graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
+            surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
+
             if self.return_surface:
-                geom_feats = [main.get_diffnetfiles(name=name,
-                                                    df=df,
-                                                    dump_surf_dir=self.get_geometry_dir(name),
-                                                    dump_operator_dir=self.get_operator_dir(name),
-                                                    recompute=self.recompute
-                                                    )
+                geom_feats = [get_diffnetfiles(name=name,
+                                               df=df,
+                                               dump_surf_dir=self.get_geometry_dir(name),
+                                               dump_operator_dir=self.get_operator_dir(name),
+                                               recompute=self.recompute)
                               for name, df in zip(names, dfs)]
-                if any([geom_feat is None for geom_feat in geom_feats]):
+
+                surface_lo = SurfaceObject(*geom_feats[0], coords=coords[0]) if geom_feats[0] is not None else None
+                surface_ro = SurfaceObject(*geom_feats[1]) if geom_feats[1] is not None else None
+                all_verts = [surface_lo.vertices, surface_ro.vertices]  # for the transform
+                surface_lo.all_vertices, surface_ro.all_vertices = [x.clone() for x in all_verts], [x.clone() for x in all_verts]
+                surface_lo = self.transform(surface_lo)
+                surface_ro = self.transform(surface_ro)
+
+                surface_lm = SurfaceObject(*geom_feats[2], coords=coords[1]) if geom_feats[2] is not None else None
+                surface_rm = SurfaceObject(*geom_feats[3]) if geom_feats[3] is not None else None
+                all_verts = [surface_lm.vertices, surface_rm.vertices]  # for the transform
+                surface_lm.all_vertices, surface_rm.all_vertices = [x.clone() for x in all_verts], [x.clone() for x in all_verts]
+                surface_lm = self.transform(surface_lm)
+                surface_rm = self.transform(surface_rm)
+
+                if surface_lo is None or surface_ro is None or surface_lm is None or surface_rm is None:
+                    surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
                     raise ValueError("A geometric feature is buggy")
-                batch.geom_feats = geom_feats
 
             if self.return_graph:
-                graph_feats = [main.get_graph(name=name, df=df,
-                                              dump_graph_dir=self.get_graph_dir(name),
-                                              big=self.big_graphs,
-                                              recompute=True)
+                graph_feats = [get_graph(name=name, df=df,
+                                         dump_graph_dir=self.get_graph_dir(name),
+                                         big=self.big_graphs,
+                                         recompute=True)
                                for i, (name, df) in enumerate(zip(names, dfs))]
-                if any([graph_feat is None for graph_feat in graph_feats]):
+                graph_lo, graph_ro, graph_lm, graph_rm = graph_feats[0], graph_feats[1], graph_feats[2], graph_feats[3]
+                if graph_lo is None or graph_ro is None or graph_lm is None or graph_rm is None:
+                    graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
                     raise ValueError("A graph feature is buggy")
-                batch.graph_feats = graph_feats
+
+            # if both surface and graph are needed, but only one is available, return None to skip the batch
+            if (graph_lo is None and self.return_graph) or (surface_lo is None and self.return_surface):
+                graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
+                surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
+
+            batch.surface_lo = surface_lo
+            batch.surface_ro = surface_ro
+            batch.surface_lm = surface_lm
+            batch.surface_rm = surface_rm
+            batch.graph_lo = graph_lo
+            batch.graph_ro = graph_ro
+            batch.graph_lm = graph_lm
+            batch.graph_rm = graph_rm
 
             return batch
 
