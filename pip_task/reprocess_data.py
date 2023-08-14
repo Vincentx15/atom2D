@@ -1,10 +1,8 @@
 import os
 import sys
 
-import numpy as np
 import pandas as pd
 import torch
-from torch_geometric.data import Data
 import tqdm
 
 if __name__ == '__main__':
@@ -150,6 +148,7 @@ def reprocess_data(data_dir, recompute_csv=False, recompute_surfaces=False, num_
         # if i > 5:
         #     break
     df.to_csv(dump_csv)
+
 
 if __name__ == '__main__':
     data_dir = '../data/PIP/DIPS-split/data/train/'

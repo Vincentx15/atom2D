@@ -11,6 +11,7 @@ dataset:
   max_pos_regions_per_ensemble: 5
   recompute: False
   big_graphs: False
+  use_xyz: False
 
 loader:
   batch_size_train: 1
@@ -28,7 +29,6 @@ model:
   dropout: 0.3
   batch_norm: False
   sigma: 2.5
-  use_xyz: False
   pos_weight: 4
   use_graph: False
   use_graph_only: False

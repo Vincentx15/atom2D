@@ -5,6 +5,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
+import torch_geometric.transforms as T
 from torch_geometric.data import Data
 import tqdm
 
@@ -13,7 +14,9 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from atom2d_utils import naming_utils
-from data_processing import main
+from data_processing.main import get_diffnetfiles, get_graph
+from data_processing.data_module import SurfaceObject
+from data_processing.transforms import AddXYZRotationTransform
 
 
 class NewPIP(torch.utils.data.Dataset):
@@ -24,7 +27,8 @@ class NewPIP(torch.utils.data.Dataset):
                  big_graphs=False,
                  return_graph=False,
                  return_surface=True,
-                 recompute=False):
+                 recompute=False,
+                 use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
             graph_path = graph_path.replace('graphs', 'big_graphs')
@@ -40,6 +44,10 @@ class NewPIP(torch.utils.data.Dataset):
 
         self.return_surface = return_surface
         self.return_graph = return_graph
+        self.use_xyz = use_xyz
+
+        transforms = [AddXYZRotationTransform(use_xyz)]
+        self.transform = T.Compose(transforms)
 
     def get_geometry_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
@@ -119,38 +127,55 @@ class NewPIP(torch.utils.data.Dataset):
         pos_stack = np.transpose(np.stack((pos_1, pos_2)), axes=(1, 0, 2))
         neg_1, neg_2 = coords_1[neg_array_sampled[0]], coords_2[neg_array_sampled[1]]
         neg_stack = np.transpose(np.stack((neg_1, neg_2)), axes=(1, 0, 2))
-        batch = Data(name1=name1, name2=name2,
-                     pos_stack=torch.from_numpy(pos_stack),
-                     neg_stack=torch.from_numpy(neg_stack))
+        pos_stack, neg_stack = torch.from_numpy(pos_stack), torch.from_numpy(neg_stack)
+        pairs_loc = torch.cat((pos_stack, neg_stack), dim=-3)
+        locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
+        batch = Data(name1=name1, name2=name2, pos_stack=pos_stack, neg_stack=neg_stack, locs_left=locs_left, locs_right=locs_right)
+
+        graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
-            geom_feats_1 = main.get_diffnetfiles(name=name1,
-                                                 df=struct_1,
-                                                 dump_surf_dir=self.get_geometry_dir(name1),
-                                                 dump_operator_dir=self.get_operator_dir(name1),
-                                                 recompute=self.recompute)
-            geom_feats_2 = main.get_diffnetfiles(name=name2,
-                                                 df=struct_2,
-                                                 dump_surf_dir=self.get_geometry_dir(name2),
-                                                 dump_operator_dir=self.get_operator_dir(name2),
-                                                 recompute=self.recompute)
-            if geom_feats_1 is None or geom_feats_2 is None:
+            geom_feats1 = get_diffnetfiles(name=name1,
+                                           df=struct_1,
+                                           dump_surf_dir=self.get_geometry_dir(name1),
+                                           dump_operator_dir=self.get_operator_dir(name1),
+                                           recompute=self.recompute)
+            geom_feats2 = get_diffnetfiles(name=name2,
+                                           df=struct_2,
+                                           dump_surf_dir=self.get_geometry_dir(name2),
+                                           dump_operator_dir=self.get_operator_dir(name2),
+                                           recompute=self.recompute)
+
+            surface_1 = SurfaceObject(*geom_feats1, locs_left=locs_left, neg_stack=neg_stack) if geom_feats1 is not None else None
+            surface_1 = self.transform(surface_1)
+            surface_2 = SurfaceObject(*geom_feats2, locs_right=locs_right, pos_stack=pos_stack) if geom_feats2 is not None else None
+            surface_2 = self.transform(surface_2)
+            batch.locs_left, batch.locs_right = surface_1.locs_left, surface_2.locs_right
+
+            if surface_1 is None or surface_2 is None:
+                surface_1, surface_2 = None, None
                 raise ValueError("A geometric feature is buggy")
-            batch.geom_feats_1 = geom_feats_1
-            batch.geom_feats_2 = geom_feats_2
 
         if self.return_graph:
-            graph_1 = main.get_graph(name=name1, df=struct_1,
-                                     dump_graph_dir=self.get_graph_dir(name1),
-                                     big=self.big_graphs,
-                                     recompute=True)
-            graph_2 = main.get_graph(name=name2, df=struct_2,
-                                     dump_graph_dir=self.get_graph_dir(name1),
-                                     big=self.big_graphs,
-                                     recompute=True)
+            graph_1 = get_graph(name=name1, df=struct_1,
+                                dump_graph_dir=self.get_graph_dir(name1),
+                                big=self.big_graphs,
+                                recompute=True)
+            graph_2 = get_graph(name=name2, df=struct_2,
+                                dump_graph_dir=self.get_graph_dir(name1),
+                                big=self.big_graphs,
+                                recompute=True)
             if graph_1 is None or graph_2 is None:
+                graph_1, graph_2 = None, None
                 raise ValueError("A graph feature is buggy")
-            batch.graph_1 = graph_1
-            batch.graph_2 = graph_2
+
+        # if both surface and graph are needed, but only one is available, return None to skip the batch
+        if (graph_1 is None and self.return_graph) or (surface_1 is None and self.return_surface):
+            graph_1, graph_2, surface_1, surface_2 = None, None, None, None
+
+        batch.surface_1 = surface_1
+        batch.surface_2 = surface_2
+        batch.graph_1 = graph_1
+        batch.graph_2 = graph_2
 
         return batch
 

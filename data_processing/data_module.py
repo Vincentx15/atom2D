@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import torch
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
@@ -93,6 +94,8 @@ class AtomBatch(Data):
             item = batch[key][0]
             if isinstance(item, int) or isinstance(item, float):
                 batch[key] = torch.tensor(batch[key])
+            if bool(re.search('(locs_left|locs_right|neg_stack|pos_stack)', key)):
+                batch[key] = batch[key]
             elif torch.is_tensor(item):
                 batch[key] = torch.stack(batch[key])
             elif isinstance(item, SurfaceObject):
