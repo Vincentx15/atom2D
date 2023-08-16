@@ -13,7 +13,7 @@ if __name__ == '__main__':
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddMSPTransform
+from data_processing.transforms import AddMSPTransform, Normalizer
 from atom2d_utils.learning_utils import list_from_numpy
 
 
@@ -67,9 +67,15 @@ class MSPDataset(Atom3DDataset):
             mut_idx = self._extract_mut_idx(mut_df, mutation)
             orig_coords = get_coordinates_from_df(orig_df.iloc[orig_idx])
             mut_coords = get_coordinates_from_df(mut_df.iloc[mut_idx])
-            coords = orig_coords, mut_coords
-            coords = list_from_numpy(coords)
-            coords = [x.float() for x in coords]
+            orig_coords = torch.from_numpy(orig_coords).float()
+            mut_coords = torch.from_numpy(mut_coords).float()
+
+            normalizer_orig = Normalizer(add_xyz=self.use_xyz).set_mean(orig_coords)
+            normalizer_mut = Normalizer(add_xyz=self.use_xyz).set_mean(mut_coords)
+            orig_coords = normalizer_orig.transform(orig_coords)
+            mut_coords = normalizer_mut.transform(mut_coords)
+            coords = [orig_coords, mut_coords]
+
 
             names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
@@ -93,24 +99,14 @@ class MSPDataset(Atom3DDataset):
                                                dump_operator_dir=self.get_operator_dir(name),
                                                recompute=self.recompute)
                               for name, df in zip(names, dfs)]
-
-                surface_lo = SurfaceObject(*geom_feats[0], coords=coords[0]) if geom_feats[0] is not None else None
-                surface_ro = SurfaceObject(*geom_feats[1]) if geom_feats[1] is not None else None
-                all_verts = [surface_lo.vertices, surface_ro.vertices]  # for the transform
-                surface_lo.all_vertices, surface_ro.all_vertices = [x.clone() for x in all_verts], [x.clone() for x in all_verts]
-                surface_lo = self.transform(surface_lo)
-                surface_ro = self.transform(surface_ro)
-
-                surface_lm = SurfaceObject(*geom_feats[2], coords=coords[1]) if geom_feats[2] is not None else None
-                surface_rm = SurfaceObject(*geom_feats[3]) if geom_feats[3] is not None else None
-                all_verts = [surface_lm.vertices, surface_rm.vertices]  # for the transform
-                surface_lm.all_vertices, surface_rm.all_vertices = [x.clone() for x in all_verts], [x.clone() for x in all_verts]
-                surface_lm = self.transform(surface_lm)
-                surface_rm = self.transform(surface_rm)
-
-                if surface_lo is None or surface_ro is None or surface_lm is None or surface_rm is None:
-                    surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
+                if any([geom is None for geom in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
+                else:
+                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in geom_feats]
+                    surface_lo = normalizer_orig.transform_surface(surface_lo)
+                    surface_ro = normalizer_orig.transform_surface(surface_ro)
+                    surface_lm = normalizer_mut.transform_surface(surface_lm)
+                    surface_rm = normalizer_mut.transform_surface(surface_rm)
 
             if self.return_graph:
                 graph_feats = [get_graph(name=name, df=df,
@@ -118,10 +114,15 @@ class MSPDataset(Atom3DDataset):
                                          big=self.big_graphs,
                                          recompute=True)
                                for i, (name, df) in enumerate(zip(names, dfs))]
-                graph_lo, graph_ro, graph_lm, graph_rm = graph_feats[0], graph_feats[1], graph_feats[2], graph_feats[3]
-                if graph_lo is None or graph_ro is None or graph_lm is None or graph_rm is None:
-                    graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
+                if any([graph is None for graph in graph_feats]):
                     raise ValueError("A graph feature is buggy")
+                else:
+                    graph_lo, graph_ro, graph_lm, graph_rm = graph_feats
+                    graph_lo = normalizer_orig.transform_graph(graph_lo)
+                    graph_ro = normalizer_orig.transform_graph(graph_ro)
+                    graph_lm = normalizer_mut.transform_graph(graph_lm)
+                    graph_rm = normalizer_mut.transform_graph(graph_rm)
+
 
             # if both surface and graph are needed, but only one is available, return None to skip the batch
             if (graph_lo is None and self.return_graph) or (surface_lo is None and self.return_surface):
@@ -136,7 +137,6 @@ class MSPDataset(Atom3DDataset):
             batch.graph_ro = graph_ro
             batch.graph_lm = graph_lm
             batch.graph_rm = graph_rm
-
             return batch
 
         except Exception as e:

@@ -4,7 +4,8 @@ from torch_geometric.data import Batch
 
 from atom2d_utils.learning_utils import unwrap_feats
 from data_processing.transforms import center_normalize
-from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph, GCN
+from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, \
+    GraphDiffNetBipartite, AtomNetGraph, GCN
 from base_nets.diffusion_net.layers import get_mlp
 from base_nets.utils import create_pyg_graph_object
 from data_processing.point_cloud_utils import torch_rbf
@@ -139,42 +140,35 @@ class MSPSurfNet(torch.nn.Module):
         :param data:
         :return:
         """
-        # todo
-        # assert len(batch) == 1 or self.use_graph_only
-
         graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
         surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
-
+        coords = batch.coords
         if not self.use_graph_only:
             surface_lo, surface_ro, surface_lm, surface_rm = batch.surface_lo, batch.surface_ro, batch.surface_lm, batch.surface_rm
             verts_lo, verts_ro, verts_lm, verts_rm = surface_lo.vertices, surface_ro.vertices, surface_lm.vertices, surface_rm.vertices
             vertices = [[x, y, z, w] for x, y, z, w in zip(verts_lo, verts_ro, verts_lm, verts_rm)]
-            coords_o, coords_m = surface_lo.coords, surface_lm.coords
-            coords = [[x, y] for x, y in zip(coords_o, coords_m)]
         if self.use_graph:
             graph_lo, graph_ro, graph_lm, graph_rm = batch.graph_lo, batch.graph_ro, batch.graph_lm, batch.graph_rm
         if self.use_graph_only:
-            coords = batch.coords
             graphs = [[x, y, z, w] for x, y, z, w in zip(graph_lo.to_data_list(), graph_ro.to_data_list(),
                                                          graph_lm.to_data_list(), graph_rm.to_data_list())]
             all_graphs_orig = [[x, y] for x, y in zip(graph_lo.to_data_list(), graph_ro.to_data_list())]
             all_graphs_mut = [[x, y] for x, y in zip(graph_lm.to_data_list(), graph_rm.to_data_list())]
             all_graphs_orig = Batch.from_data_list([y for x in all_graphs_orig for y in x])
             all_graphs_mut = Batch.from_data_list([y for x in all_graphs_mut for y in x])
-
-        # forward pass
-        if not self.use_graph_only:
+            processed_orig = self.encoder_model(graph=all_graphs_orig).split(all_graphs_orig.batch.bincount().tolist())
+            processed_mut = self.encoder_model(graph=all_graphs_mut).split(all_graphs_mut.batch.bincount().tolist())
+            proc_lo = [processed_orig[i] for i in range(0, len(processed_orig), 2)]
+            proc_ro = [processed_orig[i] for i in range(1, len(processed_orig), 2)]
+            proc_lm = [processed_mut[i] for i in range(0, len(processed_mut), 2)]
+            proc_rm = [processed_mut[i] for i in range(1, len(processed_mut), 2)]
+            processed = [[x, y, z, w] for x, y, z, w in zip(proc_lo, proc_ro, proc_lm, proc_rm)]
+        else:
             processed_lo = self.encoder_model(graph=graph_lo, surface=surface_lo)
             processed_ro = self.encoder_model(graph=graph_ro, surface=surface_ro)
             processed_lm = self.encoder_model(graph=graph_lm, surface=surface_lm)
             processed_rm = self.encoder_model(graph=graph_rm, surface=surface_rm)
             processed = [[x, y, z, w] for x, y, z, w in zip(processed_lo, processed_ro, processed_lm, processed_rm)]
-        else:
-            processed_orig = self.encoder_model(graph=all_graphs_orig).split(all_graphs_orig.batch.bincount().tolist())
-            processed_mut = self.encoder_model(graph=all_graphs_mut).split(all_graphs_mut.batch.bincount().tolist())
-            proc_lo, proc_ro = [processed_orig[i] for i in range(0, len(processed_orig), 2)], [processed_orig[i] for i in range(1, len(processed_orig), 2)]
-            proc_lm, proc_rm = [processed_mut[i] for i in range(0, len(processed_mut), 2)], [processed_mut[i] for i in range(1, len(processed_mut), 2)]
-            processed = [[x, y, z, w] for x, y, z, w in zip(proc_lo, proc_ro, proc_lm, proc_rm)]
 
         xs = []
         if not self.use_graph_only:

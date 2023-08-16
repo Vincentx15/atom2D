@@ -78,3 +78,33 @@ class AddMSPTransform(object):
             data.x = torch.cat((verts, x), dim=1)
 
         return data
+
+
+class Normalizer:
+    def __init__(self, add_xyz=False):
+        self.add_xyz = add_xyz
+        self.mean = None
+        self.rot_mat = torch.from_numpy(R.random().as_matrix()).float()
+
+    def set_mean(self, data):
+        if self.add_xyz:
+            self.mean = torch.mean(data, dim=0)
+        return self
+
+    def transform(self, data, scale=30):
+        if self.add_xyz and data is not None:
+            data = data - self.mean / scale
+            data = data @ self.rot_mat
+        return data
+
+    def transform_surface(self, surface):
+        if self.add_xyz:
+            surface.vertices = self.transform(surface.vertices)
+            surface.x = torch.cat((surface.x, surface.vertices), dim=1)
+        return surface
+
+    def transform_graph(self, graph):
+        if self.add_xyz:
+            graph.vertices = self.transform(graph.vertices)
+            graph.x = torch.cat((graph.x, graph.vertices), dim=1)
+        return graph
