@@ -2,7 +2,6 @@ import os
 import sys
 
 import torch
-import torch_geometric.transforms as T
 from torch_geometric.data import Data
 
 if __name__ == '__main__':
@@ -12,7 +11,7 @@ if __name__ == '__main__':
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddXYZTransform, Normalizer
+from data_processing.transforms import Normalizer
 
 
 class PSRDataset(Atom3DDataset):
@@ -51,15 +50,16 @@ class PSRDataset(Atom3DDataset):
         """
 
         try:
-            item = self._lmdb_dataset[index]
-            df = item['atoms'].reset_index(drop=True)
+            system = self._lmdb_dataset[index]
+            df = system['atoms'].reset_index(drop=True)
             # item[id] has a weird formatting
-            name = item['id']
+            name = system['id']
             target, decoy = name[1:-1].split(',')
             target, decoy = target[2:-1], decoy[2:-1]
             name = f"{target}_{decoy}"
-            scores = item['scores']
-            batch = Data(name=name, scores=torch.tensor([scores['gdt_ts']]))
+            scores = system['scores']
+
+            item = Data(name=name, scores=torch.tensor([scores['gdt_ts']]))
             graph_feat, surface = None, None
             normalizer = Normalizer(add_xyz=self.use_xyz)
             if self.return_surface:
@@ -90,16 +90,15 @@ class PSRDataset(Atom3DDataset):
             if (graph_feat is None and self.return_graph) or (surface is None and self.return_surface):
                 graph_feat, surface = None, None
 
-            batch.graph = graph_feat
-            batch.surface = surface
-
-            return batch
+            item.graph = graph_feat
+            item.surface = surface
+            return item
 
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            batch = Data()
-            return batch
+            item = Data()
+            return item
 
 
 if __name__ == '__main__':

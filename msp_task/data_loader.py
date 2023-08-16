@@ -2,7 +2,6 @@ import os
 import sys
 
 import torch
-import torch_geometric.transforms as T
 from torch_geometric.data import Data
 from atom3d.util.formats import get_coordinates_from_df
 
@@ -13,8 +12,7 @@ if __name__ == '__main__':
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddMSPTransform, Normalizer
-from atom2d_utils.learning_utils import list_from_numpy
+from data_processing.transforms import Normalizer
 
 
 class MSPDataset(Atom3DDataset):
@@ -52,14 +50,14 @@ class MSPDataset(Atom3DDataset):
         """
 
         try:
-            item = self._lmdb_dataset[index]
+            system = self._lmdb_dataset[index]
 
             # mutation is like AD56G which means Alanine (A) in chain D residue number 56 (D56) -> Glycine (G)
-            pdb, chains_left, chains_right, mutation = item['id'].split('_')
+            pdb, chains_left, chains_right, mutation = system['id'].split('_')
 
             # First get ids in the databases and their coords
-            orig_df = item['original_atoms'].reset_index(drop=True)
-            mut_df = item['mutated_atoms'].reset_index(drop=True)
+            orig_df = system['original_atoms'].reset_index(drop=True)
+            mut_df = system['mutated_atoms'].reset_index(drop=True)
             orig_idx = self._extract_mut_idx(orig_df, mutation)
             mut_idx = self._extract_mut_idx(mut_df, mutation)
             orig_coords = get_coordinates_from_df(orig_df.iloc[orig_idx])
@@ -73,10 +71,9 @@ class MSPDataset(Atom3DDataset):
             mut_coords = normalizer_mut.transform(mut_coords)
             coords = [orig_coords, mut_coords]
 
-
             names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
                      f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
-            batch = Data(names=names, coords=coords, label=torch.tensor([float(item['label'])]))
+            item = Data(names=names, coords=coords, label=torch.tensor([float(system['label'])]))
 
             # Then get the split dfs and names, and retrieve the surfaces
             # Apparently this is faster than split
@@ -99,7 +96,8 @@ class MSPDataset(Atom3DDataset):
                 if any([geom is None for geom in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
                 else:
-                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in geom_feats]
+                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in
+                                                                      geom_feats]
                     surface_lo = normalizer_orig.transform_surface(surface_lo)
                     surface_ro = normalizer_orig.transform_surface(surface_ro)
                     surface_lm = normalizer_mut.transform_surface(surface_lm)
@@ -120,27 +118,26 @@ class MSPDataset(Atom3DDataset):
                     graph_lm = normalizer_mut.transform_graph(graph_lm)
                     graph_rm = normalizer_mut.transform_graph(graph_rm)
 
-
             # if both surface and graph are needed, but only one is available, return None to skip the batch
             if (graph_lo is None and self.return_graph) or (surface_lo is None and self.return_surface):
                 graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
                 surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
 
-            batch.surface_lo = surface_lo
-            batch.surface_ro = surface_ro
-            batch.surface_lm = surface_lm
-            batch.surface_rm = surface_rm
-            batch.graph_lo = graph_lo
-            batch.graph_ro = graph_ro
-            batch.graph_lm = graph_lm
-            batch.graph_rm = graph_rm
-            return batch
+            item.surface_lo = surface_lo
+            item.surface_ro = surface_ro
+            item.surface_lm = surface_lm
+            item.surface_rm = surface_rm
+            item.graph_lo = graph_lo
+            item.graph_ro = graph_ro
+            item.graph_lm = graph_lm
+            item.graph_rm = graph_rm
+            return item
 
         except Exception as e:
             print("------------------")
             print(f"Error in __getitem__: {e}")
-            batch = Data()
-            return batch
+            item = Data()
+            return item
 
 
 if __name__ == '__main__':

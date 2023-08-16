@@ -1,12 +1,10 @@
-# from scipy.spatial.transform import Rotation as R
 import torch
 import torch.nn as nn
 
-from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, GraphDiffNetBipartite, AtomNetGraph
+from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, \
+    GraphDiffNetBipartite, AtomNetGraph
 
 from data_processing import point_cloud_utils
-# from atom2d_utils.learning_utils import unwrap_feats
-# from data_processing.transforms import center_normalize
 
 
 class PIPNet(torch.nn.Module):
@@ -141,7 +139,8 @@ class PIPNet(torch.nn.Module):
         if self.use_graph_only:
             for loc_left, loc_right, proc_left, proc_right, g_left, g_right in zip(locs_left, locs_right,
                                                                                    processed_left, processed_right,
-                                                                                   graph_1.to_data_list(), graph_2.to_data_list()):
+                                                                                   graph_1.to_data_list(),
+                                                                                   graph_2.to_data_list()):
                 xs.append(self.project_processed_graph(loc_left, loc_right, proc_left, proc_right, g_left, g_right))
         else:
             for loc_left, loc_right, proc_left, proc_right, g_left, g_right in zip(locs_left, locs_right,

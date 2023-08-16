@@ -5,7 +5,6 @@ import math
 import numpy as np
 import pandas as pd
 import torch
-import torch_geometric.transforms as T
 from torch_geometric.data import Data
 import tqdm
 
@@ -16,7 +15,7 @@ if __name__ == '__main__':
 from atom2d_utils import naming_utils
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddXYZRotationTransform, Normalizer
+from data_processing.transforms import Normalizer
 
 
 class NewPIP(torch.utils.data.Dataset):
@@ -80,8 +79,6 @@ class NewPIP(torch.utils.data.Dataset):
         return len(self.df)
 
     def get_item(self, index):
-        # if not index == 42:
-        #     return None
         row = self.df.iloc[index][["system", "name1", "name2"]]
         dirname, name1, name2 = row.values
         dirpath = naming_utils.name_to_dir(dirname, dir_path=self.dir_path)
@@ -133,7 +130,7 @@ class NewPIP(torch.utils.data.Dataset):
         locs_right = normalizer_right.transform(locs_right)
 
         labels = torch.cat((torch.ones(num_pos_to_use), torch.zeros(num_neg_to_use)))
-        batch = Data(name1=name1, name2=name2, locs_left=locs_left, locs_right=locs_right, labels=labels)
+        item = Data(name1=name1, name2=name2, locs_left=locs_left, locs_right=locs_right, labels=labels)
 
         graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
@@ -175,11 +172,11 @@ class NewPIP(torch.utils.data.Dataset):
         if (graph_1 is None and self.return_graph) or (surface_1 is None and self.return_surface):
             graph_1, graph_2, surface_1, surface_2 = None, None, None, None
 
-        batch.surface_1 = surface_1
-        batch.surface_2 = surface_2
-        batch.graph_1 = graph_1
-        batch.graph_2 = graph_2
-        return batch
+        item.surface_1 = surface_1
+        item.surface_2 = surface_2
+        item.graph_1 = graph_1
+        item.graph_2 = graph_2
+        return item
 
     def __getitem__(self, index):
         # res = self.get_item(index)
