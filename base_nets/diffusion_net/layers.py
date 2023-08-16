@@ -4,6 +4,59 @@ import torch.nn as nn
 from .geometry import to_basis, from_basis
 
 
+def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
+    layers = []
+    for units in hidden_sizes:
+        layers.extend([
+            nn.Linear(in_features, units),
+            nn.ReLU()
+        ])
+        if batch_norm:
+            layers.append(nn.BatchNorm1d(units))
+        if drate is not None:
+            layers.append(nn.Dropout(drate))
+        in_features = units
+
+    # Final FC layer
+    layers.append(nn.Linear(in_features, 1))
+    return nn.Sequential(*layers)
+
+
+class MiniMLP(nn.Sequential):
+    """
+    A simple MLP with configurable hidden layer sizes.
+    """
+
+    def __init__(self, layer_sizes, dropout=False, use_bn=True, activation=nn.ReLU, name="miniMLP"):
+        super(MiniMLP, self).__init__()
+
+        for i in range(len(layer_sizes) - 1):
+            is_last = i + 2 == len(layer_sizes)
+
+            if dropout and i > 0:
+                self.add_module(
+                    name + "_mlp_layer_dropout_{:03d}".format(i), nn.Dropout(p=0.5)
+                )
+
+            # Affine map
+            self.add_module(
+                name + "_mlp_layer_{:03d}".format(i),
+                nn.Linear(
+                    layer_sizes[i],
+                    layer_sizes[i + 1],
+                ),
+            )
+            if use_bn:
+                self.add_module(
+                    name + "_mlp_layer_bn_{:03d}".format(i), nn.BatchNorm1d(layer_sizes[i + 1])
+                )
+
+            # Nonlinearity
+            # (but not on the last layer)
+            if not is_last:
+                self.add_module(name + "_mlp_act_{:03d}".format(i), activation())
+
+
 class LearnedTimeDiffusion(nn.Module):
     """
     Applies diffusion with learned per-channel t.
@@ -117,62 +170,14 @@ class SpatialGradientFeatures(nn.Module):
         return torch.tanh(dots)
 
 
-def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
-    layers = []
-    for units in hidden_sizes:
-        layers.extend([
-            nn.Linear(in_features, units),
-            nn.ReLU()
-        ])
-        if batch_norm:
-            layers.append(nn.BatchNorm1d(units))
-        if drate is not None:
-            layers.append(nn.Dropout(drate))
-        in_features = units
-
-    # Final FC layer
-    layers.append(nn.Linear(in_features, 1))
-    return nn.Sequential(*layers)
-
-
-class MiniMLP(nn.Sequential):
-    """
-    A simple MLP with configurable hidden layer sizes.
-    """
-
-    def __init__(self, layer_sizes, dropout=False, activation=nn.ReLU, name="miniMLP"):
-        super(MiniMLP, self).__init__()
-
-        for i in range(len(layer_sizes) - 1):
-            is_last = i + 2 == len(layer_sizes)
-
-            if dropout and i > 0:
-                self.add_module(
-                    name + "_mlp_layer_dropout_{:03d}".format(i), nn.Dropout(p=0.5)
-                )
-
-            # Affine map
-            self.add_module(
-                name + "_mlp_layer_{:03d}".format(i),
-                nn.Linear(
-                    layer_sizes[i],
-                    layer_sizes[i + 1],
-                ),
-            )
-
-            # Nonlinearity
-            # (but not on the last layer)
-            if not is_last:
-                self.add_module(name + "_mlp_act_{:03d}".format(i), activation())
-
-
 class DiffusionNetBlock(nn.Module):
     """
     Inputs and outputs are defined at vertices
     """
 
     def __init__(
-            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True, with_gradient_rotations=True):
+            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True,
+            with_gradient_rotations=True):
         super(DiffusionNetBlock, self).__init__()
 
         # Specified dimensions
@@ -195,9 +200,9 @@ class DiffusionNetBlock(nn.Module):
             self.MLP_C += self.C_width
 
         # MLPs
-        self.mlp = MiniMLP(
-            [self.MLP_C] + self.mlp_hidden_dims + [self.C_width], dropout=self.dropout
-        )
+        self.mlp = MiniMLP([self.MLP_C] + self.mlp_hidden_dims + [self.C_width],
+                           dropout=self.dropout,
+                           use_bn=False)
 
     def forward(self, x_in, mass, L, evals, evecs, gradX, gradY):
 
@@ -247,7 +252,8 @@ class DiffusionNetBlock(nn.Module):
 
 
 class DiffusionNet(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, outputs_at="vertices", mlp_hidden_dims=None, dropout=True,
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, outputs_at="vertices",
+                 mlp_hidden_dims=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral"):
         """
         Construct a DiffusionNet.
@@ -423,7 +429,8 @@ class DiffusionNetBlockBatch(nn.Module):
     """
 
     def __init__(
-            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True, with_gradient_rotations=True):
+            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True,
+            with_gradient_rotations=True, use_bn=True):
         super().__init__()
 
         # Specified dimensions
@@ -446,11 +453,11 @@ class DiffusionNetBlockBatch(nn.Module):
             self.MLP_C += self.C_width
 
         # MLPs
-        self.mlp = MiniMLP(
-            [self.MLP_C] + self.mlp_hidden_dims + [self.C_width], dropout=self.dropout
-        )
+        self.mlp = MiniMLP([self.MLP_C] + self.mlp_hidden_dims + [self.C_width],
+                           dropout=self.dropout,
+                           use_bn=use_bn)
 
-        self.bn = nn.BatchNorm1d(C_width)
+        # self.bn = nn.BatchNorm1d(C_width)
 
     def forward(self, x_in, mass, L, evals, evecs, gradX, gradY):
         x_in_batch = torch.cat(x_in, dim=0)
@@ -491,8 +498,8 @@ class DiffusionNetBlockBatch(nn.Module):
         # Apply the mlp
         x0_out_batch = self.mlp(feature_combined)
 
-        # apply batch norm (#todo: batch norm before or after mlp / skip connection?)
-        x0_out_batch = self.bn(x0_out_batch)
+        # # apply batch norm (#todo: batch norm before or after mlp / skip connection?)
+        # x0_out_batch = self.bn(x0_out_batch)
 
         # Skip connection
         x0_out_batch = x0_out_batch + x_in_batch
@@ -505,7 +512,7 @@ class DiffusionNetBlockBatch(nn.Module):
 
 class DiffusionNetBatch(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, mlp_hidden_dims=None, dropout=True,
-                 with_gradient_features=True, with_gradient_rotations=True):
+                 with_gradient_features=True, with_gradient_rotations=True, use_bn=True):
 
         super().__init__()
 
@@ -545,6 +552,7 @@ class DiffusionNetBatch(nn.Module):
                 dropout=dropout,
                 with_gradient_features=with_gradient_features,
                 with_gradient_rotations=with_gradient_rotations,
+                use_bn=use_bn
             )
 
             self.blocks.append(block)
@@ -577,7 +585,8 @@ class DiffusionNetBatch(nn.Module):
         x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
 
         assert isinstance(x_in, list), "inputs to `DiffusionNetBatch` must be a lists"
-        assert x_in[0].shape[-1] == self.C_in, f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in[0].shape[-1]}"
+        assert x_in[0].shape[
+                   -1] == self.C_in, f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in[0].shape[-1]}"
 
         mass = [m.unsqueeze(0) for m in mass]
         L = [ll.unsqueeze(0) for ll in L]

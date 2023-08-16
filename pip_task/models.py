@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, \
+from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
     GraphDiffNetBipartite, AtomNetGraph
 
 from data_processing import point_cloud_utils
@@ -32,35 +32,40 @@ class PIPNet(torch.nn.Module):
             ])
         elif use_graph:
             if graph_model == 'parallel':
-                self.encoder_model = GraphDiffNet(C_in=in_channels,
-                                                  C_out=out_channel,
-                                                  C_width=C_width,
-                                                  N_block=N_block,
-                                                  last_activation=torch.relu)
+                self.encoder_model = GraphDiffNetParallel(C_in=in_channels,
+                                                          C_out=out_channel,
+                                                          C_width=C_width,
+                                                          N_block=N_block,
+                                                          last_activation=torch.relu,
+                                                          use_bn=batch_norm)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
                                                             C_width=C_width,
                                                             N_block=N_block,
-                                                            last_activation=torch.relu)
+                                                            last_activation=torch.relu,
+                                                            use_bn=batch_norm)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
-                                                           last_activation=torch.relu)
+                                                           last_activation=torch.relu,
+                                                           use_bn=batch_norm)
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
-                                                           last_activation=torch.relu)
+                                                           last_activation=torch.relu,
+                                                           use_bn=batch_norm)
         else:
             self.encoder_model = DiffusionNetBatch(C_in=in_channels,
                                                    C_out=out_channel,
                                                    C_width=C_width,
                                                    N_block=N_block,
-                                                   last_activation=torch.relu)
+                                                   last_activation=torch.relu,
+                                                   use_bn=batch_norm)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
         in_features = 2 * (out_channel + 1)
         layers = []

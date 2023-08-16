@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Batch
 
-from base_nets import DiffusionNetBatch, GraphDiffNet, GraphDiffNetSequential, GraphDiffNetAttention, \
+from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
     GraphDiffNetBipartite, AtomNetGraph, GCN
 from base_nets.diffusion_net.layers import get_mlp
 from base_nets.utils import create_pyg_graph_object
@@ -39,39 +39,45 @@ class MSPSurfNet(torch.nn.Module):
                                                    C_out=out_channel,
                                                    C_width=C_width,
                                                    N_block=N_block,
-                                                   last_activation=torch.relu)
+                                                   last_activation=torch.relu,
+                                                   use_bn=batch_norm)
         else:
             if graph_model == 'parallel':
-                self.encoder_model = GraphDiffNet(C_in=in_channels,
-                                                  C_out=out_channel,
-                                                  C_width=C_width,
-                                                  N_block=N_block,
-                                                  last_activation=torch.relu)
+                self.encoder_model = GraphDiffNetParallel(C_in=in_channels,
+                                                          C_out=out_channel,
+                                                          C_width=C_width,
+                                                          N_block=N_block,
+                                                          last_activation=torch.relu,
+                                                          use_bn=batch_norm)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
                                                             C_width=C_width,
                                                             N_block=N_block,
-                                                            last_activation=torch.relu)
+                                                            last_activation=torch.relu,
+                                                            use_bn=batch_norm)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
-                                                           last_activation=torch.relu)
+                                                           last_activation=torch.relu,
+                                                           use_bn=batch_norm
+                                                           )
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
-                                                           last_activation=torch.relu)
+                                                           last_activation=torch.relu,
+                                                           use_bn=batch_norm)
         infeature_gcn = 2 * (out_channel + 1) if not self.use_graph_only else C_width * 2
         self.gcn = GCN(num_features=infeature_gcn, hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)
         self.top_mlp = get_mlp(in_features=2 * out_channel,
                                hidden_sizes=hidden_sizes,
                                drate=drate,
-                               batch_norm=batch_norm)
+                               batch_norm=False)
 
     @property
     def device(self):
