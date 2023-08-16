@@ -37,9 +37,6 @@ class MSPDataset(Atom3DDataset):
         self.return_surface = return_surface
         self.use_xyz = use_xyz
 
-        transforms = [AddMSPTransform(use_xyz)]
-        self.transform = T.Compose(transforms)
-
     @staticmethod
     def _extract_mut_idx(df, mutation):
         chain, res = mutation[1], int(mutation[2:-1])

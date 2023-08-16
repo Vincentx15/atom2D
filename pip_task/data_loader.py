@@ -16,7 +16,7 @@ if __name__ == '__main__':
 from atom2d_utils import naming_utils
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddXYZRotationTransform
+from data_processing.transforms import AddXYZRotationTransform, Normalizer
 
 
 class NewPIP(torch.utils.data.Dataset):
@@ -45,9 +45,6 @@ class NewPIP(torch.utils.data.Dataset):
         self.return_surface = return_surface
         self.return_graph = return_graph
         self.use_xyz = use_xyz
-
-        transforms = [AddXYZRotationTransform(use_xyz)]
-        self.transform = T.Compose(transforms)
 
     def get_geometry_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.geometry_path)
@@ -124,13 +121,19 @@ class NewPIP(torch.utils.data.Dataset):
         coords_1 = ca_1[['x', 'y', 'z', ]].values
         coords_2 = ca_2[['x', 'y', 'z', ]].values
         pos_1, pos_2 = coords_1[pos_array_sampled[0]], coords_2[pos_array_sampled[1]]
-        pos_stack = np.transpose(np.stack((pos_1, pos_2)), axes=(1, 0, 2))
         neg_1, neg_2 = coords_1[neg_array_sampled[0]], coords_2[neg_array_sampled[1]]
-        neg_stack = np.transpose(np.stack((neg_1, neg_2)), axes=(1, 0, 2))
-        pos_stack, neg_stack = torch.from_numpy(pos_stack), torch.from_numpy(neg_stack)
-        pairs_loc = torch.cat((pos_stack, neg_stack), dim=-3)
-        locs_left, locs_right = pairs_loc[..., 0, :].float(), pairs_loc[..., 1, :].float()
-        batch = Data(name1=name1, name2=name2, pos_stack=pos_stack, neg_stack=neg_stack, locs_left=locs_left, locs_right=locs_right)
+        pos_1, neg_1 = torch.from_numpy(pos_1), torch.from_numpy(neg_1)
+        pos_2, neg_2 = torch.from_numpy(pos_2), torch.from_numpy(neg_2)
+        locs_left = torch.cat((pos_1, neg_1), dim=0).float()
+        locs_right = torch.cat((pos_2, neg_2), dim=0).float()
+
+        normalizer_left = Normalizer(add_xyz=self.use_xyz).set_mean(locs_left)
+        normalizer_right = Normalizer(add_xyz=self.use_xyz).set_mean(locs_right)
+        locs_left = normalizer_left.transform(locs_left)
+        locs_right = normalizer_right.transform(locs_right)
+
+        labels = torch.cat((torch.ones(num_pos_to_use), torch.zeros(num_neg_to_use)))
+        batch = Data(name1=name1, name2=name2, locs_left=locs_left, locs_right=locs_right, labels=labels)
 
         graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
@@ -144,17 +147,14 @@ class NewPIP(torch.utils.data.Dataset):
                                            dump_surf_dir=self.get_geometry_dir(name2),
                                            dump_operator_dir=self.get_operator_dir(name2),
                                            recompute=self.recompute)
-
-            surface_1 = SurfaceObject(*geom_feats1, locs_left=locs_left, neg_stack=neg_stack) if geom_feats1 is not None else None
-            surface_1 = self.transform(surface_1)
-            surface_2 = SurfaceObject(*geom_feats2, locs_right=locs_right, pos_stack=pos_stack) if geom_feats2 is not None else None
-            surface_2 = self.transform(surface_2)
-            batch.locs_left, batch.locs_right = surface_1.locs_left, surface_2.locs_right
-
-            if surface_1 is None or surface_2 is None:
+            if geom_feats1 is None or geom_feats2 is None:
                 surface_1, surface_2 = None, None
                 raise ValueError("A geometric feature is buggy")
-
+            else:
+                surface_1 = SurfaceObject(*geom_feats1)
+                surface_2 = SurfaceObject(*geom_feats2)
+                surface_1 = normalizer_left.transform_surface(surface_1)
+                surface_2 = normalizer_right.transform_surface(surface_2)
         if self.return_graph:
             graph_1 = get_graph(name=name1, df=struct_1,
                                 dump_graph_dir=self.get_graph_dir(name1),
@@ -167,6 +167,9 @@ class NewPIP(torch.utils.data.Dataset):
             if graph_1 is None or graph_2 is None:
                 graph_1, graph_2 = None, None
                 raise ValueError("A graph feature is buggy")
+            else:
+                graph_1 = normalizer_left.transform_graph(graph_1)
+                graph_2 = normalizer_right.transform_graph(graph_2)
 
         # if both surface and graph are needed, but only one is available, return None to skip the batch
         if (graph_1 is None and self.return_graph) or (surface_1 is None and self.return_surface):
@@ -176,7 +179,6 @@ class NewPIP(torch.utils.data.Dataset):
         batch.surface_2 = surface_2
         batch.graph_1 = graph_1
         batch.graph_2 = graph_2
-
         return batch
 
     def __getitem__(self, index):

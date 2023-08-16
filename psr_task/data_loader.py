@@ -12,7 +12,7 @@ if __name__ == '__main__':
 from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.preprocessor_dataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
-from data_processing.transforms import AddXYZTransform
+from data_processing.transforms import AddXYZTransform, Normalizer
 
 
 class PSRDataset(Atom3DDataset):
@@ -35,9 +35,6 @@ class PSRDataset(Atom3DDataset):
         self.return_surface = return_surface
         self.big_graphs = big_graphs
         self.use_xyz = use_xyz
-
-        transforms = [AddXYZTransform(use_xyz)]
-        self.transform = T.Compose(transforms)
 
     @staticmethod
     def _extract_mut_idx(df, mutation):
@@ -64,6 +61,7 @@ class PSRDataset(Atom3DDataset):
             scores = item['scores']
             batch = Data(name=name, scores=torch.tensor([scores['gdt_ts']]))
             graph_feat, surface = None, None
+            normalizer = Normalizer(add_xyz=self.use_xyz)
             if self.return_surface:
                 geom_feats = get_diffnetfiles(name=name,
                                               df=df,
@@ -73,8 +71,9 @@ class PSRDataset(Atom3DDataset):
                 if geom_feats is None:
                     raise ValueError("A geometric feature is buggy")
 
-                surface = SurfaceObject(*geom_feats) if geom_feats is not None else None
-                surface = self.transform(surface)
+                surface = SurfaceObject(*geom_feats)
+                normalizer.set_mean(surface.vertices)
+                surface = normalizer.transform_surface(surface)
 
             if self.return_graph:
                 graph_feat = get_graph(name=name, df=df,
@@ -83,6 +82,9 @@ class PSRDataset(Atom3DDataset):
                                        recompute=True)
                 if graph_feat is None:
                     raise ValueError("A graph feature is buggy")
+                if normalizer.mean is None:
+                    normalizer.set_mean(graph_feat.pos)
+                graph_feat = normalizer.transform_graph(graph_feat)
 
             # if both surface and graph are needed, but only one is available, return None to skip the batch
             if (graph_feat is None and self.return_graph) or (surface is None and self.return_surface):

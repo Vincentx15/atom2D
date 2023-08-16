@@ -82,18 +82,29 @@ class AddMSPTransform(object):
 
 class Normalizer:
     def __init__(self, add_xyz=False):
+        """
+        Null operation if add xyz is False
+        Otherwise, it first needs to be set on some data, then it can be applied to any new data.
+        :param add_xyz:
+        """
         self.add_xyz = add_xyz
         self.mean = None
         self.rot_mat = torch.from_numpy(R.random().as_matrix()).float()
+        self.scale=30
 
     def set_mean(self, data):
+        """
+
+        :param data: N,3 tensor
+        :return:
+        """
         if self.add_xyz:
             self.mean = torch.mean(data, dim=0)
         return self
 
-    def transform(self, data, scale=30):
+    def transform(self, data):
         if self.add_xyz and data is not None:
-            data = data - self.mean / scale
+            data = data - self.mean / self.scale
             data = data @ self.rot_mat
         return data
 

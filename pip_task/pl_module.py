@@ -44,15 +44,7 @@ class PIPModule(pl.LightningModule):
     def step(self, batch):
         if not hasattr(batch, "surface_1") and not hasattr(batch, "graph_1"):
             return None, None, None
-
-        all_labels = []
-        neg_stacks, pos_stacks = batch.pos_stack, batch.neg_stack
-
-        for pos_stack, neg_stack in zip(pos_stacks, neg_stacks):
-            all_labels.append(torch.ones(len(pos_stack)))
-            all_labels.append(torch.zeros(len(neg_stack)))
-
-        labels = torch.cat(all_labels).to(self.device)
+        labels = batch.labels.flatten()
         output = self(batch)
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()
