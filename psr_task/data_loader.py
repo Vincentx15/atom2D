@@ -8,7 +8,7 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing.io import load_diffnetfiles, load_graph
+from data_processing.io import load_diffnetfiles, load_graph, load_pyg, dump_pyg
 # from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.Atom3DDataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
@@ -20,6 +20,7 @@ class PSRDataset(Atom3DDataset):
                  geometry_path='../../data/PSR/geometry/',
                  operator_path='../../data/PSR/operator/',
                  graph_path='../../data/PSR/graphs/',
+                 pyg_path='../../data/PSR/pyg/',
                  big_graphs=False,
                  return_graph=False,
                  return_surface=True,
@@ -29,7 +30,7 @@ class PSRDataset(Atom3DDataset):
         if big_graphs:
             graph_path = graph_path.replace('graphs', 'big_graphs')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
-                         graph_path=graph_path, operator_path=operator_path)
+                         graph_path=graph_path, operator_path=operator_path, pyg_path=pyg_path)
         self.recompute = recompute
         self.return_graph = return_graph
         self.return_surface = return_surface
@@ -88,7 +89,13 @@ class PSRDataset(Atom3DDataset):
 
             item.graph = graph_feat
             item.surface = surface
+
+            compute_pyg = False
+            if compute_pyg:
+                dump_pyg(surface, graph_feat, name=name, pyg_dir=self.get_pyg_dir(name))
+
             return item
+
 
         except Exception as e:
             print("------------------")

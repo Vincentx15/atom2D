@@ -13,7 +13,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from atom2d_utils import naming_utils
-from data_processing.io import load_diffnetfiles, load_graph
+from data_processing.io import load_diffnetfiles, load_graph, load_pyg, dump_pyg
 # from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.data_module import SurfaceObject
 from data_processing.transforms import Normalizer
@@ -24,6 +24,7 @@ class NewPIP(torch.utils.data.Dataset):
                  geometry_path='../../data/processed_data/geometry/',
                  operator_path='../../data/processed_data/operator/',
                  graph_path='../../data/processed_data/graph',
+                 pyg_path='../../data/processed_data/pyg',
                  big_graphs=False,
                  return_graph=False,
                  return_surface=True,
@@ -41,6 +42,7 @@ class NewPIP(torch.utils.data.Dataset):
         self.geometry_path = geometry_path
         self.operator_path = operator_path
         self.graph_path = graph_path
+        self.pyg_path = pyg_path
 
         self.return_surface = return_surface
         self.return_graph = return_graph
@@ -54,6 +56,9 @@ class NewPIP(torch.utils.data.Dataset):
 
     def get_graph_dir(self, name):
         return naming_utils.name_to_dir(name, dir_path=self.graph_path)
+
+    def get_pyg_dir(self, name):
+        return naming_utils.name_to_dir(name, dir_path=self.pyg_path)
 
     def _num_to_use(self, num_pos, num_neg):
         """
@@ -170,6 +175,7 @@ class NewPIP(torch.utils.data.Dataset):
             #                     recompute=True)
             graph_1 = load_graph(name=name1, dump_graph_dir=self.get_graph_dir(name1))
             graph_2 = load_graph(name=name2, dump_graph_dir=self.get_graph_dir(name2))
+
             if graph_1 is None or graph_2 is None:
                 graph_1, graph_2 = None, None
                 raise ValueError("A graph feature is buggy")
@@ -180,6 +186,14 @@ class NewPIP(torch.utils.data.Dataset):
         # if both surface and graph are needed, but only one is available, return None to skip the batch
         if (graph_1 is None and self.return_graph) or (surface_1 is None and self.return_surface):
             graph_1, graph_2, surface_1, surface_2 = None, None, None, None
+
+        compute_pyg = False
+        if compute_pyg:
+            names = [name1, name2]
+            surfaces = [surface_1, surface_2]
+            graphs = [graph_1, graph_2]
+            for graph, surface, name in zip[surfaces, graphs, names]:
+                dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
         item.surface_1 = surface_1
         item.surface_2 = surface_2

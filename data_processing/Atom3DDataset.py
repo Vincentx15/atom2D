@@ -18,12 +18,13 @@ class Atom3DDataset(torch.utils.data.Dataset):
     - Learning dataset
     """
 
-    def __init__(self, lmdb_path, geometry_path, operator_path, graph_path=None):
+    def __init__(self, lmdb_path, geometry_path, operator_path, graph_path=None, pyg_path=None):
         self._lmdb_dataset = LMDBDataset(lmdb_path)
         self.lmdb_path = lmdb_path
         self.geometry_path = geometry_path
         self.operator_path = operator_path
         self.graph_path = graph_path
+        self.pyg_path = pyg_path
         self.failed_set = set()
 
     def __len__(self) -> int:
@@ -39,3 +40,6 @@ class Atom3DDataset(torch.utils.data.Dataset):
         if self.graph_path is None:
             raise ValueError("Asking for graphs while graph_path is not set")
         return naming_utils.name_to_dir(name, dir_path=self.graph_path)
+
+    def get_pyg_dir(self, name):
+        return naming_utils.name_to_dir(name, dir_path=self.pyg_path)

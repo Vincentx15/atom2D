@@ -1,15 +1,16 @@
 import os
 import sys
 
-import torch
-import open3d as o3d
 import numpy as np
+import open3d as o3d
+import torch
+from torch_geometric.data import Data
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, ".."))
 
-from data_processing import surface_utils, get_operators
+from data_processing import get_operators
 from atom2d_utils import learning_utils
 
 
@@ -61,3 +62,18 @@ def load_diffnetfiles(name, dump_surf_dir, dump_operator_dir):
                                                                                     npz_path=operator_file)
     return (features, confidence, vertices, mass, torch.rand(1, 3),
             evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces)
+
+
+def load_pyg(pyg_dir, name):
+    pyg_path = os.path.join(pyg_dir, name)
+    return torch.load(pyg_path)
+
+
+def dump_pyg(surface, graph, pyg_dir, name, overwrite=False):
+    if surface is None or graph is None:
+        return
+    pyg_path = os.path.join(pyg_dir, name)
+    if os.path.exists(pyg_path) and not overwrite:
+        return
+    pyg_data = Data(surface=surface, graph=graph)
+    torch.save(pyg_data, pyg_path)

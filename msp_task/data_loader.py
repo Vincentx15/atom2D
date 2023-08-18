@@ -9,7 +9,7 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing.io import load_diffnetfiles, load_graph
+from data_processing.io import load_diffnetfiles, load_graph, load_pyg, dump_pyg
 # from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.Atom3DDataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
@@ -21,6 +21,7 @@ class MSPDataset(Atom3DDataset):
                  geometry_path='../../data/MSP/geometry/',
                  operator_path='../../data/MSP/operator/',
                  graph_path='../../data/MSP/graph',
+                 pyg_path='../../data/MSP/pyg',
                  return_graph=False,
                  big_graphs=False,
                  return_surface=True,
@@ -30,7 +31,7 @@ class MSPDataset(Atom3DDataset):
         if big_graphs:
             graph_path = graph_path.replace('graphs', 'big_graphs')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
-                         operator_path=operator_path, graph_path=graph_path)
+                         operator_path=operator_path, graph_path=graph_path, pyg_path=pyg_path)
         self.recompute = recompute
         self.return_graph = return_graph
         self.return_surface = return_surface
@@ -130,6 +131,13 @@ class MSPDataset(Atom3DDataset):
             if (graph_lo is None and self.return_graph) or (surface_lo is None and self.return_surface):
                 graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
                 surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
+
+            compute_pyg = False
+            if compute_pyg:
+                surfaces = [surface_lo, surface_ro, surface_lm, surface_rm]
+                graphs = [graph_lo, graph_ro, graph_lm, graph_rm]
+                for graph, surface, name in zip[surfaces, graphs, names]:
+                    dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
             item.surface_lo = surface_lo
             item.surface_ro = surface_ro
