@@ -136,7 +136,7 @@ class MSPDataset(Atom3DDataset):
             if compute_pyg:
                 surfaces = [surface_lo, surface_ro, surface_lm, surface_rm]
                 graphs = [graph_lo, graph_ro, graph_lm, graph_rm]
-                for graph, surface, name in zip[surfaces, graphs, names]:
+                for graph, surface, name in zip(surfaces, graphs, names):
                     dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
             item.surface_lo = surface_lo

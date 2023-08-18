@@ -192,7 +192,7 @@ class NewPIP(torch.utils.data.Dataset):
             names = [name1, name2]
             surfaces = [surface_1, surface_2]
             graphs = [graph_1, graph_2]
-            for graph, surface, name in zip[surfaces, graphs, names]:
+            for graph, surface, name in zip(surfaces, graphs, names):
                 dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
         item.surface_1 = surface_1

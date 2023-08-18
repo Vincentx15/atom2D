@@ -65,15 +65,16 @@ def load_diffnetfiles(name, dump_surf_dir, dump_operator_dir):
 
 
 def load_pyg(pyg_dir, name):
-    pyg_path = os.path.join(pyg_dir, name)
+    pyg_path = os.path.join(pyg_dir, f"{name}.pth")
     return torch.load(pyg_path)
 
 
 def dump_pyg(surface, graph, pyg_dir, name, overwrite=False):
     if surface is None or graph is None:
         return
-    pyg_path = os.path.join(pyg_dir, name)
+    pyg_path = os.path.join(pyg_dir, f"{name}.pth")
     if os.path.exists(pyg_path) and not overwrite:
         return
+    os.makedirs(pyg_dir, exist_ok=True)
     pyg_data = Data(surface=surface, graph=graph)
     torch.save(pyg_data, pyg_path)
