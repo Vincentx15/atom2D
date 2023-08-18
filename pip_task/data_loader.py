@@ -13,7 +13,8 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from atom2d_utils import naming_utils
-from data_processing.main import get_diffnetfiles, get_graph
+from data_processing.io import load_diffnetfiles, load_graph
+# from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.data_module import SurfaceObject
 from data_processing.transforms import Normalizer
 
@@ -134,16 +135,22 @@ class NewPIP(torch.utils.data.Dataset):
 
         graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
-            geom_feats1 = get_diffnetfiles(name=name1,
-                                           df=struct_1,
-                                           dump_surf_dir=self.get_geometry_dir(name1),
-                                           dump_operator_dir=self.get_operator_dir(name1),
-                                           recompute=self.recompute)
-            geom_feats2 = get_diffnetfiles(name=name2,
-                                           df=struct_2,
-                                           dump_surf_dir=self.get_geometry_dir(name2),
-                                           dump_operator_dir=self.get_operator_dir(name2),
-                                           recompute=self.recompute)
+            # geom_feats1 = get_diffnetfiles(name=name1,
+            #                                df=struct_1,
+            #                                dump_surf_dir=self.get_geometry_dir(name1),
+            #                                dump_operator_dir=self.get_operator_dir(name1),
+            #                                recompute=self.recompute)
+            # geom_feats2 = get_diffnetfiles(name=name2,
+            #                                df=struct_2,
+            #                                dump_surf_dir=self.get_geometry_dir(name2),
+            #                                dump_operator_dir=self.get_operator_dir(name2),
+            #                                recompute=self.recompute)
+            geom_feats1 = load_diffnetfiles(name=name1,
+                                            dump_surf_dir=self.get_geometry_dir(name1),
+                                            dump_operator_dir=self.get_operator_dir(name1), )
+            geom_feats2 = load_diffnetfiles(name=name2,
+                                            dump_surf_dir=self.get_geometry_dir(name2),
+                                            dump_operator_dir=self.get_operator_dir(name2))
             if geom_feats1 is None or geom_feats2 is None:
                 surface_1, surface_2 = None, None
                 raise ValueError("A geometric feature is buggy")
@@ -153,14 +160,16 @@ class NewPIP(torch.utils.data.Dataset):
                 surface_1 = normalizer_left.transform_surface(surface_1)
                 surface_2 = normalizer_right.transform_surface(surface_2)
         if self.return_graph:
-            graph_1 = get_graph(name=name1, df=struct_1,
-                                dump_graph_dir=self.get_graph_dir(name1),
-                                big=self.big_graphs,
-                                recompute=True)
-            graph_2 = get_graph(name=name2, df=struct_2,
-                                dump_graph_dir=self.get_graph_dir(name1),
-                                big=self.big_graphs,
-                                recompute=True)
+            # graph_1 = get_graph(name=name1, df=struct_1,
+            #                     dump_graph_dir=self.get_graph_dir(name1),
+            #                     big=self.big_graphs,
+            #                     recompute=True)
+            # graph_2 = get_graph(name=name2, df=struct_2,
+            #                     dump_graph_dir=self.get_graph_dir(name2),
+            #                     big=self.big_graphs,
+            #                     recompute=True)
+            graph_1 = load_graph(name=name1, dump_graph_dir=self.get_graph_dir(name1))
+            graph_2 = load_graph(name=name2, dump_graph_dir=self.get_graph_dir(name2))
             if graph_1 is None or graph_2 is None:
                 graph_1, graph_2 = None, None
                 raise ValueError("A graph feature is buggy")

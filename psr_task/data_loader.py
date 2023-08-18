@@ -8,8 +8,9 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing.main import get_diffnetfiles, get_graph
-from data_processing.preprocessor_dataset import Atom3DDataset
+from data_processing.io import load_diffnetfiles, load_graph
+# from data_processing.main import get_diffnetfiles, get_graph
+from data_processing.Atom3DDataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
 from data_processing.transforms import Normalizer
 
@@ -63,11 +64,9 @@ class PSRDataset(Atom3DDataset):
             graph_feat, surface = None, None
             normalizer = Normalizer(add_xyz=self.use_xyz)
             if self.return_surface:
-                geom_feats = get_diffnetfiles(name=name,
-                                              df=df,
-                                              dump_surf_dir=self.get_geometry_dir(name),
-                                              dump_operator_dir=self.get_operator_dir(name),
-                                              recompute=self.recompute)
+                geom_feats = load_diffnetfiles(name=name,
+                                               dump_surf_dir=self.get_geometry_dir(name),
+                                               dump_operator_dir=self.get_operator_dir(name))
                 if geom_feats is None:
                     raise ValueError("A geometric feature is buggy")
 
@@ -76,10 +75,7 @@ class PSRDataset(Atom3DDataset):
                 surface = normalizer.transform_surface(surface)
 
             if self.return_graph:
-                graph_feat = get_graph(name=name, df=df,
-                                       big=self.big_graphs,
-                                       dump_graph_dir=self.get_graph_dir(name),
-                                       recompute=True)
+                graph_feat = load_graph(name=name, dump_graph_dir=self.get_graph_dir(name))
                 if graph_feat is None:
                     raise ValueError("A graph feature is buggy")
                 if normalizer.mean is None:

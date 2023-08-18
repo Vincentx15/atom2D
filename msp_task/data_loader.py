@@ -9,8 +9,9 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing.main import get_diffnetfiles, get_graph
-from data_processing.preprocessor_dataset import Atom3DDataset
+from data_processing.io import load_diffnetfiles, load_graph
+# from data_processing.main import get_diffnetfiles, get_graph
+from data_processing.Atom3DDataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject
 from data_processing.transforms import Normalizer
 
@@ -54,6 +55,8 @@ class MSPDataset(Atom3DDataset):
 
             # mutation is like AD56G which means Alanine (A) in chain D residue number 56 (D56) -> Glycine (G)
             pdb, chains_left, chains_right, mutation = system['id'].split('_')
+            names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
+                     f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
 
             # First get ids in the databases and their coords
             orig_df = system['original_atoms'].reset_index(drop=True)
@@ -71,8 +74,6 @@ class MSPDataset(Atom3DDataset):
             mut_coords = normalizer_mut.transform(mut_coords)
             coords = [orig_coords, mut_coords]
 
-            names = [f"{pdb}_{chains_left}", f"{pdb}_{chains_right}",
-                     f"{pdb}_{chains_left}_{mutation}", f"{pdb}_{chains_right}_{mutation}"]
             item = Data(names=names, coords=coords, label=torch.tensor([float(system['label'])]))
 
             # Then get the split dfs and names, and retrieve the surfaces
@@ -87,11 +88,15 @@ class MSPDataset(Atom3DDataset):
             surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
 
             if self.return_surface:
-                geom_feats = [get_diffnetfiles(name=name,
-                                               df=df,
-                                               dump_surf_dir=self.get_geometry_dir(name),
-                                               dump_operator_dir=self.get_operator_dir(name),
-                                               recompute=self.recompute)
+                # geom_feats = [get_diffnetfiles(name=name,
+                #                                df=df,
+                #                                dump_surf_dir=self.get_geometry_dir(name),
+                #                                dump_operator_dir=self.get_operator_dir(name),
+                #                                recompute=self.recompute)
+                #               for name, df in zip(names, dfs)]
+                geom_feats = [load_diffnetfiles(name=name,
+                                                dump_surf_dir=self.get_geometry_dir(name),
+                                                dump_operator_dir=self.get_operator_dir(name), )
                               for name, df in zip(names, dfs)]
                 if any([geom is None for geom in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
@@ -104,10 +109,13 @@ class MSPDataset(Atom3DDataset):
                     surface_rm = normalizer_mut.transform_surface(surface_rm)
 
             if self.return_graph:
-                graph_feats = [get_graph(name=name, df=df,
-                                         dump_graph_dir=self.get_graph_dir(name),
-                                         big=self.big_graphs,
-                                         recompute=True)
+                # graph_feats = [get_graph(name=name, df=df,
+                #                          dump_graph_dir=self.get_graph_dir(name),
+                #                          big=self.big_graphs,
+                #                          recompute=True)
+                #                for i, (name, df) in enumerate(zip(names, dfs))]
+                graph_feats = [load_graph(name=name,
+                                          dump_graph_dir=self.get_graph_dir(name))
                                for i, (name, df) in enumerate(zip(names, dfs))]
                 if any([graph is None for graph in graph_feats]):
                     raise ValueError("A graph feature is buggy")
