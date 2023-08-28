@@ -45,7 +45,8 @@ class GraphDiffNetParallel(nn.Module):
             with_gradient_features=True,
             with_gradient_rotations=True,
             diffusion_method="spectral",
-            use_bn=True
+            use_bn=True,
+            output_graph=False,
     ):
         """
         Construct a MixedNet.
@@ -76,6 +77,7 @@ class GraphDiffNetParallel(nn.Module):
         self.C_out = C_out
         self.C_width = C_width
         self.N_block = N_block
+        self.output_graph = output_graph
 
         # Outputs
         self.last_activation = last_activation
@@ -167,7 +169,10 @@ class GraphDiffNetParallel(nn.Module):
             graph.x = mixer_block(
                 torch.cat(cat_graph, dim=0))  # todo check if this is correct (or should we use .from_data_list)
 
-        x_out = diff_x
+        if self.output_graph:
+            x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
+        else:
+            x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = [self.last_activation(x) for x in x_out]
@@ -177,7 +182,8 @@ class GraphDiffNetParallel(nn.Module):
 
 class GraphDiffNetSequential(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
-                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True):
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
+                 output_graph=False):
         """
         Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
         instead of the // architecture GraphDiffNet
@@ -207,6 +213,7 @@ class GraphDiffNetSequential(nn.Module):
         self.C_out = C_out
         self.C_width = C_width
         self.N_block = N_block
+        self.output_graph = output_graph
 
         # Outputs
         self.last_activation = last_activation
@@ -285,10 +292,14 @@ class GraphDiffNetSequential(nn.Module):
             graph.x = graph_block(graph)
             diff_x = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in zip(rbf_weights, graph.to_data_list())]
 
-        # Apply the last linear layer
-        diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
+        if self.output_graph:
+            x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
+        else:
+            diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
+            x_out = diff_x
+        # Apply last linear :
+        x_out = [self.last_lin(x) for x in x_out]
 
-        x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = [self.last_activation(x) for x in x_out]
@@ -298,7 +309,8 @@ class GraphDiffNetSequential(nn.Module):
 
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
-                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True):
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
+                 output_graph=False):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -328,6 +340,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.C_out = C_out
         self.C_width = C_width
         self.N_block = N_block
+        self.output_graph = output_graph
 
         # Outputs
         self.last_activation = last_activation
@@ -363,7 +376,6 @@ class GraphDiffNetBipartite(nn.Module):
                 with_gradient_rotations=with_gradient_rotations,
                 use_bn=use_bn
             )
-
             self.diff_blocks.append(diffnet_block)
             self.add_module("diffnet_block_" + str(i_block), self.diff_blocks[-1])
 
@@ -454,7 +466,10 @@ class GraphDiffNetBipartite(nn.Module):
             diff_x = [out[:len(vert)] for out, vert in zip(output_feat, vertices)]
             graph.x = torch.cat([out[len(vert):] for out, vert in zip(output_feat, vertices)], dim=0)
 
-        x_out = diff_x
+        if self.output_graph:
+            x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
+        else:
+            x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = [self.last_activation(x) for x in x_out]
