@@ -140,16 +140,6 @@ class NewPIP(torch.utils.data.Dataset):
 
         graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
-            # geom_feats1 = get_diffnetfiles(name=name1,
-            #                                df=struct_1,
-            #                                dump_surf_dir=self.get_geometry_dir(name1),
-            #                                dump_operator_dir=self.get_operator_dir(name1),
-            #                                recompute=self.recompute)
-            # geom_feats2 = get_diffnetfiles(name=name2,
-            #                                df=struct_2,
-            #                                dump_surf_dir=self.get_geometry_dir(name2),
-            #                                dump_operator_dir=self.get_operator_dir(name2),
-            #                                recompute=self.recompute)
             geom_feats1 = load_diffnetfiles(name=name1,
                                             dump_surf_dir=self.get_geometry_dir(name1),
                                             dump_operator_dir=self.get_operator_dir(name1), )
@@ -165,14 +155,6 @@ class NewPIP(torch.utils.data.Dataset):
                 surface_1 = normalizer_left.transform_surface(surface_1)
                 surface_2 = normalizer_right.transform_surface(surface_2)
         if self.return_graph:
-            # graph_1 = get_graph(name=name1, df=struct_1,
-            #                     dump_graph_dir=self.get_graph_dir(name1),
-            #                     big=self.big_graphs,
-            #                     recompute=True)
-            # graph_2 = get_graph(name=name2, df=struct_2,
-            #                     dump_graph_dir=self.get_graph_dir(name2),
-            #                     big=self.big_graphs,
-            #                     recompute=True)
             graph_1 = load_graph(name=name1, dump_graph_dir=self.get_graph_dir(name1))
             graph_2 = load_graph(name=name2, dump_graph_dir=self.get_graph_dir(name2))
 
@@ -186,14 +168,6 @@ class NewPIP(torch.utils.data.Dataset):
         # if both surface and graph are needed, but only one is available, return None to skip the batch
         if (graph_1 is None and self.return_graph) or (surface_1 is None and self.return_surface):
             graph_1, graph_2, surface_1, surface_2 = None, None, None, None
-
-        compute_pyg = False
-        if compute_pyg:
-            names = [name1, name2]
-            surfaces = [surface_1, surface_2]
-            graphs = [graph_1, graph_2]
-            for graph, surface, name in zip(surfaces, graphs, names):
-                dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
         item.surface_1 = surface_1
         item.surface_2 = surface_2

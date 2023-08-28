@@ -90,10 +90,6 @@ class PSRDataset(Atom3DDataset):
             item.graph = graph_feat
             item.surface = surface
 
-            compute_pyg = False
-            if compute_pyg:
-                dump_pyg(surface, graph_feat, name=name, pyg_dir=self.get_pyg_dir(name))
-
             return item
 
 

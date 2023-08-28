@@ -89,12 +89,6 @@ class MSPDataset(Atom3DDataset):
             surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
 
             if self.return_surface:
-                # geom_feats = [get_diffnetfiles(name=name,
-                #                                df=df,
-                #                                dump_surf_dir=self.get_geometry_dir(name),
-                #                                dump_operator_dir=self.get_operator_dir(name),
-                #                                recompute=self.recompute)
-                #               for name, df in zip(names, dfs)]
                 geom_feats = [load_diffnetfiles(name=name,
                                                 dump_surf_dir=self.get_geometry_dir(name),
                                                 dump_operator_dir=self.get_operator_dir(name), )
@@ -102,19 +96,13 @@ class MSPDataset(Atom3DDataset):
                 if any([geom is None for geom in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
                 else:
-                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in
-                                                                      geom_feats]
+                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in geom_feats]
                     surface_lo = normalizer_orig.transform_surface(surface_lo)
                     surface_ro = normalizer_orig.transform_surface(surface_ro)
                     surface_lm = normalizer_mut.transform_surface(surface_lm)
                     surface_rm = normalizer_mut.transform_surface(surface_rm)
 
             if self.return_graph:
-                # graph_feats = [get_graph(name=name, df=df,
-                #                          dump_graph_dir=self.get_graph_dir(name),
-                #                          big=self.big_graphs,
-                #                          recompute=True)
-                #                for i, (name, df) in enumerate(zip(names, dfs))]
                 graph_feats = [load_graph(name=name,
                                           dump_graph_dir=self.get_graph_dir(name))
                                for i, (name, df) in enumerate(zip(names, dfs))]
@@ -131,13 +119,6 @@ class MSPDataset(Atom3DDataset):
             if (graph_lo is None and self.return_graph) or (surface_lo is None and self.return_surface):
                 graph_lo, graph_ro, graph_lm, graph_rm = None, None, None, None
                 surface_lo, surface_ro, surface_lm, surface_rm = None, None, None, None
-
-            compute_pyg = False
-            if compute_pyg:
-                surfaces = [surface_lo, surface_ro, surface_lm, surface_rm]
-                graphs = [graph_lo, graph_ro, graph_lm, graph_rm]
-                for graph, surface, name in zip(surfaces, graphs, names):
-                    dump_pyg(surface, graph, name=name, pyg_dir=self.get_pyg_dir(name))
 
             item.surface_lo = surface_lo
             item.surface_ro = surface_ro
