@@ -13,13 +13,14 @@ class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
                  batch_norm=False, use_max=True, use_mean=False, use_graph=False, use_graph_only=False,
-                 graph_model='parallel', **kwargs):
+                 output_graph=False, graph_model='parallel', **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
         self.use_max = use_max
         self.use_mean = use_mean
+        self.output_graph = output_graph
 
         # Create the model
         self.use_graph = use_graph or use_graph_only
@@ -28,12 +29,6 @@ class MSPSurfNet(torch.nn.Module):
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
                                               C_width=C_width)
-            self.top_net_graph = nn.Sequential(*[
-                nn.Linear(out_channel * 2, out_channel * 2),
-                nn.ReLU(),
-                nn.Dropout(p=0.25),
-                nn.Linear(out_channel * 2, 1)
-            ])
         elif not use_graph:
             self.encoder_model = DiffusionNetBatch(C_in=in_channels,
                                                    C_out=out_channel,
@@ -48,21 +43,24 @@ class MSPSurfNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
-                                                          use_bn=batch_norm)
+                                                          use_bn=batch_norm,
+                                                          output_graph=output_graph)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
-                                                            use_bn=batch_norm)
+                                                            use_bn=batch_norm,
+                                                            output_graph=output_graph)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm
+                                                           use_bn=batch_norm,
+                                                           output_graph=output_graph
                                                            )
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
@@ -70,14 +68,26 @@ class MSPSurfNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm)
-        infeature_gcn = 2 * (out_channel + 1) if not self.use_graph_only else C_width * 2
+                                                           use_bn=batch_norm,
+                                                           output_graph=output_graph)
+        if self.use_graph_only:
+            # Follow atom3D
+            infeature_gcn = 2 * (out_channel + 1) if not self.use_graph_only else C_width * 2
+        elif self.output_graph:
+            # Just take graph output
+            infeature_gcn = out_channel
+        else:
+            # Concatenate with torch rbf in a weird way
+            infeature_gcn = 2 * (out_channel + 1)
+
         self.gcn = GCN(num_features=infeature_gcn, hidden_channels=out_channel, out_channel=out_channel,
                        drate=drate)
-        self.top_mlp = get_mlp(in_features=2 * out_channel,
-                               hidden_sizes=hidden_sizes,
-                               drate=drate,
-                               batch_norm=False)
+        self.top_net_graph = nn.Sequential(*[
+            nn.Linear(out_channel * 2, out_channel * 2),
+            nn.ReLU(),
+            nn.Dropout(p=0.25),
+            nn.Linear(out_channel * 2, 1)
+        ])
 
     @property
     def device(self):
@@ -153,9 +163,9 @@ class MSPSurfNet(torch.nn.Module):
             vertices = [[x, y, z, w] for x, y, z, w in zip(verts_lo, verts_ro, verts_lm, verts_rm)]
         if self.use_graph:
             graph_lo, graph_ro, graph_lm, graph_rm = batch.graph_lo, batch.graph_ro, batch.graph_lm, batch.graph_rm
-        if self.use_graph_only:
             graphs = [[x, y, z, w] for x, y, z, w in zip(graph_lo.to_data_list(), graph_ro.to_data_list(),
                                                          graph_lm.to_data_list(), graph_rm.to_data_list())]
+        if self.use_graph_only:
             all_graphs_orig = [[x, y] for x, y in zip(graph_lo.to_data_list(), graph_ro.to_data_list())]
             all_graphs_mut = [[x, y] for x, y in zip(graph_lm.to_data_list(), graph_rm.to_data_list())]
             all_graphs_orig = Batch.from_data_list([y for x in all_graphs_orig for y in x])
@@ -175,19 +185,19 @@ class MSPSurfNet(torch.nn.Module):
             processed = [[x, y, z, w] for x, y, z, w in zip(processed_lo, processed_ro, processed_lm, processed_rm)]
 
         xs = []
-        if not self.use_graph_only:
-            for verts, proc, coord in zip(vertices, processed, coords):
-                coords_orig, coords_mut, projected_orig, projected_mut = self.project_processed_surface(vertices=verts,
-                                                                                                        processed=proc,
-                                                                                                        coords=coord)
-                x = self.aggregate(coords_orig, coords_mut, projected_orig, projected_mut)
-                x = self.top_mlp(x)
-                xs.append(x)
-        else:
+        if self.use_graph_only or (self.use_graph and self.output_graph):
             for graph, proc, coord in zip(graphs, processed, coords):
                 coords_orig, coords_mut, projected_orig, projected_mut = self.project_processed_graph(all_graphs=graph,
                                                                                                       processed=proc,
                                                                                                       coords=coord)
+                x = self.aggregate(coords_orig, coords_mut, projected_orig, projected_mut)
+                x = self.top_net_graph(x)
+                xs.append(x)
+        else:
+            for verts, proc, coord in zip(vertices, processed, coords):
+                coords_orig, coords_mut, projected_orig, projected_mut = self.project_processed_surface(vertices=verts,
+                                                                                                        processed=proc,
+                                                                                                        coords=coord)
                 x = self.aggregate(coords_orig, coords_mut, projected_orig, projected_mut)
                 x = self.top_net_graph(x)
                 xs.append(x)
