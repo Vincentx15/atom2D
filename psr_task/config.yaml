@@ -28,6 +28,7 @@ model:
   use_graph: False
   use_graph_only: False
   graph_model: 'parallel'
+  output_graph: False
 
 optimizer:
   lr: 1e-4

@@ -8,7 +8,7 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 class PSRSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
-                 drate=0.3, batch_norm=False, use_graph=False, use_graph_only=False,
+                 drate=0.3, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
                  graph_model='parallel', **kwargs):
         super(PSRSurfNet, self).__init__()
 
@@ -43,14 +43,16 @@ class PSRSurfNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
-                                                          use_bn=batch_norm)
+                                                          use_bn=batch_norm,
+                                                          output_graph=output_graph)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
-                                                            use_bn=batch_norm)
+                                                            use_bn=batch_norm,
+                                                            output_graph=output_graph)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
@@ -64,11 +66,11 @@ class PSRSurfNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm)
-
-        # This corresponds to each averaged embedding and confidence scores for each pair of CA
-        layers = []
+                                                           use_bn=batch_norm,
+                                                           output_graph=output_graph
+                                                           )
         # Top FCs
+        layers = []
         in_features = out_channel
         for units in linear_sizes:
             layers.extend([
