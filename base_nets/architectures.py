@@ -97,7 +97,7 @@ class GraphDiffNetParallel(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(5, diffnet_width)
         self.first_lin2 = nn.Linear(C_in, diffnet_width)
 
         # DiffusionNet blocks
@@ -233,7 +233,7 @@ class GraphDiffNetSequential(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(5, diffnet_width)
         self.first_lin2 = nn.Linear(C_in, diffnet_width)
         self.last_lin = nn.Linear(diffnet_width, C_out)
 
@@ -360,7 +360,7 @@ class GraphDiffNetBipartite(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(5, diffnet_width)
         self.first_lin2 = nn.Linear(C_in, diffnet_width)
 
         # DiffusionNet blocks
@@ -628,7 +628,7 @@ class GraphDiffNetAttention(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin1 = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(5, diffnet_width)
         self.first_lin2 = nn.Linear(C_in, diffnet_width)
         self.last_lin = nn.Linear(diffnet_width, C_out)
 
