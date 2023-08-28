@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import open3d as o3d
 import torch
+from torch_sparse import SparseTensor
 from torch_geometric.data import Data
 
 if __name__ == "__main__":
@@ -60,8 +61,10 @@ def load_diffnetfiles(name, dump_surf_dir, dump_operator_dir):
     frames, mass, _, evals, evecs, grad_x, grad_y = get_operators.surf_to_operators(vertices=vertices,
                                                                                     faces=faces,
                                                                                     npz_path=operator_file)
+    grad_x = SparseTensor.from_torch_sparse_coo_tensor(grad_x.float())
+    grad_y = SparseTensor.from_torch_sparse_coo_tensor(grad_y.float())
     return (features, confidence, vertices, mass, torch.rand(1, 3),
-            evals, evecs, grad_x.to_dense(), grad_y.to_dense(), faces)
+            evals, evecs, grad_x, grad_y, faces)
 
 
 def load_pyg(pyg_dir, name):

@@ -166,5 +166,7 @@ class SurfaceObject(Data):
                 batch[key] = torch.tensor(batch[key])
             elif torch.is_tensor(item):
                 batch[key] = batch[key]
+            elif isinstance(item, SparseTensor):
+                batch[key] = batch[key]
 
         return batch.contiguous()
