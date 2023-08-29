@@ -32,7 +32,7 @@ class NewPIP(torch.utils.data.Dataset):
                  use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
-            graph_path = graph_path.replace('graphs', 'big_graphs')
+            graph_path = graph_path.replace('graph', 'big_graph')
         self.neg_to_pos_ratio = neg_to_pos_ratio
         self.max_pos_regions_per_ensemble = max_pos_regions_per_ensemble
         self.recompute = recompute

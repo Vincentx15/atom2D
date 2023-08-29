@@ -29,7 +29,7 @@ class MSPDataset(Atom3DDataset):
                  use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
-            graph_path = graph_path.replace('graphs', 'big_graphs')
+            graph_path = graph_path.replace('graph', 'big_graph')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          operator_path=operator_path, graph_path=graph_path, pyg_path=pyg_path)
         self.recompute = recompute

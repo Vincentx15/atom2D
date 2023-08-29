@@ -19,7 +19,7 @@ class PSRDataset(Atom3DDataset):
     def __init__(self, lmdb_path,
                  geometry_path='../../data/PSR/geometry/',
                  operator_path='../../data/PSR/operator/',
-                 graph_path='../../data/PSR/graphs/',
+                 graph_path='../../data/PSR/graph/',
                  pyg_path='../../data/PSR/pyg/',
                  big_graphs=False,
                  return_graph=False,
@@ -28,7 +28,7 @@ class PSRDataset(Atom3DDataset):
                  use_xyz=False):
         self.big_graphs = big_graphs
         if big_graphs:
-            graph_path = graph_path.replace('graphs', 'big_graphs')
+            graph_path = graph_path.replace('graph', 'big_graph')
         super().__init__(lmdb_path=lmdb_path, geometry_path=geometry_path,
                          graph_path=graph_path, operator_path=operator_path, pyg_path=pyg_path)
         self.recompute = recompute
