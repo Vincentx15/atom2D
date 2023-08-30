@@ -44,7 +44,7 @@ class PIPModule(pl.LightningModule):
     def step(self, batch):
         if not hasattr(batch, "surface_1") and not hasattr(batch, "graph_1"):
             return None, None, None
-        labels = batch.labels.flatten()
+        labels = batch.labels_pip.flatten()
         output = self(batch)
         loss = self.criterion(output, labels)
         return loss, output.flatten(), labels.flatten()

@@ -96,6 +96,8 @@ class AtomBatch(Data):
                 batch[key] = torch.tensor(batch[key])
             if bool(re.search('(locs_left|locs_right|neg_stack|pos_stack)', key)):
                 batch[key] = batch[key]
+            elif key == 'labels_pip':
+                batch[key] = torch.cat(batch[key])
             elif torch.is_tensor(item):
                 batch[key] = torch.stack(batch[key])
             elif isinstance(item, SurfaceObject):
@@ -122,7 +124,8 @@ class AtomBatch(Data):
 
 class SurfaceObject(Data):
     def __init__(self, features=None, confidence=None, vertices=None,
-                 mass=None, L=None, evals=None, evecs=None, gradX=None, gradY=None, faces=None, cat_confidence=True, **kwargs):
+                 mass=None, L=None, evals=None, evecs=None, gradX=None, gradY=None, faces=None, cat_confidence=True,
+                 **kwargs):
         super().__init__(**kwargs)
 
         self.vertices = vertices

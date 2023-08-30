@@ -136,7 +136,7 @@ class NewPIP(torch.utils.data.Dataset):
         locs_right = normalizer_right.transform(locs_right)
 
         labels = torch.cat((torch.ones(num_pos_to_use), torch.zeros(num_neg_to_use)))
-        item = Data(name1=name1, name2=name2, locs_left=locs_left, locs_right=locs_right, labels=labels)
+        item = Data(name1=name1, name2=name2, locs_left=locs_left, locs_right=locs_right, labels_pip=labels)
 
         graph_1, graph_2, surface_1, surface_2 = None, None, None, None
         if self.return_surface:
