@@ -40,7 +40,7 @@ class PLDataModule(pl.LightningDataModule):
         self.cfg = cfg
 
     def train_dataloader(self):
-        data_dir = self.data_dir / "test"
+        data_dir = self.data_dir / "train"
         dataset = self.dataset(data_dir, return_graph=self.return_graph, return_surface=self.return_surface,
                                big_graphs=self.big_graphs)
         # sampler = SkipBatchesSampler(dataset)
@@ -51,7 +51,7 @@ class PLDataModule(pl.LightningDataModule):
                           )
 
     def val_dataloader(self):
-        data_dir = self.data_dir / "test"
+        data_dir = self.data_dir / "val"
         dataset = self.dataset(data_dir, return_graph=self.return_graph, return_surface=self.return_surface,
                                big_graphs=self.big_graphs)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_val,
