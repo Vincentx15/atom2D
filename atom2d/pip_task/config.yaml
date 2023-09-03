@@ -55,4 +55,4 @@ train:
 
 hydra:
   run:
-    dir: ../outputs/pip/
+    dir: ../../outputs/pip/

@@ -50,4 +50,4 @@ train:
 
 hydra:
   run:
-    dir: ../outputs/psr/
+    dir: ../../outputs/psr/
