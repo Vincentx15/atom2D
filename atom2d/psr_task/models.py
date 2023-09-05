@@ -86,7 +86,7 @@ class PSRSurfNet(torch.nn.Module):
         # # Final FC layer
         # layers.append(nn.Linear(in_features, 1))
         # self.top_net = nn.Sequential(*layers)
-        self.top_net_graph = nn.Sequential(*[
+        self.top_net = nn.Sequential(*[
             nn.Linear(in_features, in_features // 2),
             nn.ReLU(),
             nn.Dropout(p=0.25),
