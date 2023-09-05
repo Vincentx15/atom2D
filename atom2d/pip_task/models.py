@@ -25,12 +25,6 @@ class PIPNet(torch.nn.Module):
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
                                               C_width=C_width)
-            self.top_net_graph = nn.Sequential(*[
-                nn.Linear(C_width * 4, C_width * 4),
-                nn.ReLU(),
-                nn.Dropout(p=0.25),
-                nn.Linear(C_width * 4, 1)
-            ])
         elif use_graph:
             if graph_model == 'parallel':
                 self.encoder_model = GraphDiffNetParallel(C_in=in_channels,
@@ -71,24 +65,14 @@ class PIPNet(torch.nn.Module):
                                                    N_block=N_block,
                                                    last_activation=torch.relu,
                                                    use_bn=batch_norm)
-        # This corresponds to each averaged embedding and confidence scores for each pair of CA
-        in_features = 2 * (out_channel + 1)
-        # layers = []
-        # # Top FCs
-        # for units in [128] * 2:
-        #     layers.extend([
-        #         nn.Linear(in_features, units),
-        #         nn.ReLU()
-        #     ])
-        #     if batch_norm:
-        #         layers.append(nn.BatchNorm1d(units))
-        #     if dropout:
-        #         layers.append(nn.Dropout(dropout))
-        #     in_features = units
 
-        # # Final FC layer
-        # layers.append(nn.Linear(in_features, 1))
-        # self.top_net = nn.Sequential(*layers)
+        if self.use_graph_only:
+            in_features = C_width * 4
+        elif output_graph:
+            in_features = 2 * out_channel
+        else:
+            in_features = 2 * (out_channel + 1)
+
         self.top_net = nn.Sequential(*[
             nn.Linear(in_features, in_features),
             nn.ReLU(),
@@ -110,7 +94,7 @@ class PIPNet(torch.nn.Module):
         processed_right = processed_right[min_indices]
 
         x = torch.cat((processed_left, processed_right), dim=1)
-        x = self.top_net_graph(x)
+        x = self.top_net(x)
         return x
 
     def project_processed_surface(self, locs_left, locs_right, processed_left, processed_right, verts_left,
