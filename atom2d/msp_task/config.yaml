@@ -54,4 +54,4 @@ train:
 
 hydra:
   run:
-    dir: ../outputs/msp/
+    dir: ../../outputs/msp/
