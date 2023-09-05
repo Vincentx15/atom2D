@@ -70,22 +70,28 @@ class PSRSurfNet(torch.nn.Module):
                                                            output_graph=output_graph
                                                            )
         # Top FCs
-        layers = []
-        in_features = out_channel
-        for units in linear_sizes:
-            layers.extend([
-                nn.Linear(in_features, units),
-                nn.ReLU()
-            ])
-            if batch_norm:
-                layers.append(nn.BatchNorm1d(units))
-            if dropout:
-                layers.append(nn.Dropout(drate))
-            in_features = units
+        # layers = []
+        # in_features = out_channel
+        # for units in linear_sizes:
+        #     layers.extend([
+        #         nn.Linear(in_features, units),
+        #         nn.ReLU()
+        #     ])
+        #     if batch_norm:
+        #         layers.append(nn.BatchNorm1d(units))
+        #     if dropout:
+        #         layers.append(nn.Dropout(drate))
+        #     in_features = units
 
-        # Final FC layer
-        layers.append(nn.Linear(in_features, 1))
-        self.top_net = nn.Sequential(*layers)
+        # # Final FC layer
+        # layers.append(nn.Linear(in_features, 1))
+        # self.top_net = nn.Sequential(*layers)
+        self.top_net_graph = nn.Sequential(*[
+            nn.Linear(in_features, in_features // 2),
+            nn.ReLU(),
+            nn.Dropout(p=0.25),
+            nn.Linear(in_features // 2, 1)
+        ])
 
     @property
     def device(self):

@@ -67,23 +67,29 @@ class PIPNet(torch.nn.Module):
                                                    last_activation=torch.relu,
                                                    use_bn=batch_norm)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
-        in_features = 2 * (out_channel + 1)
-        layers = []
-        # Top FCs
-        for units in [128] * 2:
-            layers.extend([
-                nn.Linear(in_features, units),
-                nn.ReLU()
-            ])
-            if batch_norm:
-                layers.append(nn.BatchNorm1d(units))
-            if dropout:
-                layers.append(nn.Dropout(dropout))
-            in_features = units
+        # in_features = 2 * (out_channel + 1)
+        # layers = []
+        # # Top FCs
+        # for units in [128] * 2:
+        #     layers.extend([
+        #         nn.Linear(in_features, units),
+        #         nn.ReLU()
+        #     ])
+        #     if batch_norm:
+        #         layers.append(nn.BatchNorm1d(units))
+        #     if dropout:
+        #         layers.append(nn.Dropout(dropout))
+        #     in_features = units
 
-        # Final FC layer
-        layers.append(nn.Linear(in_features, 1))
-        self.top_net = nn.Sequential(*layers)
+        # # Final FC layer
+        # layers.append(nn.Linear(in_features, 1))
+        # self.top_net = nn.Sequential(*layers)
+        self.top_net = nn.Sequential(*[
+            nn.Linear(in_features, in_features),
+            nn.ReLU(),
+            nn.Dropout(p=0.25),
+            nn.Linear(in_features, 1)
+        ])
 
     @property
     def device(self):
