@@ -71,7 +71,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            )
         # Top FCs
         # layers = []
-        # in_features = out_channel
+        in_features = out_channel
         # for units in linear_sizes:
         #     layers.extend([
         #         nn.Linear(in_features, units),

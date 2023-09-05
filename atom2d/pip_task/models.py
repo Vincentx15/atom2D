@@ -67,7 +67,7 @@ class PIPNet(torch.nn.Module):
                                                    last_activation=torch.relu,
                                                    use_bn=batch_norm)
         # This corresponds to each averaged embedding and confidence scores for each pair of CA
-        # in_features = 2 * (out_channel + 1)
+        in_features = 2 * (out_channel + 1)
         # layers = []
         # # Top FCs
         # for units in [128] * 2:
