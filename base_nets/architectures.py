@@ -295,7 +295,6 @@ class GraphDiffNetSequential(nn.Module):
         if self.output_graph:
             x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
         else:
-            diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
             x_out = diff_x
         # Apply last linear :
         x_out = [self.last_lin(x) for x in x_out]
@@ -579,7 +578,8 @@ class AttentionalPropagation(nn.Module):
 
 class GraphDiffNetAttention(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
-                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True):
+                 with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
+                 output_graph=False):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed
@@ -609,6 +609,7 @@ class GraphDiffNetAttention(nn.Module):
         self.C_out = C_out
         self.C_width = C_width
         self.N_block = N_block
+        self.output_graph = output_graph
 
         # Outputs
         self.last_activation = last_activation
@@ -695,10 +696,13 @@ class GraphDiffNetAttention(nn.Module):
             graph.x = torch.cat(
                 [att_graph_block(mini_graph.x, diff_x[i]) for i, mini_graph in enumerate(graph.to_data_list())], dim=0)
 
-        # Apply the last linear layer
-        diff_x = torch.split(self.last_lin(torch.cat(diff_x, dim=0)), split_sizes, dim=0)
+        if self.output_graph:
+            x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
+        else:
+            x_out = diff_x
+        # Apply last linear :
+        x_out = [self.last_lin(x) for x in x_out]
 
-        x_out = diff_x
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = [self.last_activation(x) for x in x_out]
