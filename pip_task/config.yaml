@@ -34,6 +34,7 @@ model:
   use_graph_only: False
   graph_model: 'parallel'
   clip_output: False
+  output_graph: False
 
 optimizer:
   lr: 1e-3

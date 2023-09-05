@@ -9,7 +9,7 @@ from data_processing import point_cloud_utils
 
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
-                 use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel',
+                 use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', output_graph=False,
                  **kwargs):
         super().__init__()
 
@@ -19,6 +19,7 @@ class PIPNet(torch.nn.Module):
         # Create the model
         self.use_graph = use_graph or use_graph_only
         self.use_graph_only = use_graph_only
+        self.output_graph = output_graph
         self.clip_output = clip_output
         if use_graph_only:
             self.encoder_model = AtomNetGraph(C_in=in_channels,
@@ -37,28 +38,32 @@ class PIPNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
-                                                          use_bn=batch_norm)
+                                                          use_bn=batch_norm,
+                                                          output_graph=output_graph)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
-                                                            use_bn=batch_norm)
+                                                            use_bn=batch_norm,
+                                                            output_graph=output_graph)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm)
+                                                           use_bn=batch_norm,
+                                                           output_graph=output_graph)
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm)
+                                                           use_bn=batch_norm,
+                                                           output_graph=output_graph)
         else:
             self.encoder_model = DiffusionNetBatch(C_in=in_channels,
                                                    C_out=out_channel,
@@ -141,7 +146,7 @@ class PIPNet(torch.nn.Module):
             processed_right = processed_right.split(graph_2.batch.bincount().tolist())
 
         xs = []
-        if self.use_graph_only:
+        if self.use_graph_only or (self.use_graph and self.output_graph):
             for loc_left, loc_right, proc_left, proc_right, g_left, g_right in zip(locs_left, locs_right,
                                                                                    processed_left, processed_right,
                                                                                    graph_1.to_data_list(),
