@@ -10,31 +10,31 @@ dataset:
   neg_to_pos_ratio: 1
   max_pos_regions_per_ensemble: 5
   recompute: False
-  big_graphs: False
+  big_graphs: True
   use_xyz: False
 
 loader:
-  batch_size_train: 1
-  batch_size_val: 1
-  num_workers: 6
+  batch_size_train: 16
+  batch_size_val: 16
+  num_workers: 4
   pin_memory: False
   prefetch_factor: 2
   shuffle: True
 
 model:
-  in_channels: 5
+  in_channels: 19
   out_channel: 64
   C_width: 96
   N_block: 3
   dropout: 0.3
-  batch_norm: False
+  batch_norm: True
   sigma: 2.5
   pos_weight: 4
   use_graph: False
   use_graph_only: False
   graph_model: 'parallel'
   clip_output: False
-  output_graph: False
+  output_graph: True
 
 optimizer:
   lr: 1e-3
@@ -44,7 +44,7 @@ optimizer:
 train:
   save_top_k: 2
   early_stoping_patience: 10
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 1
   val_check_interval: 1.0
   limit_train_batches: 1.0
   limit_val_batches: 1.0
