@@ -30,7 +30,7 @@ class MSPSurfNet(torch.nn.Module):
                                               C_out=out_channel,
                                               C_width=C_width)
         elif not use_graph:
-            self.encoder_model = DiffusionNetBatch(C_in=in_channels,
+            self.encoder_model = DiffusionNetBatch(C_in=5,
                                                    C_out=out_channel,
                                                    C_width=C_width,
                                                    N_block=N_block,

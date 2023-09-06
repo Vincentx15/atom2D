@@ -25,7 +25,14 @@ class PIPNet(torch.nn.Module):
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
                                               C_width=C_width)
-        elif use_graph:
+        elif not use_graph:
+            self.encoder_model = DiffusionNetBatch(C_in=5,
+                                                   C_out=out_channel,
+                                                   C_width=C_width,
+                                                   N_block=N_block,
+                                                   last_activation=torch.relu,
+                                                   use_bn=batch_norm)
+        else:
             if graph_model == 'parallel':
                 self.encoder_model = GraphDiffNetParallel(C_in=in_channels,
                                                           C_out=out_channel,
@@ -58,13 +65,6 @@ class PIPNet(torch.nn.Module):
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
                                                            output_graph=output_graph)
-        else:
-            self.encoder_model = DiffusionNetBatch(C_in=in_channels,
-                                                   C_out=out_channel,
-                                                   C_width=C_width,
-                                                   N_block=N_block,
-                                                   last_activation=torch.relu,
-                                                   use_bn=batch_norm)
 
         if self.use_graph_only:
             in_features = C_width * 4

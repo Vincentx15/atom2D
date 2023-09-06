@@ -6,7 +6,6 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 
 
 class PSRSurfNet(torch.nn.Module):
-
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
                  drate=0.3, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
                  graph_model='parallel', **kwargs):
@@ -30,7 +29,7 @@ class PSRSurfNet(torch.nn.Module):
                 nn.Linear(C_width * 2, 1)
             ])
         elif not use_graph:
-            self.encoder_model = DiffusionNetBatch(C_in=in_channels,
+            self.encoder_model = DiffusionNetBatch(C_in=5,
                                                    C_out=out_channel,
                                                    C_width=C_width,
                                                    N_block=N_block,
