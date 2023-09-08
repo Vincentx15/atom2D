@@ -7,12 +7,14 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 
 class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
-                 drate=0.3, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
+                 drate=0.3, use_mean=False, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
                  graph_model='parallel', **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
+        self.use_mean = use_mean
+
         # Create the model
         self.use_graph = use_graph or use_graph_only
         self.use_graph_only = use_graph_only
@@ -124,6 +126,9 @@ class PSRSurfNet(torch.nn.Module):
                 graph_embs.append(x)
             return torch.cat(graph_embs)
         else:
-            x = torch.stack([torch.max(x, dim=-2).values for x in processed])
+            if self.use_mean:
+                x = torch.stack([torch.mean(x, dim=-2) for x in processed])
+            else:
+                x = torch.stack([torch.max(x, dim=-2).values for x in processed])
             x = self.top_net(x)
         return x

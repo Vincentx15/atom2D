@@ -24,6 +24,7 @@ model:
   C_width: 96
   N_block: 3
   dropout: 0.3
+  use_mean: False
   batch_norm: True
   use_graph: False
   use_graph_only: False
