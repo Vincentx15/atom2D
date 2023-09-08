@@ -33,6 +33,7 @@ model:
   use_graph: False
   use_graph_only: False
   graph_model: 'parallel'
+  use_gat: False
   clip_output: False
   output_graph: True
 

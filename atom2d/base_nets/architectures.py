@@ -2,7 +2,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.data import Data
 
 from base_nets import DiffusionNetBlockBatch
@@ -309,7 +309,7 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False):
+                 output_graph=False, use_gat=False):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -385,21 +385,22 @@ class GraphDiffNetBipartite(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
+        conv_layer = GCNConv if not use_gat else GATConv
         self.graphsurf_blocks = []
         for i_block in range(self.N_block):
-            graphsurf_block = GCNConv(diffnet_width,
-                                      diffnet_width if i_block < self.N_block - 1 else C_out,
-                                      # add_self_loops=False,
-                                      )
+            graphsurf_block = conv_layer(diffnet_width,
+                                         diffnet_width if i_block < self.N_block - 1 else C_out,
+                                         # add_self_loops=False,
+                                         )
             self.graphsurf_blocks.append(graphsurf_block)
             self.add_module("graphsurf_block_" + str(i_block), graphsurf_block)
 
         self.surfgraph_blocks = []
         for i_block in range(self.N_block):
-            surfgraph_block = GCNConv(diffnet_width,
-                                      diffnet_width if i_block < self.N_block - 1 else C_out,
-                                      # add_self_loops=False,
-                                      )
+            surfgraph_block = conv_layer(diffnet_width,
+                                         diffnet_width if i_block < self.N_block - 1 else C_out,
+                                         # add_self_loops=False,
+                                         )
             self.surfgraph_blocks.append(surfgraph_block)
             self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
 

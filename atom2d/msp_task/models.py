@@ -13,11 +13,12 @@ class MSPSurfNet(torch.nn.Module):
 
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
                  batch_norm=False, use_max=True, use_mean=False, use_graph=False, use_graph_only=False,
-                 output_graph=False, graph_model='parallel', **kwargs):
+                 output_graph=False, graph_model='parallel', use_gat=False, **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
         self.out_channel = out_channel
+        self.use_gat = use_gat
         self.use_max = use_max
         self.use_mean = use_mean
         self.output_graph = output_graph
@@ -69,7 +70,8 @@ class MSPSurfNet(torch.nn.Module):
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
-                                                           output_graph=output_graph)
+                                                           output_graph=output_graph,
+                                                           use_gat=use_gat)
         if self.use_graph_only:
             # Follow atom3D
             infeature_gcn = 2 * (out_channel + 1) if not self.use_graph_only else C_width * 2
