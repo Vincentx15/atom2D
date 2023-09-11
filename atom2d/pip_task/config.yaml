@@ -38,7 +38,7 @@ model:
   output_graph: True
 
 optimizer:
-  lr: 1e-3
+  lr: 1e-4
   patience: 100
   factor: 0.5
 
