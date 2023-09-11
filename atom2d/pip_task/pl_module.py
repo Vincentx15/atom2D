@@ -47,11 +47,13 @@ class PIPModule(pl.LightningModule):
         labels = batch.labels_pip.flatten()
         output = self(batch)
         loss = self.criterion(output, labels)
+        if torch.isnan(loss).any():
+            loss = None, None, None
         return loss, output.flatten(), labels.flatten()
 
     def training_step(self, batch, batch_idx):
         loss, logits, labels = self.step(batch)
-        if loss is None or torch.isnan(loss).any():
+        if loss is None:
             return None
         self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
