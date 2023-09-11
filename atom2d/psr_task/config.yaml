@@ -30,6 +30,7 @@ model:
   use_graph_only: False
   graph_model: 'parallel'
   use_gat: False
+  neigh_th: 8
   output_graph: True
 
 optimizer:

@@ -10,7 +10,7 @@ from data_processing import point_cloud_utils
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
                  use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', output_graph=False,
-                 use_gat=False, **kwargs):
+                 use_gat=False, neigh_th=8, **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -66,7 +66,8 @@ class PIPNet(torch.nn.Module):
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
                                                            output_graph=output_graph,
-                                                           use_gat=use_gat)
+                                                           use_gat=use_gat,
+                                                           neigh_th=neigh_th)
 
         if self.use_graph_only:
             in_features = C_width * 4
