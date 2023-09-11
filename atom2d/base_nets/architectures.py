@@ -309,7 +309,7 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_gat=False):
+                 output_graph=False, use_gat=False, neigh_th=8):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -340,6 +340,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.C_width = C_width
         self.N_block = N_block
         self.output_graph = output_graph
+        self.neigh_th = neigh_th
 
         # Outputs
         self.last_activation = last_activation
@@ -416,10 +417,10 @@ class GraphDiffNetBipartite(nn.Module):
         evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute bipartite graph
-        sigma = 4
+        sigma = self.neigh_th / 2  # todo is this the right wayy to do it?
         with torch.no_grad():
             all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
-            neighbors = [torch.where(x < 8) for x in all_dists]
+            neighbors = [torch.where(x < self.neigh_th) for x in all_dists]
             # Slicing requires tuple
             dists = [all_dist[neigh] for all_dist, neigh in zip(all_dists, neighbors)]
             dists = [torch.exp(-x / sigma) for x in dists]
