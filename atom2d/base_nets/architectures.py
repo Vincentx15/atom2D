@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.data import Data
+from flash_attn import flash_attn_func
 
 from base_nets import DiffusionNetBlockBatch
 
@@ -525,40 +526,49 @@ def MLP(channels: list, do_bn=True):
     return nn.Sequential(*layers)
 
 
-def attention(query, key, value):
+def attention_vanilla(query, key, value):
     dim = query.shape[1]
     scores = torch.einsum("bdhn,bdhm->bhnm", query, key) / dim ** 0.5
-    torch.cuda.empty_cache()
     prob = torch.nn.functional.softmax(scores, dim=-1)
-    torch.cuda.empty_cache()
     result = torch.einsum("bhnm,bdhm->bdhn", prob, value)
-    torch.cuda.empty_cache()
     return result, prob
+
+
+def attention_flash(query, key, value):
+    query, key, value = query.to(dtype=torch.float16), key.to(dtype=torch.float16), value.to(dtype=torch.float16)
+    query, key, value = query.permute(0, 3, 2, 1), key.permute(0, 3, 2, 1), value.permute(0, 3, 2, 1)
+    result = flash_attn_func(query, key, value, dropout_p=0.0, softmax_scale=None, causal=False)
+    result = result.permute(0, 3, 2, 1).float()
+    return result, None
 
 
 class MultiHeadedAttention(nn.Module):
     """ Multi-head attention to increase model expressivitiy """
 
-    def __init__(self, num_heads: int, d_model: int):
+    def __init__(self, num_heads: int, d_model: int, flash=True):
         super().__init__()
         assert d_model % num_heads == 0
         self.dim = d_model // num_heads
         self.num_heads = num_heads
         self.merge = nn.Conv1d(d_model, d_model, kernel_size=1)
         self.proj = nn.ModuleList([deepcopy(self.merge) for _ in range(3)])
+        self.flash = flash
 
     def forward(self, query, key, value):
         batch_dim = query.size(0)
         query, key, value = [ll(x).view(batch_dim, self.dim, self.num_heads, -1) for ll, x in
                              zip(self.proj, (query, key, value))]
-        x, _ = attention(query, key, value)
+        if self.flash:
+            x, _ = attention_flash(query, key, value)
+        else:
+            x, _ = attention_vanilla(query, key, value)
         return self.merge(x.contiguous().view(batch_dim, self.dim * self.num_heads, -1))
 
 
 class AttentionalPropagation(nn.Module):
-    def __init__(self, feature_dim: int, num_heads: int):
+    def __init__(self, feature_dim: int, num_heads: int, flash=True):
         super().__init__()
-        self.attn = MultiHeadedAttention(num_heads, feature_dim)
+        self.attn = MultiHeadedAttention(num_heads, feature_dim, flash=flash)
         self.mlp = MLP([feature_dim * 2, feature_dim * 2, feature_dim])
         nn.init.constant_(self.mlp[-1].bias, 0.0)
 
@@ -581,7 +591,7 @@ class AttentionalPropagation(nn.Module):
 class GraphDiffNetAttention(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False):
+                 output_graph=False, flash=True):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed
@@ -661,13 +671,13 @@ class GraphDiffNetAttention(nn.Module):
 
         self.att_graph_blocks = []
         for i_block in range(self.N_block):
-            att_block = AttentionalPropagation(diffnet_width, num_heads=4)
+            att_block = AttentionalPropagation(diffnet_width, num_heads=4, flash=flash)
             self.att_graph_blocks.append(att_block)
             self.add_module("att_graph_blocks_" + str(i_block), att_block)
 
         self.att_diff_blocks = []
         for i_block in range(self.N_block):
-            att_block = AttentionalPropagation(diffnet_width, num_heads=4)
+            att_block = AttentionalPropagation(diffnet_width, num_heads=4, flash=flash)
             self.att_diff_blocks.append(att_block)
             self.add_module("att_diff_blocks_" + str(i_block), att_block)
 

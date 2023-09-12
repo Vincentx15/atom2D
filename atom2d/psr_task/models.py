@@ -8,7 +8,7 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
                  drate=0.3, use_mean=False, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
-                 graph_model='parallel', use_gat=False, neigh_th=8, **kwargs):
+                 graph_model='parallel', use_gat=False, neigh_th=8, flash=True, **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -60,7 +60,9 @@ class PSRSurfNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
-                                                           use_bn=batch_norm)
+                                                           use_bn=batch_norm,
+                                                           flash=flash,
+                                                           )
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
                                                            C_out=out_channel,
