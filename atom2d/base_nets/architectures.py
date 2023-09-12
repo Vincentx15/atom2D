@@ -392,7 +392,7 @@ class GraphDiffNetBipartite(nn.Module):
         for i_block in range(self.N_block):
             graphsurf_block = conv_layer(diffnet_width,
                                          diffnet_width if i_block < self.N_block - 1 else C_out,
-                                         # add_self_loops=False,
+                                         add_self_loops=True,
                                          )
             self.graphsurf_blocks.append(graphsurf_block)
             self.add_module("graphsurf_block_" + str(i_block), graphsurf_block)
@@ -401,7 +401,7 @@ class GraphDiffNetBipartite(nn.Module):
         for i_block in range(self.N_block):
             surfgraph_block = conv_layer(diffnet_width,
                                          diffnet_width if i_block < self.N_block - 1 else C_out,
-                                         # add_self_loops=False,
+                                         add_self_loops=True,
                                          )
             self.surfgraph_blocks.append(surfgraph_block)
             self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
@@ -418,7 +418,7 @@ class GraphDiffNetBipartite(nn.Module):
         evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute bipartite graph
-        sigma = self.neigh_th / 2  # todo is this the right wayy to do it?
+        sigma = self.neigh_th / 2  # todo is this the right way to do it?
         with torch.no_grad():
             all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
             neighbors = [torch.where(x < self.neigh_th) for x in all_dists]
@@ -448,25 +448,16 @@ class GraphDiffNetBipartite(nn.Module):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
 
-            # Now use this for message passing. We can't use self loop with two GCN so average for now
-            # (maybe mixer later ?)
+            # Now use this for message passing.
             input_feats = [torch.cat((diff, mini_graph.x)) for diff, mini_graph in zip(diff_x, graph.to_data_list())]
             out_surf = [graphsurf_block(input_feat, bigraphsurf.edge_index, bigraphsurf.edge_weight)
                         for input_feat, bigraphsurf in zip(input_feats, bipartite_graphsurf)]
 
-            # The connectivity is well taken into account, but removing self loop yields zero outputs
-            # TODO: debug
-            # out_surf_test = graphsurf_block(input_feats,
-            #                                 bipartite_graphsurf.edge_index[:, :-5],
-            #                                 bipartite_graphsurf.edge_weight[:-5])
-
             out_graph = [surfgraph_block(input_feat, bisurfgraph.edge_index, bisurfgraph.edge_weight)
                          for input_feat, bisurfgraph in zip(input_feats, bipartite_surfgraph)]
 
-            output_feat = [torch.stack((out_s, out_g), dim=0) for out_s, out_g in zip(out_surf, out_graph)]
-            output_feat = [torch.mean(out, dim=0) for out in output_feat]
-            diff_x = [out[:len(vert)] for out, vert in zip(output_feat, vertices)]
-            graph.x = torch.cat([out[len(vert):] for out, vert in zip(output_feat, vertices)], dim=0)
+            diff_x = [out[:len(vert)] for out, vert in zip(out_surf, vertices)]
+            graph.x = torch.cat([out[len(vert):] for out, vert in zip(out_graph, vertices)], dim=0)
 
         if self.output_graph:
             x_out = [mini_graph.x for mini_graph in graph.to_data_list()]

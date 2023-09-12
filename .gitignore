@@ -165,3 +165,4 @@ pip_task/logs/*
 msp_task/logs/*
 psr_task/logs/*
 outputs/*
+dataa/
