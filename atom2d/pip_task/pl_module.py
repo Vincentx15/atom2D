@@ -67,7 +67,8 @@ class PIPModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
-        if loss is None:
+        if loss is None or logits.isnan().any() or labels.isnan().any():
+            print("validation step skipped!")
             return None
 
         self.log_dict({"loss/val": loss.item()},
@@ -81,7 +82,7 @@ class PIPModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
-        if loss is None:
+        if loss is None or logits.isnan().any() or labels.isnan().any():
             return None
 
         self.log_dict({"loss/test": loss.item()},
