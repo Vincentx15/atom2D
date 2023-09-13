@@ -4,7 +4,10 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.data import Data
-from flash_attn import flash_attn_func
+try:
+    from flash_attn import flash_attn_func
+except ImportError:
+    pass
 
 from base_nets import DiffusionNetBlockBatch
 
