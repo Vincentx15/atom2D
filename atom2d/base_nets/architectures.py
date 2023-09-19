@@ -2,7 +2,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch_geometric.nn import GCNConv, GATConv
+from torch_geometric.nn import GCNConv, GATConv, GATv2Conv
 from torch_geometric.data import Data
 try:
     from flash_attn import flash_attn_func
@@ -313,7 +313,7 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_gat=False, neigh_th=8):
+                 output_graph=False, use_gat=False, use_v2=False, neigh_th=8):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -335,6 +335,7 @@ class GraphDiffNetBipartite(nn.Module):
         """
 
         super(GraphDiffNetBipartite, self).__init__()
+        use_gat = True if use_v2 else use_gat
 
         # # Store parameters
 
@@ -391,11 +392,16 @@ class GraphDiffNetBipartite(nn.Module):
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
         conv_layer = GCNConv if not use_gat else GATConv
+        if not use_gat:
+            conv_layer = GCNConv
+        else:
+            conv_layer = GATv2Conv if use_v2 else GATConv
         self.graphsurf_blocks = []
         for i_block in range(self.N_block):
             graphsurf_block = conv_layer(diffnet_width,
                                          diffnet_width if i_block < self.N_block - 1 else C_out,
                                          add_self_loops=True,
+                                         edge_dim=1 if use_v2 else None,
                                          )
             self.graphsurf_blocks.append(graphsurf_block)
             self.add_module("graphsurf_block_" + str(i_block), graphsurf_block)
@@ -405,6 +411,7 @@ class GraphDiffNetBipartite(nn.Module):
             surfgraph_block = conv_layer(diffnet_width,
                                          diffnet_width if i_block < self.N_block - 1 else C_out,
                                          add_self_loops=True,
+                                         edge_dim=1 if use_v2 else None,
                                          )
             self.surfgraph_blocks.append(surfgraph_block)
             self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
