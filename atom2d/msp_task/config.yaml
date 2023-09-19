@@ -33,6 +33,7 @@ model:
   graph_model: 'parallel'
   use_gat: False
   use_v2: False
+  use_skip: False
   neigh_th: 8
   flash: True
   output_graph: True

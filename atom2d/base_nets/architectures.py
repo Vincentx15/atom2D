@@ -313,7 +313,7 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_gat=False, use_v2=False, neigh_th=8):
+                 output_graph=False, use_gat=False, use_v2=False, use_skip=False, neigh_th=8):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -346,6 +346,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.N_block = N_block
         self.output_graph = output_graph
         self.neigh_th = neigh_th
+        self.use_skip = use_skip
 
         # Outputs
         self.last_activation = last_activation
@@ -451,10 +452,11 @@ class GraphDiffNetBipartite(nn.Module):
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
-        for graph_block, diff_block, graphsurf_block, surfgraph_block in zip(self.gcn_blocks,
-                                                                             self.diff_blocks,
-                                                                             self.graphsurf_blocks,
-                                                                             self.surfgraph_blocks):
+        NL = len(self.gcn_blocks) - 1
+        for layer_i, (graph_block, diff_block, graphsurf_block, surfgraph_block) in enumerate(zip(self.gcn_blocks,
+                                                                                                  self.diff_blocks,
+                                                                                                  self.graphsurf_blocks,
+                                                                                                  self.surfgraph_blocks)):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
 
@@ -466,8 +468,11 @@ class GraphDiffNetBipartite(nn.Module):
             out_graph = [surfgraph_block(input_feat, bisurfgraph.edge_index, bisurfgraph.edge_weight)
                          for input_feat, bisurfgraph in zip(input_feats, bipartite_surfgraph)]
 
-            diff_x = [out[:len(vert)] for out, vert in zip(out_surf, vertices)]
-            graph.x = torch.cat([out[len(vert):] for out, vert in zip(out_graph, vertices)], dim=0)
+            diff_x_out = [out[:len(vert)] for out, vert in zip(out_surf, vertices)]
+            graph_x_out = torch.cat([out[len(vert):] for out, vert in zip(out_graph, vertices)], dim=0)
+
+            diff_x = [x + y for x, y in zip(diff_x, diff_x_out)] if (self.use_skip and layer_i < NL) else diff_x_out
+            graph.x = graph.x + graph_x_out if (self.use_skip and layer_i < NL) else graph_x_out
 
         if self.output_graph:
             x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
