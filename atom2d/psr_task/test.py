@@ -27,8 +27,6 @@ def main(cfg=None):
     model = PSRModule(cfg)
     # load saved model
     saved_model_path = Path(__file__).resolve().parent / "lightning_logs" / cfg.path_model
-    print("#" * 100)
-    print(saved_model_path.resolve())
     model.load_state_dict(torch.load(saved_model_path, map_location="cpu")["state_dict"])
 
     # init logger
