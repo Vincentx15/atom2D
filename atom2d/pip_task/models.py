@@ -51,6 +51,7 @@ class PIPNet(torch.nn.Module):
                                                             last_activation=torch.relu,
                                                             use_bn=batch_norm,
                                                             use_mp=use_mp,
+                                                            use_skip=use_skip,
                                                             use_gat=use_gat,
                                                             output_graph=output_graph)
             elif graph_model == 'attention':

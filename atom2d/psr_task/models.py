@@ -56,6 +56,7 @@ class PSRSurfNet(torch.nn.Module):
                                                             last_activation=torch.relu,
                                                             use_mp=use_mp,
                                                             use_gat=use_gat,
+                                                            use_skip=use_skip,
                                                             use_bn=batch_norm,
                                                             output_graph=output_graph)
             elif graph_model == 'attention':

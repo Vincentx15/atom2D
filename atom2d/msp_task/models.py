@@ -55,6 +55,7 @@ class MSPSurfNet(torch.nn.Module):
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
                                                             use_mp=use_mp,
+                                                            use_skip=use_skip,
                                                             use_gat=use_gat,
                                                             use_bn=batch_norm,
                                                             output_graph=output_graph)
