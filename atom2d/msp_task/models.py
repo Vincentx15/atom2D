@@ -14,7 +14,7 @@ class MSPSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
                  batch_norm=False, use_max=True, use_mean=False, use_graph=False, use_graph_only=False,
                  output_graph=False, graph_model='parallel', use_gat=False, use_v2=False, use_skip=False,
-                 neigh_th=8, flash=True, **kwargs):
+                 neigh_th=8, flash=True, use_mp=False,**kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -45,6 +45,7 @@ class MSPSurfNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
+                                                          use_mp=False,
                                                           use_bn=batch_norm,
                                                           output_graph=output_graph)
             elif graph_model == 'sequential':
@@ -53,6 +54,8 @@ class MSPSurfNet(torch.nn.Module):
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
+                                                            use_mp=use_mp,
+                                                            use_gat=use_gat,
                                                             use_bn=batch_norm,
                                                             output_graph=output_graph)
             elif graph_model == 'attention':

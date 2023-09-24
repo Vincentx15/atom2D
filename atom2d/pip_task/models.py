@@ -10,7 +10,7 @@ from data_processing import point_cloud_utils
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
                  use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', output_graph=False,
-                 use_gat=False, use_v2=False, use_skip=False, neigh_th=8, flash=True, **kwargs):
+                 use_gat=False, use_v2=False, use_skip=False, neigh_th=8, flash=True, use_mp=False,**kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -41,6 +41,7 @@ class PIPNet(torch.nn.Module):
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
                                                           use_bn=batch_norm,
+                                                          use_mp=False,
                                                           output_graph=output_graph)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
@@ -49,6 +50,8 @@ class PIPNet(torch.nn.Module):
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
                                                             use_bn=batch_norm,
+                                                            use_mp=use_mp,
+                                                            use_gat=use_gat,
                                                             output_graph=output_graph)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,

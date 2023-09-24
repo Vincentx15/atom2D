@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import GCNConv, GATConv, GATv2Conv
 from torch_geometric.data import Data
+from torch_geometric.nn import MessagePassing
+
 try:
     from flash_attn import flash_attn_func
 except ImportError:
@@ -37,6 +39,44 @@ class GCN(torch.nn.Module):
         return x
 
 
+class AddAggregate(MessagePassing):
+    def __init__(self):
+        super().__init__(aggr='add')  # "Add" aggregation (Step 5).
+
+    def forward(self, x, edge_index, edge_weights):
+        # x has shape [N, in_channels]
+        # edge_index has shape [2, E]
+        # edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+
+        # Step 4-5: Start propagating messages.
+        out = self.propagate(edge_index, x=x, edge_weights=edge_weights)
+        return out
+
+    def message(self, x_j, edge_weights):
+        # x_j has shape [E, out_channels]
+        return edge_weights[..., None] * x_j
+
+
+def compute_bipartite_graphs(vertices, graph, neigh_th):
+    sigma = neigh_th / 2  # todo is this the right way to do it?
+    with torch.no_grad():
+        all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+        neighbors = [torch.where(x < neigh_th) for x in all_dists]
+        # Slicing requires tuple
+        dists = [all_dist[neigh] for all_dist, neigh in zip(all_dists, neighbors)]
+        dists = [torch.exp(-x / sigma) for x in dists]
+        neighbors = [torch.stack(x).long() for x in neighbors]
+        for i, neighbor in enumerate(neighbors):
+            neighbor[1] += len(vertices[i])
+        reverse_neighbors = [torch.flip(neigh, dims=(0,)) for neigh in neighbors]
+        all_pos = [torch.cat((vert, mini_graph.pos)) for vert, mini_graph in zip(vertices, graph.to_data_list())]
+        bipartite_surfgraph = [Data(all_pos=pos, edge_index=neighbor, edge_weight=dist) for pos, neighbor, dist in
+                               zip(all_pos, neighbors, dists)]
+        bipartite_graphsurf = [Data(all_pos=pos, edge_index=rneighbor, edge_weight=dist) for pos, rneighbor, dist in
+                               zip(all_pos, reverse_neighbors, dists)]
+        return bipartite_graphsurf, bipartite_surfgraph
+
+
 class GraphDiffNetParallel(nn.Module):
     def __init__(
             self,
@@ -50,6 +90,8 @@ class GraphDiffNetParallel(nn.Module):
             with_gradient_rotations=True,
             diffusion_method="spectral",
             use_bn=True,
+            use_mp=False,
+            neigh_thresh=8,
             output_graph=False,
     ):
         """
@@ -128,6 +170,11 @@ class GraphDiffNetParallel(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
+        self.neigh_thresh = neigh_thresh
+        self.use_mp = use_mp
+        if use_mp:
+            self.mp = AddAggregate()
+
         self.mixer_blocks = []
         for i_block in range(self.N_block):
             mixer_block = nn.Linear(diffnet_width * 2, diffnet_width if i_block < self.N_block - 1 else C_out)
@@ -146,10 +193,15 @@ class GraphDiffNetParallel(nn.Module):
         evecs = [e.unsqueeze(0) for e in evecs]
 
         # Precompute distance
-        sigma = 2.5
-        with torch.no_grad():
-            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
-            rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
+        if self.use_mp:
+            bipartite_graphsurf, bipartite_surfgraph = compute_bipartite_graphs(vertices, graph,
+                                                                                neigh_th=self.neigh_thresh)
+        else:
+            sigma = 2.5
+            with torch.no_grad():
+                all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in
+                             zip(vertices, graph.to_data_list())]
+                rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
 
         # Apply the first linear layer
         split_sizes = [tensor.size(0) for tensor in x_in]
@@ -157,15 +209,24 @@ class GraphDiffNetParallel(nn.Module):
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
-        for graph_block, diff_block, mixer_block in zip(self.gcn_blocks, self.diff_blocks, self.mixer_blocks):
+        for graph_block, diff_block, mixer_block in zip(self.gcn_blocks,
+                                                                       self.diff_blocks,
+                                                                       self.mixer_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
-            # not necessary, cdist is fast
-            # diff_on_graph = torch.sparse.mm(rbf_graph_surf, diff_x[0])
-            # graph_on_diff = torch.sparse.mm(rbf_surf_graph, graph_x)
-            diff_on_graph = [torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)]
-            graph_on_diff = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in
-                             zip(rbf_weights, graph.to_data_list())]
+            if self.use_mp:
+                input_feats = [torch.cat((diff, mini_graph.x)) for diff, mini_graph in
+                               zip(diff_x, graph.to_data_list())]
+                diff_on_graph = [self.mp(input_feat, bisurfgraph.edge_index, bisurfgraph.edge_weight)
+                                 for input_feat, bisurfgraph in zip(input_feats, bipartite_surfgraph)]
+                graph_on_diff = [self.mp(input_feat, bigraphsurf.edge_index, bigraphsurf.edge_weight)
+                                 for input_feat, bigraphsurf in zip(input_feats, bipartite_graphsurf)]
+                graph_on_diff = [out[:len(vert)] for out, vert in zip(graph_on_diff, vertices)]
+                diff_on_graph = [out[len(vert):] for out, vert in zip(diff_on_graph, vertices)]
+            else:
+                diff_on_graph = [torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)]
+                graph_on_diff = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in
+                                 zip(rbf_weights, graph.to_data_list())]
             cat_graph = [torch.cat((diff_on_graph[i], mini_graph.x), dim=1) for i, mini_graph in
                          enumerate(graph.to_data_list())]
             cat_diff = [torch.cat((diff_x[i], graph_on_diff[i]), dim=1) for i in range(len(diff_x))]
@@ -187,7 +248,7 @@ class GraphDiffNetParallel(nn.Module):
 class GraphDiffNetSequential(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False):
+                 output_graph=False, use_mp=False, use_gat=False, use_skip=False, neigh_thresh=8):
         """
         Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
         instead of the // architecture GraphDiffNet
@@ -218,6 +279,8 @@ class GraphDiffNetSequential(nn.Module):
         self.C_width = C_width
         self.N_block = N_block
         self.output_graph = output_graph
+
+        self.neigh_thresh = neigh_thresh
 
         # Outputs
         self.last_activation = last_activation
@@ -265,6 +328,28 @@ class GraphDiffNetSequential(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
+        self.use_mp = use_mp
+        self.use_skip = use_skip
+        if use_mp:
+            conv_layer = GCNConv if not use_gat else GATConv
+            self.graphsurf_blocks = []
+            for i_block in range(self.N_block):
+                graphsurf_block = conv_layer(diffnet_width,
+                                             diffnet_width,
+                                             add_self_loops=True,
+                                             )
+                self.graphsurf_blocks.append(graphsurf_block)
+                self.add_module("graphsurf_block_" + str(i_block), graphsurf_block)
+
+            self.surfgraph_blocks = []
+            for i_block in range(self.N_block):
+                surfgraph_block = conv_layer(diffnet_width,
+                                             diffnet_width,
+                                             add_self_loops=True,
+                                             )
+                self.surfgraph_blocks.append(surfgraph_block)
+                self.add_module("surfgraph_block_" + str(i_block), surfgraph_block)
+
     def forward(self, graph=None, surface=None):
         """
         A forward pass on the MixedNet.
@@ -277,11 +362,15 @@ class GraphDiffNetSequential(nn.Module):
         evals = [e.unsqueeze(0) for e in evals]
         evecs = [e.unsqueeze(0) for e in evecs]
 
-        # Precompute distance
-        sigma = 2.5
-        with torch.no_grad():
-            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
-            rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
+        if self.use_mp:
+            bipartite_graphsurf, bipartite_surfgraph = compute_bipartite_graphs(vertices, graph,
+                                                                                neigh_th=self.neigh_thresh)
+        else:  # Precompute distance
+            sigma = 2.5
+            with torch.no_grad():
+                all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in
+                             zip(vertices, graph.to_data_list())]
+                rbf_weights = [torch.exp(-x / sigma) for x in all_dists]
 
         # Apply the first linear layer
         split_sizes = [tensor.size(0) for tensor in x_in]
@@ -289,12 +378,32 @@ class GraphDiffNetSequential(nn.Module):
         graph.x = self.first_lin2(graph.x)
 
         # Apply each of the blocks
-        for graph_block, diff_block in zip(self.gcn_blocks, self.diff_blocks):
+        NL = len(self.gcn_blocks)
+        for i, (graph_block, diff_block) in enumerate(zip(self.gcn_blocks, self.diff_blocks)):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
-            # todo check if this is correct (or should we use .from_data_list)
-            graph.x = torch.cat([torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)], dim=0)
+            if self.use_mp:
+                # Now use this for message passing.
+                input_feats = [torch.cat((diff, mini_graph.x)) for diff, mini_graph in
+                               zip(diff_x, graph.to_data_list())]
+                surfgraph_block = self.surfgraph_blocks[i]
+                out_graph = [surfgraph_block(input_feat, bisurfgraph.edge_index, bisurfgraph.edge_weight)
+                             for input_feat, bisurfgraph in zip(input_feats, bipartite_surfgraph)]
+                graph_x_out = torch.cat([out[len(vert):] for out, vert in zip(out_graph, vertices)], dim=0)
+                graph.x = graph.x + graph_x_out if (self.use_skip and i < NL) else graph_x_out
+            else:
+                graph.x = torch.cat([torch.mm(rbf_w.T, x) for rbf_w, x in zip(rbf_weights, diff_x)], dim=0)
             graph.x = graph_block(graph)
-            diff_x = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in zip(rbf_weights, graph.to_data_list())]
+            if self.use_mp:
+                # Now use this for message passing.
+                input_feats = [torch.cat((diff, mini_graph.x)) for diff, mini_graph in
+                               zip(diff_x, graph.to_data_list())]
+                graphsurf_block = self.graphsurf_blocks[i]
+                out_surf = [graphsurf_block(input_feat, bigraphsurf.edge_index, bigraphsurf.edge_weight)
+                            for input_feat, bigraphsurf in zip(input_feats, bipartite_graphsurf)]
+                diff_x_out = [out[:len(vert)] for out, vert in zip(out_surf, vertices)]
+                diff_x = [x + y for x, y in zip(diff_x, diff_x_out)] if (self.use_skip and i < NL) else diff_x_out
+            else:
+                diff_x = [torch.mm(rbf_w, mini_graph.x) for rbf_w, mini_graph in zip(rbf_weights, graph.to_data_list())]
 
         if self.output_graph:
             x_out = [mini_graph.x for mini_graph in graph.to_data_list()]
@@ -392,7 +501,6 @@ class GraphDiffNetBipartite(nn.Module):
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
-        conv_layer = GCNConv if not use_gat else GATConv
         if not use_gat:
             conv_layer = GCNConv
         else:
@@ -428,23 +536,7 @@ class GraphDiffNetBipartite(nn.Module):
         evals = [e.unsqueeze(0) for e in evals]
         evecs = [e.unsqueeze(0) for e in evecs]
 
-        # Precompute bipartite graph
-        sigma = self.neigh_th / 2  # todo is this the right way to do it?
-        with torch.no_grad():
-            all_dists = [torch.cdist(vert, mini_graph.pos) for vert, mini_graph in zip(vertices, graph.to_data_list())]
-            neighbors = [torch.where(x < self.neigh_th) for x in all_dists]
-            # Slicing requires tuple
-            dists = [all_dist[neigh] for all_dist, neigh in zip(all_dists, neighbors)]
-            dists = [torch.exp(-x / sigma) for x in dists]
-            neighbors = [torch.stack(x).long() for x in neighbors]
-            for i, neighbor in enumerate(neighbors):
-                neighbor[1] += len(vertices[i])
-            reverse_neighbors = [torch.flip(neigh, dims=(0,)) for neigh in neighbors]
-            all_pos = [torch.cat((vert, mini_graph.pos)) for vert, mini_graph in zip(vertices, graph.to_data_list())]
-            bipartite_surfgraph = [Data(all_pos=pos, edge_index=neighbor, edge_weight=dist) for pos, neighbor, dist in
-                                   zip(all_pos, neighbors, dists)]
-            bipartite_graphsurf = [Data(all_pos=pos, edge_index=rneighbor, edge_weight=dist) for pos, rneighbor, dist in
-                                   zip(all_pos, reverse_neighbors, dists)]
+        bipartite_graphsurf, bipartite_surfgraph = compute_bipartite_graphs(vertices, graph, neigh_th=self.neigh_th)
 
         # Apply the first linear layer
         split_sizes = [tensor.size(0) for tensor in x_in]

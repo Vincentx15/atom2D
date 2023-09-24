@@ -34,6 +34,7 @@ model:
   use_graph_only: False
   graph_model: 'parallel'
   use_gat: False
+  use_mp: False
   use_v2: False
   use_skip: False
   neigh_th: 8
