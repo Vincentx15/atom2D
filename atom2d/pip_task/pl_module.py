@@ -38,8 +38,8 @@ class PIPModule(pl.LightningModule):
         self.model = PIPNet(**hparams.model)
         self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hparams.model.pos_weight]))
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, return_embs=False):
+        return self.model(x, return_embs=return_embs)
 
     def step(self, batch):
         if not hasattr(batch, "surface_1") and not hasattr(batch, "graph_1"):

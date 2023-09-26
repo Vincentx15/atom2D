@@ -1,0 +1,30 @@
+hparams:
+  run_name: parallel_final_real
+  epochs: 20
+  device: 0
+  seed: 2023
+  dataset:
+    data_dir: ../../data/PIP/DIPS-split/data/
+  model:
+    in_channels: 19
+    out_channel: 64
+    C_width: 10
+    N_block: 1
+    dropout: 0.3
+    batch_norm: true
+    sigma: 2.5
+    pos_weight: 4
+    use_graph: true
+    use_graph_only: false
+    graph_model: bipartite
+    use_gat: false
+    use_v2: false
+    use_skip: false
+    neigh_th: 8
+    flash: true
+    clip_output: false
+    output_graph: true
+  optimizer:
+    lr: 0.0001
+    patience: 100
+    factor: 0.5

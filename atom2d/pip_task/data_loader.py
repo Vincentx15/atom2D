@@ -115,8 +115,8 @@ class NewPIP(torch.utils.data.Dataset):
         num_pos = pos_as_array_1.shape[0]
         num_neg = negs_1.shape[0]
         num_pos_to_use, num_neg_to_use = self._num_to_use(num_pos, num_neg)
-        pos_array_idx = np.random.choice(pos_array.shape[1], size=num_pos_to_use)
-        neg_array_idx = np.random.choice(neg_array.shape[1], size=num_neg_to_use)
+        pos_array_idx = np.random.choice(pos_array.shape[1], size=num_pos_to_use, replace=False)
+        neg_array_idx = np.random.choice(neg_array.shape[1], size=num_neg_to_use, replace=False)
         pos_array_sampled = pos_array[:, pos_array_idx]
         neg_array_sampled = neg_array[:, neg_array_idx]
 

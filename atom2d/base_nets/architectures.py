@@ -40,8 +40,8 @@ class GCN(torch.nn.Module):
 
 
 class AddAggregate(MessagePassing):
-    def __init__(self):
-        super().__init__(aggr='add')  # "Add" aggregation (Step 5).
+    def __init__(self, aggr='add'):
+        super().__init__(aggr=aggr)
 
     def forward(self, x, edge_index, edge_weights):
         # x has shape [N, in_channels]
@@ -210,8 +210,8 @@ class GraphDiffNetParallel(nn.Module):
 
         # Apply each of the blocks
         for graph_block, diff_block, mixer_block in zip(self.gcn_blocks,
-                                                                       self.diff_blocks,
-                                                                       self.mixer_blocks):
+                                                        self.diff_blocks,
+                                                        self.mixer_blocks):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
             if self.use_mp:
@@ -573,7 +573,6 @@ class GraphDiffNetBipartite(nn.Module):
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
             x_out = [self.last_activation(x) for x in x_out]
-
         return x_out
 
 

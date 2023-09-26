@@ -122,7 +122,7 @@ class PIPNet(torch.nn.Module):
         x = self.top_net(x)
         return x
 
-    def forward(self, batch):
+    def forward(self, batch, return_embs=False):
         """
         Both inputs should unwrap as (features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces)
         pairs_loc are the coordinates of points shape (n_pairs, 2, 3)
@@ -152,6 +152,8 @@ class PIPNet(torch.nn.Module):
                                                                                    processed_left, processed_right,
                                                                                    graph_1.to_data_list(),
                                                                                    graph_2.to_data_list()):
+                if return_embs:
+                    return proc_left, proc_right, g_left, g_right,
                 xs.append(self.project_processed_graph(loc_left, loc_right, proc_left, proc_right, g_left, g_right))
         else:
             for loc_left, loc_right, proc_left, proc_right, g_left, g_right in zip(locs_left, locs_right,
