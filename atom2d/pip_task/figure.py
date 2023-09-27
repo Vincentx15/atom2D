@@ -22,6 +22,38 @@ from base_nets.architectures import AddAggregate, compute_bipartite_graphs
 config_path = "toy.yaml"
 
 
+def get_prediction_scores(model, positive_embs, processed):
+    # Now that we have the positive left embeddings, let's see if processed right embeddings find a high score
+    # We output one score per residue of the right
+    # We do this one by one, but we could probably batch
+    all_results = []
+    for positive_emb in positive_embs:
+        in_batch_left = positive_emb.expand(len(processed), -1)
+        in_batch = torch.cat((in_batch_left, processed), dim=1)
+        out_one = model.model.top_net(in_batch)
+        all_results.append(out_one)
+    all_results = torch.concatenate(all_results, dim=1)
+    all_results_max = torch.max(all_results, dim=1).values
+    return all_results_max
+
+
+def push_to_surf(vertices, graph, graph_features):
+    # First we build the graph and message passing
+    bipartite_graphsurf_right, _ = compute_bipartite_graphs(vertices,
+                                                            graph,
+                                                            neigh_th=8)
+    mp = AddAggregate(aggr='max')
+
+    # Then we need to have a full input (bipartite have vertices as nodes) and then select back.
+    num_vertices = len(vertices[0])
+    input_bipartite = torch.hstack((torch.zeros(num_vertices), graph_features))[:, None]
+    output_bipartite = mp(input_bipartite,
+                          bipartite_graphsurf_right[0].edge_index,
+                          bipartite_graphsurf_right[0].edge_weight)
+    output_vertices = output_bipartite[:num_vertices]
+    return output_vertices
+
+
 def main():
     cfg = OmegaConf.load(config_path)
     cfg = cfg.hparams
@@ -49,46 +81,37 @@ def main():
             unique_positive_samples_left = positive_samples_left.unique(dim=0)
             unique_positive_samples_right = positive_samples_right.unique(dim=0)
 
-            # Now we follow the code in PIP models and get the embeddings of the posive left (right was not done here)
+            # Now we follow the code in PIP models and get the indices of positive residues
             processed_left, processed_right, graph_left, graph_right = embeddings
-            dists = torch.cdist(unique_positive_samples_left, graph_left.pos)
-            min_indices = torch.argmin(dists, dim=1)
-            positive_left_embs = processed_left[min_indices]
+            dists_left = torch.cdist(unique_positive_samples_left, graph_left.pos)
+            min_indices_left = torch.argmin(dists_left, dim=1)
+            dists_right = torch.cdist(unique_positive_samples_right, graph_right.pos)
+            min_indices_right = torch.argmin(dists_right, dim=1)
 
-            # Now that we have the positive left embeddings, let's see if processed right embeddings find a high score
-            # We output one score per residue of the right
-            # We do this one by one, but we could probably batch
-            all_res_right = []
-            for positive_left_emb in positive_left_embs:
-                in_batch_left = positive_left_emb.expand(len(processed_right), -1)
-                in_batch = torch.cat((in_batch_left, processed_right), dim=1)
-                out_one = model.model.top_net(in_batch)
-                all_res_right.append(out_one)
-            all_res_right = torch.concatenate(all_res_right, dim=1)
-            all_res_max_right = torch.max(all_res_right, dim=1).values
+            # Use the residue ids to get GT vectors over graph nodes
+            gt_nodes_left = torch.zeros(graph_left.num_nodes)
+            gt_nodes_left[min_indices_left] = 1
+            gt_nodes_right = torch.zeros(graph_right.num_nodes)
+            gt_nodes_right[min_indices_right] = 1
 
-            # Finally let's push these residue scores to the surface. First we build the graph and message passing
+            # Use the positive residue ids to get positive vectors, and then prediction for all graph nodes
+            positive_left_embs = processed_left[min_indices_left]
+            predictions_right = get_prediction_scores(model, positive_left_embs, processed_right)
+            positive_right_embs = processed_right[min_indices_right]
+            predictions_left = get_prediction_scores(model, positive_right_embs, processed_left)
+
+            # Finally let's push these residue scores to the surface.
             vertices_right = item.surface_2.vertices
             graph_right = item.graph_2
-            bipartite_graphsurf_right, _ = compute_bipartite_graphs(vertices_right,
-                                                                    graph_right,
-                                                                    neigh_th=8)
-            mp = AddAggregate(aggr='max')
+            surf_gt_right = push_to_surf(vertices_right, graph_right, gt_nodes_right)
+            surf_preds_right = push_to_surf(vertices_right, graph_right, predictions_right)
 
-            # Then we need to have a full input (bipartite have vertices as nodes) and then select back.
-            num_vertices = len(vertices_right[0])
-            input_bipartite = torch.hstack((torch.zeros(num_vertices), all_res_max_right))[:, None]
-            output_bipartite = mp(input_bipartite,
-                                  bipartite_graphsurf_right[0].edge_index,
-                                  bipartite_graphsurf_right[0].edge_weight)
-            output_vertices = output_bipartite[:num_vertices]
-            print(output_vertices)
+            vertices_left = item.surface_1.vertices
+            graph_left = item.graph_1
+            surf_gt_left = push_to_surf(vertices_left, graph_left, gt_nodes_left)
+            surf_preds_left = push_to_surf(vertices_left, graph_left, predictions_left)
+            a = 1
 
-            # TODO : make the same for the other side.
-
-            # dists = torch.cdist(unique_positive_samples_right, graph_right.pos)
-            # min_indices = torch.argmin(dists, dim=1)
-            # positive_right_embs = processed_right[min_indices]
 
         break
 
