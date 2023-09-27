@@ -1,7 +1,9 @@
 import os
 import sys
+import pickle
+from tqdm import tqdm
 
-# import hydra
+import hydra
 from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
@@ -54,17 +56,25 @@ def push_to_surf(vertices, graph, graph_features):
     return output_vertices
 
 
-def main():
-    cfg = OmegaConf.load(config_path)
-    cfg = cfg.hparams
+@hydra.main(config_path="./", config_name="config")
+def main(cfg=None):
+    # cfg = OmegaConf.load(config_path)
+    # cfg = cfg.hparams
     model = PIPModule(cfg)
-    # saved_model_path = os.path.join(config_dir, "checkpoints/last.ckpt")
-    # model.load_state_dict(torch.load(saved_model_path, map_location="cpu")["state_dict"])
+    version = "version_150_bipartite_4_skip_gat"  # todo change
+    name = "epoch=18-auroc_val=0.855"  # todo change
+    save_name = "/mnt/disk2/souhaib/data.pkl"  # todo change
+
+    config_dir = Path(__file__).resolve().parent / f"../../outputs/pip/lightning_logs/{version}/"
+    saved_model_path = config_dir / f"checkpoints/{name}.ckpt"
+    model.load_state_dict(torch.load(saved_model_path, map_location="cpu")["state_dict"])
     data_dir = Path(cfg.dataset.data_dir) / "test"
     dataset = NewPIP(data_dir, return_graph=True, return_surface=True, big_graphs=True, neg_to_pos_ratio=-1)
     dataloader = DataLoader(dataset, num_workers=0, batch_size=1, pin_memory=False,
-                            shuffle=False, collate_fn=lambda x: AtomBatch.from_data_list(x))
-    for item in dataloader:
+                            shuffle=True, collate_fn=lambda x: AtomBatch.from_data_list(x))
+    counter = 0
+    save_dict = {}
+    for item in tqdm(dataloader):
         with torch.no_grad():
             # Forward with return_embs is new, it returns the embeddings instead of prediction
             embeddings = model.forward(item, return_embs=True)
@@ -112,8 +122,15 @@ def main():
             surf_preds_left = push_to_surf(vertices_left, graph_left, predictions_left)
             a = 1
 
+            save_dict[f"{item.name1[0]}_{item.name2[0]}"] = [vertices_left[0], item.surface_1.faces[0], surf_preds_left, surf_gt_left,
+                                                             vertices_right[0], item.surface_2.faces[0], surf_preds_right, surf_gt_right]
 
-        break
+        counter += 1
+        if counter > 20:  # todo change
+            break
+
+    with open(save_name, 'wb') as file:
+        pickle.dump(save_dict, file)
 
 
 if __name__ == "__main__":
