@@ -122,8 +122,10 @@ def main(cfg=None):
             surf_preds_left = push_to_surf(vertices_left, graph_left, predictions_left)
             a = 1
 
-            save_dict[f"{item.name1[0]}_{item.name2[0]}"] = [vertices_left[0], item.surface_1.faces[0], surf_preds_left, surf_gt_left,
-                                                             vertices_right[0], item.surface_2.faces[0], surf_preds_right, surf_gt_right]
+            save_dict[f"{item.name1[0]}_{item.name2[0]}"] = [vertices_left[0].numpy(), item.surface_1.faces[0].numpy(),
+                                                             surf_preds_left.numpy().flatten(), surf_gt_left.numpy().flatten(),
+                                                             vertices_right[0].numpy(), item.surface_2.faces[0].numpy(),
+                                                             surf_preds_right.numpy().flatten(), surf_gt_right.numpy().flatten()]
 
         counter += 1
         if counter > 20:  # todo change
