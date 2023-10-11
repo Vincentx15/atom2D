@@ -94,7 +94,7 @@ class AtomBatch(Data):
             item = batch[key][0]
             if isinstance(item, int) or isinstance(item, float):
                 batch[key] = torch.tensor(batch[key])
-            if bool(re.search('(locs_left|locs_right|neg_stack|pos_stack)', key)):
+            elif bool(re.search('(locs_left|locs_right|neg_stack|pos_stack)', key)):
                 batch[key] = batch[key]
             elif key == 'labels_pip':
                 batch[key] = torch.cat(batch[key])

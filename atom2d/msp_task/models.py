@@ -70,7 +70,7 @@ class MSPSurfNet(torch.nn.Module):
                                                            flash=flash,
                                                            )
             elif graph_model == 'bipartite':
-                self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
+                self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,

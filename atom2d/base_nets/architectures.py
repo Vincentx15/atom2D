@@ -420,14 +420,14 @@ class GraphDiffNetSequential(nn.Module):
 
 
 class GraphDiffNetBipartite(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+    def __init__(self, C_in_graph, C_out, C_in_surf=5, C_width=128, N_block=4, last_activation=None, dropout=True,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
                  output_graph=False, use_gat=False, use_v2=False, use_skip=False, neigh_th=8):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
         Parameters:
-            C_in (int):                     input dimension
+            C_in_graph (int):                     input dimension
             C_out (int):                    output dimension
             last_activation (func)          a function to apply to the final outputs of the network, such as torch.nn.functional.log_softmax (default: None)
             outputs_at (string)             produce outputs at various mesh elements by averaging from vertices. One of ['vertices', 'edges', 'faces'].
@@ -449,7 +449,8 @@ class GraphDiffNetBipartite(nn.Module):
         # # Store parameters
 
         # Basic parameters
-        self.C_in = C_in
+        self.C_in_graph = C_in_graph
+        self.C_in_surf = C_in_surf
         self.C_out = C_out
         self.C_width = C_width
         self.N_block = N_block
@@ -475,8 +476,8 @@ class GraphDiffNetBipartite(nn.Module):
         diffnet_width = C_width // 2
 
         # First and last affine layers
-        self.first_lin1 = nn.Linear(5, diffnet_width)
-        self.first_lin2 = nn.Linear(C_in, diffnet_width)
+        self.first_lin1 = nn.Linear(C_in_surf, diffnet_width)
+        self.first_lin2 = nn.Linear(C_in_graph, diffnet_width)
 
         # DiffusionNet blocks
         self.mlp_hidden_dims = [diffnet_width, diffnet_width]

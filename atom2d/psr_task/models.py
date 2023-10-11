@@ -6,13 +6,14 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 
 
 class PSRSurfNet(torch.nn.Module):
-    def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, linear_sizes=(128,), dropout=True,
-                 drate=0.3, use_mean=False, batch_norm=False, use_graph=False, use_graph_only=False, output_graph=False,
-                 graph_model='parallel', use_gat=False, use_v2=False, use_skip=False, neigh_th=8, flash=True,
-                 use_mp=False, **kwargs):
+    def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
+                 linear_sizes=(128,), dropout=True, drate=0.3, use_mean=False, batch_norm=False, use_graph=False,
+                 use_graph_only=False, output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
+                 use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
+        self.in_channels_surf = in_channels_surf
         self.out_channel = out_channel
         self.use_mean = use_mean
 
@@ -32,7 +33,7 @@ class PSRSurfNet(torch.nn.Module):
                 nn.Linear(C_width * 2, 1)
             ])
         elif not use_graph:
-            self.encoder_model = DiffusionNetBatch(C_in=5,
+            self.encoder_model = DiffusionNetBatch(C_in=in_channels_surf,
                                                    C_out=out_channel,
                                                    C_width=C_width,
                                                    N_block=N_block,
@@ -69,7 +70,8 @@ class PSRSurfNet(torch.nn.Module):
                                                            flash=flash,
                                                            )
             elif graph_model == 'bipartite':
-                self.encoder_model = GraphDiffNetBipartite(C_in=in_channels,
+                self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
+                                                           C_in_surf=in_channels_surf,
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
@@ -81,27 +83,12 @@ class PSRSurfNet(torch.nn.Module):
                                                            use_skip=use_skip,
                                                            neigh_th=neigh_th)
         # Top FCs
-        # layers = []
         in_features = out_channel
-        # for units in linear_sizes:
-        #     layers.extend([
-        #         nn.Linear(in_features, units),
-        #         nn.ReLU()
-        #     ])
-        #     if batch_norm:
-        #         layers.append(nn.BatchNorm1d(units))
-        #     if dropout:
-        #         layers.append(nn.Dropout(drate))
-        #     in_features = units
-
-        # # Final FC layer
-        # layers.append(nn.Linear(in_features, 1))
-        # self.top_net = nn.Sequential(*layers)
         self.top_net = nn.Sequential(*[
             nn.Linear(in_features, in_features // 2),
             nn.ReLU(),
             nn.Dropout(p=0.25),
-            nn.Linear(in_features // 2, 1)
+            nn.Linear(in_features // 2, out_features=out_features)
         ])
 
     @property

@@ -19,11 +19,17 @@ def get_operators(npz_path, verts, faces, k_eig=128, normals=None, recompute=Fal
     This is a wrapper that allows for even further caching checks (just file names) and
      legible file names (a protein chain is expected)
     """
+    try:
+        device = verts.device
+        dtype = verts.dtype
+        verts_np = utils.toNP(verts)
+        faces_np = utils.toNP(faces)
+    except AttributeError:
+        device = 'cpu'
+        dtype = np.float32
+        verts_np = verts
+        faces_np = faces
 
-    device = verts.device
-    dtype = verts.dtype
-    verts_np = utils.toNP(verts)
-    faces_np = utils.toNP(faces)
 
     if (np.isnan(verts_np).any()):
         raise RuntimeError("tried to construct operators from NaN verts")
