@@ -13,25 +13,34 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-
 from trainer import Trainer
-# from models import load_model
 from data import DataLoaderMasifLigand
 from hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
+
 
 def train(config):
     # get dataloader
     data = DataLoaderMasifLigand(config)
 
     # initialize model
-    model = PSRSurfNet(in_channels=37,
+    # from models import load_model
+    # Model = load_model(config.model)
+    # model = Model(config)
+    model = PSRSurfNet(C_width=184,
+                       N_block=4,
+                       use_mean=True,
+                       batch_norm=True,
+                       output_graph=False,
+                       use_skip=True,
+                       in_channels=37,
                        in_channels_surf=54,
+                       out_channel=128,
                        out_features=7,
                        use_graph=True,
+                       use_gat=True,
                        graph_model='bipartite',
                        **config)
-
     # initialize trainer
     trainer = Trainer(config, data, model)
     trainer.train()

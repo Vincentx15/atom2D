@@ -4,7 +4,7 @@
     "auto_resume": true,
     "mute_tqdm": false,
     
-    "batch_size": 2,
+    "batch_size": 32,
     "num_data_workers": 6,
     "num_gdf": 16,
     "num_signatures": 16,
@@ -29,7 +29,7 @@
 
     "model": "HMR",
     "HMR": {
-        "h_dim": 6,
+        "h_dim": 128,
         "num_prop_layers": 6,
         "init_prop_time": 2.0,
         "propagation_time_scale": 1.0,
