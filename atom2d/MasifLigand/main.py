@@ -18,6 +18,10 @@ from data import DataLoaderMasifLigand
 from hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
 
+import torch.multiprocessing
+
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 def train(config):
     # get dataloader
@@ -27,8 +31,9 @@ def train(config):
     # from models import load_model
     # Model = load_model(config.model)
     # model = Model(config)
-    model = PSRSurfNet(C_width=184,
-                       N_block=4,
+
+    model = PSRSurfNet(C_width=config.c_width,
+                       N_block=config.n_blocks,
                        use_mean=True,
                        batch_norm=True,
                        output_graph=False,
@@ -42,6 +47,7 @@ def train(config):
                        graph_model='bipartite',
                        **config)
     # initialize trainer
+    config.out_dir = os.path.join(config.out_dir, config.run_name)
     trainer = Trainer(config, data, model)
     trainer.train()
 
@@ -69,8 +75,13 @@ def get_config():
     parser.add_argument('--use_geom_feat', type=lambda x: eval(x), default=True)
 
     parser.add_argument('--batch_size', type=int)
-    parser.add_argument('--num_data_workers', type=int)
+    parser.add_argument('--num_data_workers', type=int)  # nw 6 : 1'33, nw 4 : 1'31,  nw 2 : 1'31
     parser.add_argument('--num_gdf', type=int)
+
+    # model args
+    parser.add_argument('--c_width', type=int, default=184)
+    parser.add_argument('--n_blocks', type=int, default=4)
+
     # optimizer arguments
     parser.add_argument('--optimizer', type=str, choices=['Adam', 'AdamW'])
     parser.add_argument('--epochs', type=int)

@@ -225,8 +225,8 @@ class TrainerBase(ABC):
 
         # model
         self.model = model
-        if self.device == 'cuda':
-            self.model.cuda()
+        if self.device != 'cpu':
+            self.model = self.model.to(self.device)
         if self.is_master:
             # logging.info(self.model)
             learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)

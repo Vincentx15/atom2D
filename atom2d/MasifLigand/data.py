@@ -289,19 +289,16 @@ def preprocess_data(data_fpath,
                                                                       faces=faces,
                                                                       npz_path=operator_fpath)
         edge_index, edge_feats = atom_coords_to_edges(node_pos=atom_coords)
-        np.savez(
-            processed_fpath,
-            label=label.astype(np.int8),
-            # input
-            node_pos=atom_coords,
-            node_info=atom_feats[:, 3:].astype(np.float32),
-            edge_index=edge_index,
-            edge_feats=edge_feats,
-            verts=verts,
-            faces=faces,
-            geom_info=geom_feats.astype(np.float32),
-
-        )
+        np.savez(processed_fpath,
+                 label=label.astype(np.int8),
+                 # input
+                 node_pos=atom_coords,
+                 node_info=atom_feats[:, 3:].astype(np.float32),
+                 edge_index=edge_index,
+                 edge_feats=edge_feats,
+                 verts=verts,
+                 faces=faces,
+                 geom_info=geom_feats.astype(np.float32),)
         return True
     except:
         return False
