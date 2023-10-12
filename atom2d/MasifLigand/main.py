@@ -83,6 +83,7 @@ def get_config():
     # model-specific arguments
     model_names = ['HMR']
     parser.add_argument('--model', type=str, choices=model_names)
+    parser.add_argument('--device', type=int, default=-1)
     args = parser.parse_args()
 
     # load default config
@@ -106,7 +107,16 @@ if __name__ == '__main__':
     # init config
     config = get_config()
     config.is_master = True
-    config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if torch.cuda.is_available():
+        if int(config.device) > 0:
+            config.device = f'cuda:{config.device}'
+        else:
+            config.device = f'cuda'
+
+    else:
+        config.device = 'cpu'
+
+    print("Training on ", config.device)
 
     # init horovod for distributed training
     config.use_hvd = torch.cuda.device_count() > 1

@@ -228,7 +228,7 @@ class TrainerBase(ABC):
         if self.device == 'cuda':
             self.model.cuda()
         if self.is_master:
-            logging.info(self.model)
+            # logging.info(self.model)
             learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
             logging.info(f'Number of learnable model parameters: {learnable_params}')
             msg = [f'Batch size: {config.batch_size}, number of batches in data loaders - train:',

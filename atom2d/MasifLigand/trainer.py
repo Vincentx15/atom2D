@@ -1,5 +1,6 @@
 import os
 import torch
+from tqdm import tqdm
 import logging
 import contextlib
 import numpy as np
@@ -51,7 +52,7 @@ class Trainer(TrainerBase):
         exploding_grad = []
         context = contextlib.nullcontext() if partition == 'train' else torch.no_grad()
         with context:
-            for i, batch in enumerate(data_loader):
+            for i, batch in enumerate(tqdm(data_loader)):
                 # send data to device and compute model output
                 batch.to(self.device)
                 if partition == 'train':
