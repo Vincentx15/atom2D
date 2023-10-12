@@ -46,9 +46,25 @@ def load_data_fpaths_from_split_file(data_dir, split_fpath):
         fpaths = [(kw, list(Path(data_dir).glob(f'{kw}*.npz'))) for kw in data_list]
         not_found = [f[0] for f in fpaths if len(f[1]) == 0]
         fpaths = [f for f_list in fpaths for f in f_list[1]]
+
+        small_patches = {
+            # TRAIN
+            "2D2I_ACBD_patch_1_NAP.npz",
+            "2D2I_ACBD_patch_3_NAP.npz",
+            "5K18_ABF_patch_0_COA.npz",
+            "4P7A_AB_patch_1_ADP.npz",
+            "4FEG_ACBD_patch_3_FAD.npz",
+            "1MXB_AB_patch_0_ADP.npz",
+            "5U25_AB_patch_1_FAD.npz",
+            # VALIDATION
+            "1TOX_AC_patch_1_NAD.npz",
+            # TEST
+            "5C3C_ACBEDF_patch_5_ADP.npz"
+        }
+        filtered_paths = [f for f in fpaths if f.name not in small_patches]
         if len(not_found) > 0:
             print(f"{len(not_found)} data in the split file not found under data dir")
-    return fpaths
+    return filtered_paths
 
 
 class DataLoaderMasifLigand(DataLoaderBase):
@@ -129,14 +145,32 @@ class DatasetMasifLigand(Dataset):
         fname = Path(fpath).name
         processed_fpath = self.processed_dir / fname
         operator_fpath = self.operator_dir / fname
-        if not processed_fpath.exists() or not operator_fpath.exists() or True:
-            preprocess_data(data_fpath=fpath,
-                            processed_fpath=processed_fpath,
-                            operator_fpath=operator_fpath,
-                            max_eigen_val=self.max_eigen_val,
-                            smoothing=self.smoothing,
-                            num_signatures=self.num_signatures)
+        success = True
+        if not processed_fpath.exists() or not operator_fpath.exists():
+            success = preprocess_data(data_fpath=fpath,
+                                      processed_fpath=processed_fpath,
+                                      operator_fpath=operator_fpath,
+                                      max_eigen_val=self.max_eigen_val,
+                                      smoothing=self.smoothing,
+                                      num_signatures=self.num_signatures)
 
+        if not success:
+            # TRAIN
+            # 2D2I_ACBD_patch_1_NAP.npz
+            # 2D2I_ACBD_patch_3_NAP.npz
+            # 5K18_ABF_patch_0_COA.npz
+            # 4P7A_AB_patch_1_ADP.npz
+            # 4FEG_ACBD_patch_3_FAD.npz
+            # 1MXB_AB_patch_0_ADP.npz
+            # 5U25_AB_patch_1_FAD.npz
+
+            # VALIDATION
+            # 1TOX_AC_patch_1_NAD.npz
+
+            # TEST
+            # 5C3C_ACBEDF_patch_5_ADP.npz
+            print(fpath)
+            return None
         surface_res, graph_res, label = load_preprocessed_data(processed_fpath, operator_fpath)
         label = int(label)
         ##############################  chem feats  ##############################
@@ -175,6 +209,7 @@ class DatasetMasifLigand(Dataset):
 
     @staticmethod
     def collate_wrapper(unbatched_list):
+        unbatched_list = [elt for elt in unbatched_list if elt is not None]
         return AtomBatch.from_data_list(unbatched_list)
 
     def __len__(self):
@@ -189,83 +224,87 @@ def preprocess_data(data_fpath,
                     num_signatures):
     """Preprocess data and cache on disk
     """
+    try:
 
-    # load data
-    data = np.load(data_fpath, allow_pickle=True)
-    label = data['label']
+        # load data
+        data = np.load(data_fpath, allow_pickle=True)
+        label = data['label']
 
-    atom_info = data['atom_info']
-    atom_coords = atom_info[:, :3]
-    verts = data['pkt_verts']
-    faces = data['pkt_faces'].astype(int)
+        atom_info = data['atom_info']
+        atom_coords = atom_info[:, :3]
+        verts = data['pkt_verts']
+        faces = data['pkt_faces'].astype(int)
 
-    if max_eigen_val is not None:
-        ev = np.where(data['eigen_vals'] < max_eigen_val)[0]
-        assert len(ev) > 1
-        eigen_vals = data['eigen_vals'][ev]
-        eigen_vecs = data['eigen_vecs'][:, ev]
-    else:
-        eigen_vals = data['eigen_vals']
-        eigen_vecs = data['eigen_vecs']
-    mass = data['mass'].item()
-    eigen_vecs_inv = eigen_vecs.T @ mass
+        if max_eigen_val is not None:
+            ev = np.where(data['eigen_vals'] < max_eigen_val)[0]
+            assert len(ev) > 1
+            eigen_vals = data['eigen_vals'][ev]
+            eigen_vecs = data['eigen_vecs'][:, ev]
+        else:
+            eigen_vals = data['eigen_vals']
+            eigen_vecs = data['eigen_vecs']
+        mass = data['mass'].item()
+        eigen_vecs_inv = eigen_vecs.T @ mass
 
-    if smoothing:
-        verts = eigen_vecs @ (eigen_vecs_inv @ verts)
+        if smoothing:
+            verts = eigen_vecs @ (eigen_vecs_inv @ verts)
 
-    ##############################  atom chem feats  ##############################
-    # Atom chemical features
-    # x  y  z  res_type  atom_type  charge  radius  is_alphaC
-    # 0  1  2  3         4          5       6       7
-    # get hphob
-    atom_hphob = np.array([[res_type_to_hphob[atom_inf[3]]] for atom_inf in atom_info])
-    atom_feats = np.concatenate([atom_info[:, :5], atom_hphob, atom_info[:, 5:]], axis=1)
+        ##############################  atom chem feats  ##############################
+        # Atom chemical features
+        # x  y  z  res_type  atom_type  charge  radius  is_alphaC
+        # 0  1  2  3         4          5       6       7
+        # get hphob
+        atom_hphob = np.array([[res_type_to_hphob[atom_inf[3]]] for atom_inf in atom_info])
+        atom_feats = np.concatenate([atom_info[:, :5], atom_hphob, atom_info[:, 5:]], axis=1)
 
-    # atom_bt = BallTree(atom_coords)
-    # vert_nbr_dist, vert_nbr_ind = atom_bt.query(verts, k=vert_nbr_atoms)
+        # atom_bt = BallTree(atom_coords)
+        # vert_nbr_dist, vert_nbr_ind = atom_bt.query(verts, k=vert_nbr_atoms)
 
-    ##############################  Geom feats  ##############################
-    vnormals = igl.per_vertex_normals(verts, faces)
+        ##############################  Geom feats  ##############################
+        vnormals = igl.per_vertex_normals(verts, faces)
 
-    geom_feats = []
+        geom_feats = []
 
-    _, _, k1, k2 = igl.principal_curvature(verts, faces)
-    gauss_curvs = k1 * k2
-    mean_curvs = 0.5 * (k1 + k2)
-    geom_feats.extend([gauss_curvs.reshape(-1, 1), mean_curvs.reshape(-1, 1)])
-    # HKS:
-    geom_feats.append(compute_HKS(eigen_vecs, eigen_vals, num_signatures))
+        _, _, k1, k2 = igl.principal_curvature(verts, faces)
+        gauss_curvs = k1 * k2
+        mean_curvs = 0.5 * (k1 + k2)
+        geom_feats.extend([gauss_curvs.reshape(-1, 1), mean_curvs.reshape(-1, 1)])
+        # HKS:
+        geom_feats.append(compute_HKS(eigen_vecs, eigen_vals, num_signatures))
 
-    geom_feats = np.concatenate(geom_feats, axis=-1)
-    geom_feats = np.concatenate([verts, vnormals, geom_feats], axis=-1)
+        geom_feats = np.concatenate(geom_feats, axis=-1)
+        geom_feats = np.concatenate([verts, vnormals, geom_feats], axis=-1)
 
-    #############################  Laplace-Beltrami basis  ##############################
-    # eigs = np.concatenate(
-    #     (eigen_vals.reshape(1, -1), eigen_vecs, eigen_vecs_inv.T),
-    #     axis=0
-    # )
+        #############################  Laplace-Beltrami basis  ##############################
+        # eigs = np.concatenate(
+        #     (eigen_vals.reshape(1, -1), eigen_vecs, eigen_vecs_inv.T),
+        #     axis=0
+        # )
 
-    ##############################  Cache processed  ##############################
-    verts = torch.from_numpy(verts)
-    faces = torch.from_numpy(faces)
-    atom_coords = torch.from_numpy(atom_coords)
-    frames, mass, _, evals, evecs, grad_x, grad_y = get_operators(verts=verts,
-                                                                  faces=faces,
-                                                                  npz_path=operator_fpath)
-    edge_index, edge_feats = atom_coords_to_edges(node_pos=atom_coords)
-    np.savez(
-        processed_fpath,
-        label=label.astype(np.int8),
-        # input
-        node_pos=atom_coords,
-        node_info=atom_feats[:, 3:].astype(np.float32),
-        edge_index=edge_index,
-        edge_feats=edge_feats,
-        verts=verts,
-        faces=faces,
-        geom_info=geom_feats.astype(np.float32),
+        ##############################  Cache processed  ##############################
+        verts = torch.from_numpy(verts)
+        faces = torch.from_numpy(faces)
+        atom_coords = torch.from_numpy(atom_coords)
+        frames, mass, _, evals, evecs, grad_x, grad_y = get_operators(verts=verts,
+                                                                      faces=faces,
+                                                                      npz_path=operator_fpath)
+        edge_index, edge_feats = atom_coords_to_edges(node_pos=atom_coords)
+        np.savez(
+            processed_fpath,
+            label=label.astype(np.int8),
+            # input
+            node_pos=atom_coords,
+            node_info=atom_feats[:, 3:].astype(np.float32),
+            edge_index=edge_index,
+            edge_feats=edge_feats,
+            verts=verts,
+            faces=faces,
+            geom_info=geom_feats.astype(np.float32),
 
-    )
+        )
+        return True
+    except:
+        return False
     # np.savez(
     #     out_fpath,
     #     label=label.astype(np.int8),

@@ -281,6 +281,10 @@ class TrainerBase(ABC):
                                                            data_loader=self.valid_loader,
                                                            data_sampler=None,
                                                            partition='valid')
+                # train_loss, train_perf = self._train_epoch(epoch=epoch,
+                #                                            data_loader=self.test_loader,
+                #                                            data_sampler=None,
+                #                                            partition='test')
 
                 self.scheduler.step()
 

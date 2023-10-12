@@ -17,7 +17,7 @@ class Trainer(TrainerBase):
     def __init__(self, config, data, model):
         super().__init__(config, data, model)
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
-        
+
         # tensorboard and HDFS
         if self.is_master:
             self.tb_writer = SummaryWriter(log_dir=self.out_dir, filename_suffix=f'.{self.run_name}')
@@ -25,9 +25,9 @@ class Trainer(TrainerBase):
                 "Epoch", "Partition",
                 "CrossEntropy_avg",
                 "Accuracy_micro", "Accuracy_macro", "Accuracy_balanced",
-                "Precision_micro", "Precision_macro", 
-                "Recall_micro", "Recall_macro", 
-                "F1_micro", "F1_macro", 
+                "Precision_micro", "Precision_macro",
+                "Recall_micro", "Recall_macro",
+                "F1_micro", "F1_macro",
                 "AUROC_macro",
             ]
             self.csv_writer = CSVWriter(os.path.join(self.out_dir, 'metrics.csv'), columns, overwrite=False)
@@ -42,19 +42,18 @@ class Trainer(TrainerBase):
         # reshuffle data across GPU workers
         if isinstance(data_sampler, DistributedSampler):
             data_sampler.set_epoch(epoch)
-        
+
         if partition == 'train':
             self.model.train()
         else:
             self.model.eval()
-        
+
         exploding_grad = []
         context = contextlib.nullcontext() if partition == 'train' else torch.no_grad()
         with context:
-            for batch in data_loader:
+            for i, batch in enumerate(data_loader):
                 # send data to device and compute model output
                 batch.to(self.device)
-
                 if partition == 'train':
                     if self.fp16:
                         with torch.autocast(device_type='cuda', dtype=torch.float16):
@@ -73,7 +72,7 @@ class Trainer(TrainerBase):
                 if partition == 'train':
                     # compute gradient and optimize
                     self.optimizer.zero_grad()
-                    if self.fp16: # mixed precision
+                    if self.fp16:  # mixed precision
                         self.scaler.scale(cross_entropy_loss).backward()
                         if self.use_hvd:
                             self.optimizer.synchronize()
@@ -86,7 +85,7 @@ class Trainer(TrainerBase):
                         with opt_context:
                             self.scaler.step(self.optimizer)
                         self.scaler.update()
-                    else: # torch.float32 default precision
+                    else:  # torch.float32 default precision
                         cross_entropy_loss.backward()
                         if self.use_hvd:
                             self.optimizer.synchronize()
@@ -102,8 +101,7 @@ class Trainer(TrainerBase):
                 pred_scores.append(output)
                 labels.append(batch['labels'])
                 cross_entropy_avg_list += [cross_entropy_loss.item()] * batch['labels'].size(dim=0)
-        
-        
+
         # synchronize metrics
         cross_entropy = np.mean(cross_entropy_avg_list)
         accuracy_macro, accuracy_micro, accuracy_balanced, \
@@ -114,7 +112,8 @@ class Trainer(TrainerBase):
 
         cross_entropy_avg = self.avg(cross_entropy)
         auroc_macro_avg = self.avg(auroc_macro)
-        accuracy_macro_avg, accuracy_micro_avg, accuracy_balanced_avg = self.avg(accuracy_macro), self.avg(accuracy_micro), self.avg(accuracy_balanced)
+        accuracy_macro_avg, accuracy_micro_avg, accuracy_balanced_avg = self.avg(accuracy_macro), self.avg(
+            accuracy_micro), self.avg(accuracy_balanced)
         precision_macro_avg, precision_micro_avg = self.avg(precision_macro), self.avg(precision_micro)
         recall_macro_avg, recall_micro_avg = self.avg(recall_macro), self.avg(recall_micro)
         f1_macro_avg, f1_micro_avg = self.avg(f1_macro), self.avg(f1_micro)
@@ -123,9 +122,9 @@ class Trainer(TrainerBase):
             current_lr = self.optimizer.param_groups[0]['lr']
             lr = f'{current_lr:.8f}' if partition == 'train' else '--'
 
-            print_info= [
+            print_info = [
                 f'===> Epoch {epoch} {partition.upper()}, LR: {lr}\n',
-                f'CrossEntropyAvg: {cross_entropy_avg:.3f}\n', 
+                f'CrossEntropyAvg: {cross_entropy_avg:.3f}\n',
                 f'AccuracyAvg: {accuracy_macro_avg:.3f} (macro), {accuracy_micro_avg:.3f} (micro), {accuracy_balanced_avg:.3f} (balanced)\n',
                 f'PrecisionAvg: {precision_macro_avg:.3f} (macro), {precision_micro_avg:.3f} (micro)\n',
                 f'RecallAvg: {recall_macro_avg:.3f} (macro), {recall_micro_avg:.3f} (micro)\n',
@@ -174,19 +173,16 @@ class Trainer(TrainerBase):
                 self.tb_writer.add_scalar(f"AUROC_macro/{partition}", auroc_macro_avg, epoch)
                 if partition == 'train':
                     self.tb_writer.add_scalar('LR', current_lr, epoch)
-                
 
         # check exploding gradient
         explode_ratio = len(exploding_grad) / len(data_loader)
         if explode_ratio > 0.01 and self.is_master:
-            log_msg = [f'Exploding gradient ratio: {100*explode_ratio:.1f}%,',
+            log_msg = [f'Exploding gradient ratio: {100 * explode_ratio:.1f}%,',
                        f'exploded gradient mean: {np.mean(exploding_grad):.2f}']
             logging.info(' '.join(log_msg))
-        
-        performance = accuracy_balanced_avg # we always maximize model performance
-        return cross_entropy_avg, performance
 
+        performance = accuracy_balanced_avg  # we always maximize model performance
+        return cross_entropy_avg, performance
 
     def avg(self, val):
         return val
-

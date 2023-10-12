@@ -5,7 +5,7 @@
     "mute_tqdm": false,
     
     "batch_size": 2,
-    "num_data_workers": 0,
+    "num_data_workers": 6,
     "num_gdf": 16,
     "num_signatures": 16,
     "smoothing": false,
