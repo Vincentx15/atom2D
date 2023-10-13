@@ -241,8 +241,6 @@ class TrainerBase(ABC):
         optim = getattr(torch.optim, config.optimizer)
         self.optimizer = optim(self.model.parameters(),
                                lr=config.lr,
-                               betas=(0.9, 0.999),
-                               eps=1e-08,
                                weight_decay=config.weight_decay)
 
         # # distributed training

@@ -47,7 +47,6 @@ def train(config):
                        graph_model='bipartite',
                        **config)
     # initialize trainer
-    config.out_dir = os.path.join(config.out_dir, config.run_name)
     trainer = Trainer(config, data, model)
     trainer.train()
 
@@ -79,8 +78,8 @@ def get_config():
     parser.add_argument('--num_gdf', type=int)
 
     # model args
-    parser.add_argument('--c_width', type=int, default=184)
-    parser.add_argument('--n_blocks', type=int, default=4)
+    parser.add_argument('--c_width', type=int, default=150)
+    parser.add_argument('--n_blocks', type=int, default=6)
 
     # optimizer arguments
     parser.add_argument('--optimizer', type=str, choices=['Adam', 'AdamW'])
@@ -130,13 +129,8 @@ if __name__ == '__main__':
     print("Training on ", config.device)
 
     # init horovod for distributed training
-    config.use_hvd = torch.cuda.device_count() > 1
-    # if config.use_hvd:
-    #     hvd.init()
-    #     torch.cuda.set_device(hvd.local_rank())
-    #     config.is_master = hvd.local_rank() == 0
-    #     config.num_GPUs = hvd.size() # for logging purposes
-    #     assert hvd.size() == torch.cuda.device_count()
+    config.use_hvd = False
+    config.out_dir = os.path.join(config.out_dir, config.run_name)
 
     # logging, attach the hook after automatic download from HDFS
     set_logger(os.path.join(config.out_dir, 'train.log'))

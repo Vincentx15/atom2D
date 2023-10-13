@@ -23,12 +23,8 @@ class Trainer(TrainerBase):
         if self.is_master:
             self.tb_writer = SummaryWriter(log_dir=self.out_dir, filename_suffix=f'.{self.run_name}')
             columns = [
-                "Epoch", "Partition",
-                "CrossEntropy_avg",
-                "Accuracy_micro", "Accuracy_macro", "Accuracy_balanced",
-                "Precision_micro", "Precision_macro",
-                "Recall_micro", "Recall_macro",
-                "F1_micro", "F1_macro",
+                "Epoch", "Partition", "CrossEntropy_avg", "Accuracy_micro", "Accuracy_macro", "Accuracy_balanced",
+                "Precision_micro", "Precision_macro", "Recall_micro", "Recall_macro", "F1_micro", "F1_macro",
                 "AUROC_macro",
             ]
             self.csv_writer = CSVWriter(os.path.join(self.out_dir, 'metrics.csv'), columns, overwrite=False)
@@ -75,28 +71,18 @@ class Trainer(TrainerBase):
                     self.optimizer.zero_grad()
                     if self.fp16:  # mixed precision
                         self.scaler.scale(cross_entropy_loss).backward()
-                        if self.use_hvd:
-                            self.optimizer.synchronize()
                         self.scaler.unscale_(self.optimizer)
                         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
                         if grad_norm > self.clip_grad_norm:
                             exploding_grad.append(grad_norm.item())
-                        opt_context = self.optimizer.skip_synchronize() if self.use_hvd \
-                            else contextlib.nullcontext()
-                        with opt_context:
-                            self.scaler.step(self.optimizer)
+                        self.scaler.step(self.optimizer)
                         self.scaler.update()
                     else:  # torch.float32 default precision
                         cross_entropy_loss.backward()
-                        if self.use_hvd:
-                            self.optimizer.synchronize()
                         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
                         if grad_norm > self.clip_grad_norm:
                             exploding_grad.append(grad_norm.item())
-                        opt_context = self.optimizer.skip_synchronize() if self.use_hvd \
-                            else contextlib.nullcontext()
-                        with opt_context:
-                            self.optimizer.step()
+                        self.optimizer.step()
 
                 # add ouputs
                 pred_scores.append(output)
