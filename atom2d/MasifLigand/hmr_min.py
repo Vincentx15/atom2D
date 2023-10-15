@@ -13,7 +13,7 @@ import torch
 from abc import ABC, abstractmethod
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
-from torch.optim.lr_scheduler import _LRScheduler, LinearLR, CosineAnnealingLR, SequentialLR
+from torch.optim.lr_scheduler import _LRScheduler, LinearLR, CosineAnnealingLR, SequentialLR, LambdaLR
 
 
 def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000):
@@ -45,6 +45,9 @@ def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs):
         decay_scheduler = CosineAnnealingLR(optimizer,
                                             T_max=total_epochs - warmup_epochs,
                                             eta_min=1E-8)
+    elif scheduler == 'constant':
+        lambda1 = lambda epoch: 1.0
+        decay_scheduler = LambdaLR(optimizer, lr_lambda=lambda1)
     else:
         raise NotImplementedError
 
