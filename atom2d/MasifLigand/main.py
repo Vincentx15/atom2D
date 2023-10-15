@@ -1,13 +1,14 @@
 import os
 import sys
 
-import argparse
-from easydict import EasyDict as edict
+# import argparse
+# from easydict import EasyDict as edict
 from functools import partialmethod
 import json
 import logging
 import torch
 from tqdm import tqdm
+import hydra
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -21,6 +22,36 @@ from psr_task.models import PSRSurfNet
 import torch.multiprocessing
 
 torch.multiprocessing.set_sharing_strategy('file_system')
+
+
+@hydra.main(config_path="./", config_name="config")
+def main(config=None):
+    print("Training on ", config.device)
+
+    # init horovod for distributed training
+    config.is_master = True
+    config.use_hvd = False
+    config.out_dir = os.path.join(config.out_dir, config.run_name)
+
+    # logging, attach the hook after automatic download from HDFS
+    set_logger(os.path.join(config.out_dir, 'train.log'))
+    if config.is_master:
+        logging.info('==> Configurations')
+        for key, val in sorted(config.items(), key=lambda x: x[0]):
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    logging.info(f'\t[{key}] {k}: {v}')
+            else:
+                logging.info(f'\t{key}: {val}')
+
+    # set random seed
+    set_seed(config.seed)
+
+    # mute tqdm
+    if config.mute_tqdm or not config.is_master:
+        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+
+    train(config)
 
 
 def train(config):
@@ -51,103 +82,104 @@ def train(config):
     trainer.train()
 
 
-def get_config():
-    # parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='config.json')
+# def get_config():
+#     # parse arguments
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--config', type=str, default='config.json')
 
-    # logging arguments
-    parser.add_argument('--run_name', type=str, default="default")
-    parser.add_argument('--out_dir', type=str, default='../../data/MasifLigand/outdir')
-    parser.add_argument('--test_freq', type=int)
-    parser.add_argument('--seed', type=int)
-    parser.add_argument('--auto_resume', type=lambda x: eval(x))
-    parser.add_argument('--mute_tqdm', type=lambda x: eval(x))
-    # data arguments
-    parser.add_argument('--data_dir', type=str, default='../../data/MasifLigand/dataset_MasifLigand/')
-    parser.add_argument('--processed_dir', type=str, default='../../data/MasifLigand/cache_npz')
-    parser.add_argument('--operator_dir', type=str, default='../../data/MasifLigand/cache_operator')
-    parser.add_argument('--train_split_file', type=str, default='splits/train-list.txt')
-    parser.add_argument('--valid_split_file', type=str, default='splits/val-list.txt')
-    parser.add_argument('--test_split_file', type=str, default='splits/test-list.txt')
-    parser.add_argument('--use_chem_feat', type=lambda x: eval(x), default=True)
-    parser.add_argument('--use_geom_feat', type=lambda x: eval(x), default=True)
+#     # logging arguments
+#     parser.add_argument('--run_name', type=str, default="default")
+#     parser.add_argument('--out_dir', type=str, default='../../data/MasifLigand/outdir')
+#     parser.add_argument('--test_freq', type=int)
+#     parser.add_argument('--seed', type=int)
+#     parser.add_argument('--auto_resume', type=lambda x: eval(x))
+#     parser.add_argument('--mute_tqdm', type=lambda x: eval(x))
+#     # data arguments
+#     parser.add_argument('--data_dir', type=str, default='../../data/MasifLigand/dataset_MasifLigand/')
+#     parser.add_argument('--processed_dir', type=str, default='../../data/MasifLigand/cache_npz')
+#     parser.add_argument('--operator_dir', type=str, default='../../data/MasifLigand/cache_operator')
+#     parser.add_argument('--train_split_file', type=str, default='splits/train-list.txt')
+#     parser.add_argument('--valid_split_file', type=str, default='splits/val-list.txt')
+#     parser.add_argument('--test_split_file', type=str, default='splits/test-list.txt')
+#     parser.add_argument('--use_chem_feat', type=lambda x: eval(x), default=True)
+#     parser.add_argument('--use_geom_feat', type=lambda x: eval(x), default=True)
 
-    parser.add_argument('--batch_size', type=int)
-    parser.add_argument('--num_data_workers', type=int)  # nw 6 : 1'33, nw 4 : 1'31,  nw 2 : 1'31
-    parser.add_argument('--num_gdf', type=int)
+#     parser.add_argument('--batch_size', type=int)
+#     parser.add_argument('--num_data_workers', type=int)  # nw 6 : 1'33, nw 4 : 1'31,  nw 2 : 1'31
+#     parser.add_argument('--num_gdf', type=int)
 
-    # model args
-    parser.add_argument('--c_width', type=int, default=150)
-    parser.add_argument('--n_blocks', type=int, default=6)
+#     # model args
+#     parser.add_argument('--c_width', type=int, default=150)
+#     parser.add_argument('--n_blocks', type=int, default=6)
 
-    # optimizer arguments
-    parser.add_argument('--optimizer', type=str, choices=['Adam', 'AdamW'])
-    parser.add_argument('--epochs', type=int)
-    parser.add_argument('--warmup_epochs', type=int)
-    parser.add_argument('--lr', type=float)
-    parser.add_argument('--lr_scheduler', type=str, choices=['PolynomialLRWithWarmup', 'CosineAnnealingLRWithWarmup'])
-    parser.add_argument('--weight_decay', type=float)
-    parser.add_argument('--clip_grad_norm', type=float)
-    parser.add_argument('--fp16', type=lambda x: eval(x))
-    # model-specific arguments
-    model_names = ['HMR']
-    parser.add_argument('--model', type=str, choices=model_names)
-    parser.add_argument('--device', type=int, default=-1)
-    args = parser.parse_args()
+#     # optimizer arguments
+#     parser.add_argument('--optimizer', type=str, choices=['Adam', 'AdamW'])
+#     parser.add_argument('--epochs', type=int)
+#     parser.add_argument('--warmup_epochs', type=int)
+#     parser.add_argument('--lr', type=float)
+#     parser.add_argument('--lr_scheduler', type=str, choices=['PolynomialLRWithWarmup', 'CosineAnnealingLRWithWarmup'])
+#     parser.add_argument('--weight_decay', type=float)
+#     parser.add_argument('--clip_grad_norm', type=float)
+#     parser.add_argument('--fp16', type=lambda x: eval(x))
+#     # model-specific arguments
+#     model_names = ['HMR']
+#     parser.add_argument('--model', type=str, choices=model_names)
+#     parser.add_argument('--device', type=int, default=-1)
+#     args = parser.parse_args()
 
-    # load default config
-    with open(args.config) as f:
-        config = json.load(f)
+#     # load default config
+#     with open(args.config) as f:
+#         config = json.load(f)
 
-    # update config with user-defined args
-    for arg in vars(args):
-        if getattr(args, arg) is not None:
-            model_name = arg[:arg.find('_')]
-            if model_name in model_names:
-                model_arg = arg[arg.find('_') + 1:]
-                config[model_name][model_arg] = getattr(args, arg)
-            else:
-                config[arg] = getattr(args, arg)
+#     # update config with user-defined args
+#     for arg in vars(args):
+#         if getattr(args, arg) is not None:
+#             model_name = arg[:arg.find('_')]
+#             if model_name in model_names:
+#                 model_arg = arg[arg.find('_') + 1:]
+#                 config[model_name][model_arg] = getattr(args, arg)
+#             else:
+#                 config[arg] = getattr(args, arg)
 
-    return edict(config)
+#     return edict(config)
 
 
 if __name__ == '__main__':
-    # init config
-    config = get_config()
-    config.is_master = True
-    if torch.cuda.is_available():
-        if int(config.device) > 0:
-            config.device = f'cuda:{config.device}'
-        else:
-            config.device = f'cuda'
+    main()
+    # # init config
+    # config = get_config()
+    # config.is_master = True
+    # if torch.cuda.is_available():
+    #     if int(config.device) > 0:
+    #         config.device = f'cuda:{config.device}'
+    #     else:
+    #         config.device = f'cuda'
 
-    else:
-        config.device = 'cpu'
+    # else:
+    #     config.device = 'cpu'
 
-    print("Training on ", config.device)
+    # print("Training on ", config.device)
 
-    # init horovod for distributed training
-    config.use_hvd = False
-    config.out_dir = os.path.join(config.out_dir, config.run_name)
+    # # init horovod for distributed training
+    # config.use_hvd = False
+    # config.out_dir = os.path.join(config.out_dir, config.run_name)
 
-    # logging, attach the hook after automatic download from HDFS
-    set_logger(os.path.join(config.out_dir, 'train.log'))
-    if config.is_master:
-        logging.info('==> Configurations')
-        for key, val in sorted(config.items(), key=lambda x: x[0]):
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    logging.info(f'\t[{key}] {k}: {v}')
-            else:
-                logging.info(f'\t{key}: {val}')
+    # # logging, attach the hook after automatic download from HDFS
+    # set_logger(os.path.join(config.out_dir, 'train.log'))
+    # if config.is_master:
+    #     logging.info('==> Configurations')
+    #     for key, val in sorted(config.items(), key=lambda x: x[0]):
+    #         if isinstance(val, dict):
+    #             for k, v in val.items():
+    #                 logging.info(f'\t[{key}] {k}: {v}')
+    #         else:
+    #             logging.info(f'\t{key}: {val}')
 
-    # set random seed
-    set_seed(config.seed)
+    # # set random seed
+    # set_seed(config.seed)
 
-    # mute tqdm
-    if config.mute_tqdm or not config.is_master:
-        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+    # # mute tqdm
+    # if config.mute_tqdm or not config.is_master:
+    #     tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 
-    train(config)
+    # train(config)
