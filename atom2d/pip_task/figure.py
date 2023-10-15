@@ -43,7 +43,7 @@ def push_to_surf(vertices, graph, graph_features):
     # First we build the graph and message passing
     bipartite_graphsurf_right, _ = compute_bipartite_graphs(vertices,
                                                             graph,
-                                                            neigh_th=8)
+                                                            neigh_th=10)
     mp = AddAggregate(aggr='max')
 
     # Then we need to have a full input (bipartite have vertices as nodes) and then select back.
@@ -63,7 +63,7 @@ def main(cfg=None):
     model = PIPModule(cfg)
     version = "version_150_bipartite_4_skip_gat"  # todo change
     name = "epoch=18-auroc_val=0.855"  # todo change
-    save_name = "/mnt/disk2/souhaib/data.pkl"  # todo change
+    save_name = "/mnt/disk2/souhaib/data4.pkl"  # todo change
 
     config_dir = Path(__file__).resolve().parent / f"../../outputs/pip/lightning_logs/{version}/"
     saved_model_path = config_dir / f"checkpoints/{name}.ckpt"
@@ -128,7 +128,7 @@ def main(cfg=None):
                                                              surf_preds_right.numpy().flatten(), surf_gt_right.numpy().flatten()]
 
         counter += 1
-        if counter > 20:  # todo change
+        if counter > 50:  # todo change
             break
 
     with open(save_name, 'wb') as file:
