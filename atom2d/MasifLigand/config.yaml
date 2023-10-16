@@ -1,3 +1,7 @@
+hydra:
+  job:
+    chdir: False
+
 
 # logging
 run_name: default
@@ -16,6 +20,9 @@ valid_split_file: splits/val-list.txt
 test_split_file: splits/test-list.txt
 use_chem_feat: True
 use_geom_feat: True
+max_eigen_val: 5.0
+num_signatures: 16
+smoothing: False
 
 # loader args
 batch_size: 16
@@ -28,8 +35,8 @@ n_blocks: 6
 
 # optimizer arguments
 optimizer: Adam
-epoch: 400
-warmup_epoch: 30
+epochs: 400
+warmup_epochs: 30
 lr: 0.0005
 lr_scheduler: constant  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup
 weight_decay: 0

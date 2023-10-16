@@ -140,24 +140,27 @@ class Trainer(TrainerBase):
         self.csv_writer.write()
 
         if self.tb_writer is not None:
-            self.tb_writer.add_scalar(f"CrossEntropy_avg/{partition}", cross_entropy_avg, epoch)
+            if self.test_best:
+                self.tb_writer.add_scalar(f"best_acc_balanced", accuracy_balanced_avg, 10)
+            else:
+                self.tb_writer.add_scalar(f"CrossEntropy_avg/{partition}", cross_entropy_avg, epoch)
 
-            self.tb_writer.add_scalar(f"Accuracy_macro/{partition}", accuracy_macro_avg, epoch)
-            self.tb_writer.add_scalar(f"Accuracy_micro/{partition}", accuracy_micro_avg, epoch)
-            self.tb_writer.add_scalar(f"Accuracy_balanced/{partition}", accuracy_balanced_avg, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_macro/{partition}", accuracy_macro_avg, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_micro/{partition}", accuracy_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_balanced/{partition}", accuracy_balanced_avg, epoch)
 
-            self.tb_writer.add_scalar(f"Precision_macro/{partition}", precision_macro_avg, epoch)
-            self.tb_writer.add_scalar(f"Precision_micro/{partition}", precision_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"Precision_macro/{partition}", precision_macro_avg, epoch)
+                self.tb_writer.add_scalar(f"Precision_micro/{partition}", precision_micro_avg, epoch)
 
-            self.tb_writer.add_scalar(f"Recall_macro/{partition}", recall_macro_avg, epoch)
-            self.tb_writer.add_scalar(f"Recall_micro/{partition}", recall_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"Recall_macro/{partition}", recall_macro_avg, epoch)
+                self.tb_writer.add_scalar(f"Recall_micro/{partition}", recall_micro_avg, epoch)
 
-            self.tb_writer.add_scalar(f"F1_macro/{partition}", f1_macro_avg, epoch)
-            self.tb_writer.add_scalar(f"F1_micro/{partition}", f1_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"F1_macro/{partition}", f1_macro_avg, epoch)
+                self.tb_writer.add_scalar(f"F1_micro/{partition}", f1_micro_avg, epoch)
 
-            self.tb_writer.add_scalar(f"AUROC_macro/{partition}", auroc_macro_avg, epoch)
-            if partition == 'train':
-                self.tb_writer.add_scalar('LR', current_lr, epoch)
+                self.tb_writer.add_scalar(f"AUROC_macro/{partition}", auroc_macro_avg, epoch)
+                if partition == 'train':
+                    self.tb_writer.add_scalar('LR', current_lr, epoch)
 
         # check exploding gradient
         explode_ratio = len(exploding_grad) / len(data_loader)

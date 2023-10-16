@@ -117,7 +117,6 @@ class DatasetMasifLigand(Dataset):
 
         self.max_eigen_val = config.max_eigen_val
         self.smoothing = config.smoothing
-        self.vert_nbr_atoms = config.vert_nbr_atoms
         self.num_signatures = config.num_signatures
 
         self.gauss_curv_gdf = GaussianDistance(start=-0.1, stop=0.1, num_centers=config.num_gdf)

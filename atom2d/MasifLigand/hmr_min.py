@@ -212,6 +212,7 @@ class TrainerBase(ABC):
         self.scaler = torch.cuda.amp.GradScaler()
         self.out_dir = config.out_dir
         self.auto_resume = config.auto_resume
+        self.test_best = False
 
         # model
         self.model = model
@@ -292,7 +293,7 @@ class TrainerBase(ABC):
                    f'total number of epochs: {epoch:d},',
                    f'average epoch time: {np.mean(epoch_times):.1f} sec']
         logging.info(' '.join(log_msg))
-        self.tb_writer = None  # do not write to tensorboard
+        self.test_best = True
         logging.info('---------Evaluate Best Model on Test Set---------------')
         with open(os.path.join(self.out_dir, 'model_best.pt'), 'rb') as fin:
             best_model = torch.load(fin, map_location='cpu')['model']
