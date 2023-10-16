@@ -73,8 +73,7 @@ def get_config():
     config.test_split_file = None
     config.batch_size = 1
     config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    config.use_hvd = False
-    
+
     if config.model_dir is None:
         config.model_dir = os.path.join(config.run_name, 'model_best.pt')
     

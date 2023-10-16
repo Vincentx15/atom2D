@@ -101,10 +101,9 @@ class DataLoaderMasifLigand(DataLoaderBase):
         self.valid_set = DatasetMasifLigand(config, valid_fpaths)
         self.test_set = DatasetMasifLigand(config, test_fpaths)
 
-        if not config.use_hvd or config.is_master:
-            msg = [f'MaSIF-ligand task, train: {len(self.train_set)},',
-                   f'val: {len(self.valid_set)}, test: {len(self.test_set)}']
-            logging.info(' '.join(msg))
+        msg = [f'MaSIF-ligand task, train: {len(self.train_set)},',
+               f'val: {len(self.valid_set)}, test: {len(self.test_set)}']
+        logging.info(' '.join(msg))
 
 
 class DatasetMasifLigand(Dataset):

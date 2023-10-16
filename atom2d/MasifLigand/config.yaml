@@ -1,10 +1,10 @@
 
 # logging
 run_name: default
-out_dir: ../../data/MasifLigand/outdir
+out_dir: ../../data/MasifLigand/out_dir
 test_freq: 
 seed: 2023
-auto_resume: 
+auto_resume: False
 mute_tqdm: False
 
 # data args
@@ -18,9 +18,9 @@ use_chem_feat: True
 use_geom_feat: True
 
 # loader args
-batch_size: 
-num_data_workers: 
-num_gdf: 
+batch_size: 16
+num_data_workers: 6
+num_gdf: 16
 
 # model args
 c_width: 150
@@ -30,7 +30,7 @@ n_blocks: 6
 optimizer: Adam
 epoch: 400
 warmup_epoch: 30
-lr: 1e-4
+lr: 0.0005
 lr_scheduler: constant  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup
 weight_decay: 0
 clip_grad_norm: 1.0
@@ -38,4 +38,4 @@ fp16: False
 
 # model-specific arguments
 model: HMR
-device: cuda:0
+device: -1
