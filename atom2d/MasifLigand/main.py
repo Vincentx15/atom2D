@@ -26,11 +26,8 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 @hydra.main(config_path="./", config_name="config")
 def main(config=None):
-    if torch.cuda.is_available():
-        if int(config.device) > 0:
-            config.device = f'cuda:{config.device}'
-        else:
-            config.device = f'cuda'
+    if torch.cuda.is_available() and int(config.device) >= 0:
+        config.device = f'cuda:{config.device}'
     else:
         config.device = 'cpu'
     print("Training on ", config.device)

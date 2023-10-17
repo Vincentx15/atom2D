@@ -37,9 +37,9 @@ n_blocks: 6
 # optimizer arguments
 optimizer: Adam
 epochs: 400
-warmup_epochs: 30
+warmup_epochs: 10
 lr: 0.0005
-lr_scheduler: constant  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup
+lr_scheduler: CosineAnnealingLRWithWarmup  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup
 weight_decay: 0
 clip_grad_norm: 1.0
 fp16: False
