@@ -6,7 +6,7 @@ hydra:
 # logging
 run_name: default
 out_dir: ../../data/MasifLigand/out_dir
-test_freq: 
+test_freq: 10
 seed: 2023
 auto_resume: False
 mute_tqdm: False
@@ -19,6 +19,7 @@ train_split_file: splits/train-list.txt
 valid_split_file: splits/val-list.txt
 test_split_file: splits/test-list.txt
 use_chem_feat: True
+skip_hydro: False
 use_geom_feat: True
 max_eigen_val: 5.0
 num_signatures: 16
@@ -26,7 +27,7 @@ smoothing: False
 
 # loader args
 batch_size: 16
-num_data_workers: 6
+num_data_workers: 4
 num_gdf: 16
 
 # model args
