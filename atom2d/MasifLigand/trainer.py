@@ -4,19 +4,103 @@ from tqdm import tqdm
 import logging
 import contextlib
 import numpy as np
+import shutil
+import time
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.distributed import DistributedSampler
-from hmr_min import TrainerBase
 from hmr_min import CSVWriter
 
 from metrics import multi_class_eval
+from abc import ABC, abstractmethod
+
+from torch.optim.lr_scheduler import _LRScheduler, LinearLR, CosineAnnealingLR, SequentialLR, LambdaLR
 
 
-class Trainer(TrainerBase):
+def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs):
+    warmup_scheduler = LinearLR(optimizer,
+                                start_factor=1E-3,
+                                total_iters=warmup_epochs)
 
+    if scheduler == 'PolynomialLRWithWarmup':
+        decay_scheduler = PolynomialLR(optimizer,
+                                       total_iters=total_epochs - warmup_epochs,
+                                       power=1)
+    elif scheduler == 'CosineAnnealingLRWithWarmup':
+        decay_scheduler = CosineAnnealingLR(optimizer,
+                                            T_max=total_epochs - warmup_epochs,
+                                            eta_min=1E-8)
+    elif scheduler == 'constant':
+        lambda1 = lambda epoch: 1.0
+        decay_scheduler = LambdaLR(optimizer, lr_lambda=lambda1)
+    else:
+        raise NotImplementedError
+
+    return SequentialLR(optimizer,
+                        schedulers=[warmup_scheduler, decay_scheduler],
+                        milestones=[warmup_epochs])
+
+
+class PolynomialLR(_LRScheduler):
+    def __init__(self, optimizer, total_iters, power, last_epoch=-1, verbose=False):
+        self.total_iters = total_iters
+        self.power = power
+        super().__init__(optimizer, last_epoch, verbose)
+
+    def get_lr(self):
+        if self.last_epoch == 0 or self.last_epoch > self.total_iters:
+            return [group['lr'] for group in self.optimizer.param_groups]
+
+        decay_factor = ((1.0 - self.last_epoch / self.total_iters) /
+                        (1.0 - (self.last_epoch - 1) / self.total_iters)) ** self.power
+        return [group['lr'] * decay_factor for group in self.optimizer.param_groups]
+
+
+# base trainer class
+class Trainer(ABC):
     def __init__(self, config, data, model):
-        super().__init__(config, data, model)
+        self.config = config
+        self.device = config.device
+        self.run_name = config.run_name
+        self.train_loader, self.valid_loader, self.test_loader = \
+            data.train_loader, data.valid_loader, data.test_loader
+        self.train_sampler = data.train_sampler
+        self.best_perf = float('-inf')
+        self.epochs = config.epochs
+        self.start_epoch = 1
+        self.warmup_epochs = config.warmup_epochs
+        self.test_freq = config.test_freq
+        self.clip_grad_norm = config.clip_grad_norm
+        self.fp16 = config.fp16
+        self.scaler = torch.cuda.amp.GradScaler()
+        self.out_dir = config.out_dir
+        self.auto_resume = config.auto_resume
+        self.test_best = False
+
+        # model
+        self.model = model
+        if self.device != 'cpu':
+            self.model = self.model.to(self.device)
+        # logging.info(self.model)
+        learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        logging.info(f'Number of learnable model parameters: {learnable_params}')
+        msg = [f'Batch size: {config.batch_size}, number of batches in data loaders - train:',
+               f'{len(self.train_loader)}, valid: {len(self.valid_loader)}, test: {len(self.test_loader)}']
+        logging.info(' '.join(msg))
+
+        # optimizer
+        if not config.optimizer in ['Adam', 'AdamW']:
+            raise NotImplementedError
+        optim = getattr(torch.optim, config.optimizer)
+        self.optimizer = optim(self.model.parameters(),
+                               lr=config.lr,
+                               weight_decay=config.weight_decay)
+        # LR scheduler
+        self.scheduler = get_lr_scheduler(scheduler=config.lr_scheduler,
+                                          optimizer=self.optimizer,
+                                          warmup_epochs=config.warmup_epochs,
+                                          total_epochs=config.epochs)
+
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
 
         # tensorboard and HDFS
@@ -27,6 +111,96 @@ class Trainer(TrainerBase):
             "AUROC_macro",
         ]
         self.csv_writer = CSVWriter(os.path.join(self.out_dir, 'metrics.csv'), columns, overwrite=False)
+
+    def train(self):
+        # automatically resume training
+        if self.auto_resume:
+            try:
+                self._auto_resume()
+            except:
+                logging.info(f'Failed to load checkpoint from {self.out_dir}, start training from scratch..')
+
+        train_t0 = time.time()
+        epoch_times = []
+        with tqdm(range(self.start_epoch, self.epochs + 1)) as tq:
+            for epoch in tq:
+                tq.set_description(f'Epoch {epoch}')
+                epoch_t0 = time.time()
+
+                train_loss, train_perf = self._train_epoch(epoch=epoch,
+                                                           data_loader=self.train_loader,
+                                                           data_sampler=self.train_sampler,
+                                                           partition='train')
+                valid_loss, valid_perf = self._train_epoch(epoch=epoch,
+                                                           data_loader=self.valid_loader,
+                                                           data_sampler=None,
+                                                           partition='valid')
+                # train_loss, train_perf = self._train_epoch(epoch=epoch,
+                #                                            data_loader=self.test_loader,
+                #                                            data_sampler=None,
+                #                                            partition='test')
+
+                self.scheduler.step()
+
+                tq.set_postfix(train_loss=train_loss, valid_loss=valid_loss,
+                               train_perf=abs(train_perf), valid_perf=abs(valid_perf))
+
+                epoch_times.append(time.time() - epoch_t0)
+
+                # save checkpoint
+                is_best = valid_perf > self.best_perf
+                self.best_perf = max(valid_perf, self.best_perf)
+                self._save_checkpoint(epoch=epoch,
+                                      is_best=is_best,
+                                      best_perf=self.best_perf)
+
+                # predict on test set using the latest model
+                if epoch % self.test_freq == 0:
+                    logging.info('Evaluating the latest model on test set')
+                    self._train_epoch(epoch=epoch,
+                                      data_loader=self.test_loader,
+                                      data_sampler=None,
+                                      partition='test')
+
+        # evaluate best model on test set
+        log_msg = [f'Total training time: {time.time() - train_t0:.1f} sec,',
+                   f'total number of epochs: {epoch:d},',
+                   f'average epoch time: {np.mean(epoch_times):.1f} sec']
+        logging.info(' '.join(log_msg))
+        self.test_best = True
+        logging.info('---------Evaluate Best Model on Test Set---------------')
+        with open(os.path.join(self.out_dir, 'model_best.pt'), 'rb') as fin:
+            best_model = torch.load(fin, map_location='cpu')['model']
+        self.model.load_state_dict(best_model)
+        self._train_epoch(epoch=-1,
+                          data_loader=self.test_loader,
+                          data_sampler=None,
+                          partition='test')
+
+    def _auto_resume(self):
+        # load from local output directory
+        with open(os.path.join(self.out_dir, 'model_last.pt'), 'rb') as fin:
+            checkpoint = torch.load(fin, map_location='cpu')
+        self.start_epoch = checkpoint['epoch'] + 1
+        self.best_perf = checkpoint['best_perf']
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
+        logging.info(f'Loaded checkpoint from {self.out_dir}, resume training at epoch {self.start_epoch}..')
+
+    def _save_checkpoint(self, epoch, is_best, best_perf):
+        state_dict = {
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'scheduler': self.scheduler.state_dict(),
+            'epoch': epoch,
+            'best_perf': best_perf,
+        }
+        filename = os.path.join(self.out_dir, 'model_last.pt')
+        torch.save(state_dict, filename)
+        if is_best:
+            logging.info(f'Saving current model as the best')
+            shutil.copyfile(filename, os.path.join(self.out_dir, 'model_best.pt'))
 
     # override pure virtual function
     def _train_epoch(self, epoch, data_loader, data_sampler, partition):
@@ -96,69 +270,61 @@ class Trainer(TrainerBase):
             f1_macro, f1_micro, \
             auroc_macro = multi_class_eval(torch.cat(pred_scores, dim=0), torch.cat(labels, dim=0), K=7)
 
-        cross_entropy_avg = self.avg(cross_entropy)
-        auroc_macro_avg = self.avg(auroc_macro)
-        accuracy_macro_avg, accuracy_micro_avg, accuracy_balanced_avg = self.avg(accuracy_macro), self.avg(
-            accuracy_micro), self.avg(accuracy_balanced)
-        precision_macro_avg, precision_micro_avg = self.avg(precision_macro), self.avg(precision_micro)
-        recall_macro_avg, recall_micro_avg = self.avg(recall_macro), self.avg(recall_micro)
-        f1_macro_avg, f1_micro_avg = self.avg(f1_macro), self.avg(f1_micro)
-
         current_lr = self.optimizer.param_groups[0]['lr']
         lr = f'{current_lr:.8f}' if partition == 'train' else '--'
 
         print_info = [
             f'===> Epoch {epoch} {partition.upper()}, LR: {lr}\n',
-            f'CrossEntropyAvg: {cross_entropy_avg:.3f}\n',
-            f'AccuracyAvg: {accuracy_macro_avg:.3f} (macro), {accuracy_micro_avg:.3f} (micro), {accuracy_balanced_avg:.3f} (balanced)\n',
-            f'PrecisionAvg: {precision_macro_avg:.3f} (macro), {precision_micro_avg:.3f} (micro)\n',
-            f'RecallAvg: {recall_macro_avg:.3f} (macro), {recall_micro_avg:.3f} (micro)\n',
-            f'F1Avg: {f1_macro_avg:.3f} (macro), {f1_micro_avg:.3f} (micro)\n',
-            f'AUROCAvg: {auroc_macro_avg:.3f} (macro)\n',
+            f'CrossEntropyAvg: {cross_entropy:.3f}\n',
+            f'AccuracyAvg: {accuracy_macro:.3f} (macro), {accuracy_micro:.3f} (micro), {accuracy_balanced:.3f} (balanced)\n',
+            f'PrecisionAvg: {precision_macro:.3f} (macro), {precision_micro:.3f} (micro)\n',
+            f'RecallAvg: {recall_macro:.3f} (macro), {recall_micro:.3f} (micro)\n',
+            f'F1Avg: {f1_macro:.3f} (macro), {f1_micro:.3f} (micro)\n',
+            f'AUROCAvg: {auroc_macro:.3f} (macro)\n',
         ]
         logging.info(''.join(print_info))
 
         self.csv_writer.add_scalar("Epoch", epoch)
         self.csv_writer.add_scalar("Partition", partition)
-        self.csv_writer.add_scalar("CrossEntropy_avg", cross_entropy_avg)
+        self.csv_writer.add_scalar("CrossEntropy_avg", cross_entropy)
 
-        self.csv_writer.add_scalar("Accuracy_macro", accuracy_macro_avg)
-        self.csv_writer.add_scalar("Accuracy_micro", accuracy_micro_avg)
-        self.csv_writer.add_scalar("Accuracy_balanced", accuracy_balanced_avg)
+        self.csv_writer.add_scalar("Accuracy_macro", accuracy_macro)
+        self.csv_writer.add_scalar("Accuracy_micro", accuracy_micro)
+        self.csv_writer.add_scalar("Accuracy_balanced", accuracy_balanced)
 
-        self.csv_writer.add_scalar("Precision_macro", precision_macro_avg)
-        self.csv_writer.add_scalar("Precision_micro", precision_micro_avg)
+        self.csv_writer.add_scalar("Precision_macro", precision_macro)
+        self.csv_writer.add_scalar("Precision_micro", precision_micro)
 
-        self.csv_writer.add_scalar("Recall_macro", recall_macro_avg)
-        self.csv_writer.add_scalar("Recall_micro", recall_micro_avg)
+        self.csv_writer.add_scalar("Recall_macro", recall_macro)
+        self.csv_writer.add_scalar("Recall_micro", recall_micro)
 
-        self.csv_writer.add_scalar("F1_macro", f1_macro_avg)
-        self.csv_writer.add_scalar("F1_micro", f1_micro_avg)
+        self.csv_writer.add_scalar("F1_macro", f1_macro)
+        self.csv_writer.add_scalar("F1_micro", f1_micro)
 
-        self.csv_writer.add_scalar("AUROC_macro", auroc_macro_avg)
+        self.csv_writer.add_scalar("AUROC_macro", auroc_macro)
 
         self.csv_writer.write()
 
         if self.tb_writer is not None:
             if self.test_best:
-                self.tb_writer.add_scalar(f"best_acc_balanced", accuracy_balanced_avg, 10)
+                self.tb_writer.add_scalar(f"best_acc_balanced", accuracy_balanced, 10)
             else:
-                self.tb_writer.add_scalar(f"CrossEntropy_avg/{partition}", cross_entropy_avg, epoch)
+                self.tb_writer.add_scalar(f"CrossEntropy_avg/{partition}", cross_entropy, epoch)
 
-                self.tb_writer.add_scalar(f"Accuracy_macro/{partition}", accuracy_macro_avg, epoch)
-                self.tb_writer.add_scalar(f"Accuracy_micro/{partition}", accuracy_micro_avg, epoch)
-                self.tb_writer.add_scalar(f"Accuracy_balanced/{partition}", accuracy_balanced_avg, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_macro/{partition}", accuracy_macro, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_micro/{partition}", accuracy_micro, epoch)
+                self.tb_writer.add_scalar(f"Accuracy_balanced/{partition}", accuracy_balanced, epoch)
 
-                self.tb_writer.add_scalar(f"Precision_macro/{partition}", precision_macro_avg, epoch)
-                self.tb_writer.add_scalar(f"Precision_micro/{partition}", precision_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"Precision_macro/{partition}", precision_macro, epoch)
+                self.tb_writer.add_scalar(f"Precision_micro/{partition}", precision_micro, epoch)
 
-                self.tb_writer.add_scalar(f"Recall_macro/{partition}", recall_macro_avg, epoch)
-                self.tb_writer.add_scalar(f"Recall_micro/{partition}", recall_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"Recall_macro/{partition}", recall_macro, epoch)
+                self.tb_writer.add_scalar(f"Recall_micro/{partition}", recall_micro, epoch)
 
-                self.tb_writer.add_scalar(f"F1_macro/{partition}", f1_macro_avg, epoch)
-                self.tb_writer.add_scalar(f"F1_micro/{partition}", f1_micro_avg, epoch)
+                self.tb_writer.add_scalar(f"F1_macro/{partition}", f1_macro, epoch)
+                self.tb_writer.add_scalar(f"F1_micro/{partition}", f1_micro, epoch)
 
-                self.tb_writer.add_scalar(f"AUROC_macro/{partition}", auroc_macro_avg, epoch)
+                self.tb_writer.add_scalar(f"AUROC_macro/{partition}", auroc_macro, epoch)
                 if partition == 'train':
                     self.tb_writer.add_scalar('LR', current_lr, epoch)
 
@@ -169,8 +335,5 @@ class Trainer(TrainerBase):
                        f'exploded gradient mean: {np.mean(exploding_grad):.2f}']
             logging.info(' '.join(log_msg))
 
-        performance = accuracy_balanced_avg  # we always maximize model performance
-        return cross_entropy_avg, performance
-
-    def avg(self, val):
-        return val
+        performance = accuracy_balanced  # we always maximize model performance
+        return cross_entropy, performance

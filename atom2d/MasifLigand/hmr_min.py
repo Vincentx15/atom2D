@@ -13,63 +13,6 @@ import torch
 from abc import ABC, abstractmethod
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
-from torch.optim.lr_scheduler import _LRScheduler, LinearLR, CosineAnnealingLR, SequentialLR, LambdaLR
-
-
-def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000):
-    eigen_vals = eigen_vals.flatten()
-    assert eigen_vals[1] > 0
-    assert np.min(eigen_vals) > -1E-6
-    assert np.array_equal(eigen_vals, sorted(eigen_vals))
-
-    t_list = np.geomspace(t_min, t_max, num_t)
-    phase = np.exp(-np.outer(t_list, eigen_vals[1:]))
-    wphi = phase[:, None, :] * eigen_vecs[None, :, 1:]
-    HKS = np.einsum('tnk,nk->nt', wphi, eigen_vecs[:, 1:]) * scale
-    heat_trace = np.sum(phase, axis=1)
-    HKS /= heat_trace
-
-    return HKS
-
-
-def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs):
-    warmup_scheduler = LinearLR(optimizer,
-                                start_factor=1E-3,
-                                total_iters=warmup_epochs)
-
-    if scheduler == 'PolynomialLRWithWarmup':
-        decay_scheduler = PolynomialLR(optimizer,
-                                       total_iters=total_epochs - warmup_epochs,
-                                       power=1)
-    elif scheduler == 'CosineAnnealingLRWithWarmup':
-        decay_scheduler = CosineAnnealingLR(optimizer,
-                                            T_max=total_epochs - warmup_epochs,
-                                            eta_min=1E-8)
-    elif scheduler == 'constant':
-        lambda1 = lambda epoch: 1.0
-        decay_scheduler = LambdaLR(optimizer, lr_lambda=lambda1)
-    else:
-        raise NotImplementedError
-
-    return SequentialLR(optimizer,
-                        schedulers=[warmup_scheduler, decay_scheduler],
-                        milestones=[warmup_epochs])
-
-
-class PolynomialLR(_LRScheduler):
-    def __init__(self, optimizer, total_iters, power, last_epoch=-1, verbose=False):
-        self.total_iters = total_iters
-        self.power = power
-        super().__init__(optimizer, last_epoch, verbose)
-
-    def get_lr(self):
-        if self.last_epoch == 0 or self.last_epoch > self.total_iters:
-            return [group['lr'] for group in self.optimizer.param_groups]
-
-        decay_factor = ((1.0 - self.last_epoch / self.total_iters) /
-                        (1.0 - (self.last_epoch - 1) / self.total_iters)) ** self.power
-        return [group['lr'] * decay_factor for group in self.optimizer.param_groups]
-
 
 # atom type label for one-hot-encoding
 atom_type_dict = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'S': 4, 'F': 5, 'P': 6, 'Cl': 7, 'Se': 8,
@@ -90,6 +33,21 @@ hydrophob_dict = {
 res_type_to_hphob = {
     idx: hydrophob_dict[res_type] for res_type, idx in res_type_dict.items()
 }
+
+def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000):
+    eigen_vals = eigen_vals.flatten()
+    assert eigen_vals[1] > 0
+    assert np.min(eigen_vals) > -1E-6
+    assert np.array_equal(eigen_vals, sorted(eigen_vals))
+
+    t_list = np.geomspace(t_min, t_max, num_t)
+    phase = np.exp(-np.outer(t_list, eigen_vals[1:]))
+    wphi = phase[:, None, :] * eigen_vecs[None, :, 1:]
+    HKS = np.einsum('tnk,nk->nt', wphi, eigen_vecs[:, 1:]) * scale
+    heat_trace = np.sum(phase, axis=1)
+    HKS /= heat_trace
+
+    return HKS
 
 
 class CSVWriter(object):
@@ -192,147 +150,3 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
 
-
-# base trainer class
-class TrainerBase(ABC):
-    def __init__(self, config, data, model):
-        self.config = config
-        self.device = config.device
-        self.run_name = config.run_name
-        self.train_loader, self.valid_loader, self.test_loader = \
-            data.train_loader, data.valid_loader, data.test_loader
-        self.train_sampler = data.train_sampler
-        self.best_perf = float('-inf')
-        self.epochs = config.epochs
-        self.start_epoch = 1
-        self.warmup_epochs = config.warmup_epochs
-        self.test_freq = config.test_freq
-        self.clip_grad_norm = config.clip_grad_norm
-        self.fp16 = config.fp16
-        self.scaler = torch.cuda.amp.GradScaler()
-        self.out_dir = config.out_dir
-        self.auto_resume = config.auto_resume
-        self.test_best = False
-
-        # model
-        self.model = model
-        if self.device != 'cpu':
-            self.model = self.model.to(self.device)
-        # logging.info(self.model)
-        learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        logging.info(f'Number of learnable model parameters: {learnable_params}')
-        msg = [f'Batch size: {config.batch_size}, number of batches in data loaders - train:',
-               f'{len(self.train_loader)}, valid: {len(self.valid_loader)}, test: {len(self.test_loader)}']
-        logging.info(' '.join(msg))
-
-        # optimizer
-        if not config.optimizer in ['Adam', 'AdamW']:
-            raise NotImplementedError
-        optim = getattr(torch.optim, config.optimizer)
-        self.optimizer = optim(self.model.parameters(),
-                               lr=config.lr,
-                               weight_decay=config.weight_decay)
-        # LR scheduler
-        self.scheduler = get_lr_scheduler(scheduler=config.lr_scheduler,
-                                          optimizer=self.optimizer,
-                                          warmup_epochs=config.warmup_epochs,
-                                          total_epochs=config.epochs)
-
-    def train(self):
-        # automatically resume training
-        if self.auto_resume:
-            try:
-                self._auto_resume()
-            except:
-                logging.info(f'Failed to load checkpoint from {self.out_dir}, start training from scratch..')
-
-        train_t0 = time.time()
-        epoch_times = []
-        with tqdm(range(self.start_epoch, self.epochs + 1)) as tq:
-            for epoch in tq:
-                tq.set_description(f'Epoch {epoch}')
-                epoch_t0 = time.time()
-
-                train_loss, train_perf = self._train_epoch(epoch=epoch,
-                                                           data_loader=self.train_loader,
-                                                           data_sampler=self.train_sampler,
-                                                           partition='train')
-                valid_loss, valid_perf = self._train_epoch(epoch=epoch,
-                                                           data_loader=self.valid_loader,
-                                                           data_sampler=None,
-                                                           partition='valid')
-                # train_loss, train_perf = self._train_epoch(epoch=epoch,
-                #                                            data_loader=self.test_loader,
-                #                                            data_sampler=None,
-                #                                            partition='test')
-
-                self.scheduler.step()
-
-                tq.set_postfix(train_loss=train_loss, valid_loss=valid_loss,
-                               train_perf=abs(train_perf), valid_perf=abs(valid_perf))
-
-                epoch_times.append(time.time() - epoch_t0)
-
-                # save checkpoint
-                is_best = valid_perf > self.best_perf
-                self.best_perf = max(valid_perf, self.best_perf)
-                self._save_checkpoint(epoch=epoch,
-                                          is_best=is_best,
-                                          best_perf=self.best_perf)
-
-                # predict on test set using the latest model
-                if epoch % self.test_freq == 0:
-                    logging.info('Evaluating the latest model on test set')
-                    self._train_epoch(epoch=epoch,
-                                      data_loader=self.test_loader,
-                                      data_sampler=None,
-                                      partition='test')
-
-        # evaluate best model on test set
-        log_msg = [f'Total training time: {time.time() - train_t0:.1f} sec,',
-                   f'total number of epochs: {epoch:d},',
-                   f'average epoch time: {np.mean(epoch_times):.1f} sec']
-        logging.info(' '.join(log_msg))
-        self.test_best = True
-        logging.info('---------Evaluate Best Model on Test Set---------------')
-        with open(os.path.join(self.out_dir, 'model_best.pt'), 'rb') as fin:
-            best_model = torch.load(fin, map_location='cpu')['model']
-        self.model.load_state_dict(best_model)
-        self._train_epoch(epoch=-1,
-                          data_loader=self.test_loader,
-                          data_sampler=None,
-                          partition='test')
-
-    def _auto_resume(self):
-        # load from local output directory
-        with open(os.path.join(self.out_dir, 'model_last.pt'), 'rb') as fin:
-            checkpoint = torch.load(fin, map_location='cpu')
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.best_perf = checkpoint['best_perf']
-        self.model.load_state_dict(checkpoint['model'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.scheduler.load_state_dict(checkpoint['scheduler'])
-        logging.info(f'Loaded checkpoint from {self.out_dir}, resume training at epoch {self.start_epoch}..')
-
-    def _save_checkpoint(self, epoch, is_best, best_perf):
-        state_dict = {
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'scheduler': self.scheduler.state_dict(),
-            'epoch': epoch,
-            'best_perf': best_perf,
-        }
-        filename = os.path.join(self.out_dir, 'model_last.pt')
-        torch.save(state_dict, filename)
-        if is_best:
-            logging.info(f'Saving current model as the best')
-            shutil.copyfile(filename, os.path.join(self.out_dir, 'model_best.pt'))
-
-    @abstractmethod
-    def _train_epoch(self):
-        pass
-
-    @staticmethod
-    def all_reduce(val):
-        if torch.cuda.device_count() < 2:
-            return val
