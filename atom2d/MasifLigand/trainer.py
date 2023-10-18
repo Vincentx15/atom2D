@@ -76,6 +76,7 @@ class Trainer(ABC):
         self.out_dir = config.out_dir
         self.auto_resume = config.auto_resume
         self.test_best = False
+        self.shrink_outputs = config.shrink_outputs
 
         # model
         self.model = model
@@ -232,9 +233,13 @@ class Trainer(ABC):
                     else:
                         output = self.model.forward(batch)
                         cross_entropy_loss = self.criterion(output, batch.labels)
+                        if self.shrink_outputs > 0:
+                            shrink_loss = self.shrink_outputs * torch.mean(output) ** 2
+                            cross_entropy_loss += shrink_loss
                 else:
                     output = self.model.forward(batch).squeeze(-1)
                     cross_entropy_loss = self.criterion(output, batch.labels)
+
                 # print(output) TODO: shrink outputs for stability :
                 #  current outputs look like :
                 #  -1078.4442, -1106.6555, 370.8554, -570.8733, -265.3181, -603.5452, 745.7878

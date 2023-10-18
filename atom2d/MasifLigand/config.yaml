@@ -47,6 +47,7 @@ lr_scheduler: CosineAnnealingLRWithWarmup  # PolynomialLRWithWarmup, CosineAnnea
 weight_decay: 0
 clip_grad_norm: 1.0
 fp16: False
+shrink_outputs: 0.
 
 # model-specific arguments
 model: HMR
