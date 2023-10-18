@@ -1,14 +1,12 @@
 import os
 import sys
 
-# import argparse
-# from easydict import EasyDict as edict
 from functools import partialmethod
-import json
+import hydra
 import logging
 import torch
+import torch.multiprocessing
 from tqdm import tqdm
-import hydra
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -18,8 +16,6 @@ from trainer import Trainer
 from data import DataLoaderMasifLigand
 from hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
-
-import torch.multiprocessing
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
