@@ -77,6 +77,7 @@ class Trainer(ABC):
         self.auto_resume = config.auto_resume
         self.test_best = False
         self.shrink_outputs = config.shrink_outputs
+        self.shrink_epochs = config.shrink_epochs
 
         # model
         self.model = model
@@ -234,8 +235,9 @@ class Trainer(ABC):
                         output = self.model.forward(batch)
                         cross_entropy_loss = self.criterion(output, batch.labels)
                         if self.shrink_outputs > 0:
-                            shrink_loss = self.shrink_outputs * torch.mean(output) ** 2
-                            cross_entropy_loss += shrink_loss
+                            if epoch < self.shrink_epochs:
+                                shrink_loss = self.shrink_outputs * torch.mean(output) ** 2
+                                cross_entropy_loss += shrink_loss
                 else:
                     output = self.model.forward(batch).squeeze(-1)
                     cross_entropy_loss = self.criterion(output, batch.labels)
