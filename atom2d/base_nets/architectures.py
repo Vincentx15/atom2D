@@ -85,7 +85,7 @@ class GraphDiffNetParallel(nn.Module):
             C_width=128,
             N_block=4,
             last_activation=None,
-            dropout=True,
+            dropout=0.5,
             with_gradient_features=True,
             with_gradient_rotations=True,
             diffusion_method="spectral",
@@ -106,7 +106,7 @@ class GraphDiffNetParallel(nn.Module):
             C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
             N_block (int):                  number of DiffusionNet blocks (default: 4)
             mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
-            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            dropout (float):                 if True, internal MLPs use dropout (default: True)
             diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
             saving precompute.
             with_gradient_features (bool):  if True, use gradient features (default: True)
@@ -127,7 +127,7 @@ class GraphDiffNetParallel(nn.Module):
 
         # Outputs
         self.last_activation = last_activation
-        self.dropout = True
+        self.dropout = dropout
 
         # Diffusion
         self.diffusion_method = diffusion_method
@@ -166,7 +166,7 @@ class GraphDiffNetParallel(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=0.5 if dropout else 0, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -246,7 +246,7 @@ class GraphDiffNetParallel(nn.Module):
 
 
 class GraphDiffNetSequential(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
                  output_graph=False, use_mp=False, use_gat=False, use_skip=False, neigh_thresh=8):
         """
@@ -261,7 +261,7 @@ class GraphDiffNetSequential(nn.Module):
             C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
             N_block (int):                  number of DiffusionNet blocks (default: 4)
             mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
-            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            dropout (float):                 if True, internal MLPs use dropout (default: True)
             diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
             saving precompute.
             with_gradient_features (bool):  if True, use gradient features (default: True)
@@ -284,7 +284,7 @@ class GraphDiffNetSequential(nn.Module):
 
         # Outputs
         self.last_activation = last_activation
-        self.dropout = True
+        self.dropout = dropout
 
         # Diffusion
         self.diffusion_method = diffusion_method
@@ -324,7 +324,7 @@ class GraphDiffNetSequential(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=0.5 if dropout else 0, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -420,7 +420,7 @@ class GraphDiffNetSequential(nn.Module):
 
 
 class GraphDiffNetBipartite(nn.Module):
-    def __init__(self, C_in_graph, C_out, C_in_surf=5, C_width=128, N_block=4, last_activation=None, dropout=True,
+    def __init__(self, C_in_graph, C_out, C_in_surf=5, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
                  output_graph=False, use_gat=False, use_v2=False, use_skip=False, neigh_th=8):
         """
@@ -435,7 +435,7 @@ class GraphDiffNetBipartite(nn.Module):
             C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
             N_block (int):                  number of DiffusionNet blocks (default: 4)
             mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
-            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            dropout (float):                 if True, internal MLPs use dropout (default: True)
             diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
             saving precompute.
             with_gradient_features (bool):  if True, use gradient features (default: True)
@@ -460,7 +460,7 @@ class GraphDiffNetBipartite(nn.Module):
 
         # Outputs
         self.last_activation = last_activation
-        self.dropout = True
+        self.dropout = dropout
 
         # Diffusion
         self.diffusion_method = diffusion_method
@@ -498,7 +498,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=0.5 if dropout else 0, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -687,7 +687,7 @@ class AttentionalPropagation(nn.Module):
 
 
 class GraphDiffNetAttention(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=True,
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
                  output_graph=False, flash=True):
         """
@@ -702,7 +702,7 @@ class GraphDiffNetAttention(nn.Module):
             C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
             N_block (int):                  number of DiffusionNet blocks (default: 4)
             mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
-            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            dropout (float):                 if True, internal MLPs use dropout (default: True)
             diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
             saving precompute.
             with_gradient_features (bool):  if True, use gradient features (default: True)
@@ -723,7 +723,7 @@ class GraphDiffNetAttention(nn.Module):
 
         # Outputs
         self.last_activation = last_activation
-        self.dropout = True
+        self.dropout = dropout
 
         # Diffusion
         self.diffusion_method = diffusion_method
@@ -763,7 +763,7 @@ class GraphDiffNetAttention(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=0.5 if dropout else 0, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 

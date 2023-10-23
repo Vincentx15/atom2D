@@ -27,15 +27,15 @@ class MiniMLP(nn.Sequential):
     A simple MLP with configurable hidden layer sizes.
     """
 
-    def __init__(self, layer_sizes, dropout=False, use_bn=True, activation=nn.ReLU, name="miniMLP"):
+    def __init__(self, layer_sizes, dropout=0.5, use_bn=True, activation=nn.ReLU, name="miniMLP"):
         super(MiniMLP, self).__init__()
 
         for i in range(len(layer_sizes) - 1):
             is_last = i + 2 == len(layer_sizes)
 
-            if dropout and i > 0:
+            if dropout > 0. and i > 0:
                 self.add_module(
-                    name + "_mlp_layer_dropout_{:03d}".format(i), nn.Dropout(p=0.5)
+                    name + "_mlp_layer_dropout_{:03d}".format(i), nn.Dropout(dropout)
                 )
 
             # Affine map
@@ -176,7 +176,7 @@ class DiffusionNetBlock(nn.Module):
     """
 
     def __init__(
-            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True,
+            self, C_width, mlp_hidden_dims, dropout=0.5, diffusion_method="spectral", with_gradient_features=True,
             with_gradient_rotations=True):
         super(DiffusionNetBlock, self).__init__()
 
@@ -253,7 +253,7 @@ class DiffusionNetBlock(nn.Module):
 
 class DiffusionNet(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, outputs_at="vertices",
-                 mlp_hidden_dims=None, dropout=True,
+                 mlp_hidden_dims=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral"):
         """
         Construct a DiffusionNet.
@@ -266,7 +266,7 @@ class DiffusionNet(nn.Module):
             C_width (int):                  dimension of internal DiffusionNet blocks (default: 128)
             N_block (int):                  number of DiffusionNet blocks (default: 4)
             mlp_hidden_dims (list of int):  a list of hidden layer sizes for MLPs (default: [C_width, C_width])
-            dropout (bool):                 if True, internal MLPs use dropout (default: True)
+            dropout (float):                for the internal MLPs
             diffusion_method (string):      how to evaluate diffusion, one of ['spectral', 'implicit_dense']. If implicit_dense is used, can set k_eig=0,
             saving precompute.
             with_gradient_features (bool):  if True, use gradient features (default: True)
@@ -429,7 +429,7 @@ class DiffusionNetBlockBatch(nn.Module):
     """
 
     def __init__(
-            self, C_width, mlp_hidden_dims, dropout=True, diffusion_method="spectral", with_gradient_features=True,
+            self, C_width, mlp_hidden_dims, dropout=0.5, diffusion_method="spectral", with_gradient_features=True,
             with_gradient_rotations=True, use_bn=True):
         super().__init__()
 
@@ -511,7 +511,7 @@ class DiffusionNetBlockBatch(nn.Module):
 
 
 class DiffusionNetBatch(nn.Module):
-    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, mlp_hidden_dims=None, dropout=True,
+    def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, mlp_hidden_dims=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, use_bn=True):
 
         super().__init__()

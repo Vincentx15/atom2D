@@ -37,6 +37,7 @@ num_gdf: 16
 # model args
 c_width: 150
 n_blocks: 6
+dropout: 0.5
 
 # optimizer arguments
 optimizer: Adam

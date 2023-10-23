@@ -7,7 +7,7 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 
 class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
-                 linear_sizes=(128,), dropout=True, drate=0.3, use_mean=False, batch_norm=False, use_graph=False,
+                 linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
                  use_graph_only=False, output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, **kwargs):
         super(PSRSurfNet, self).__init__()
@@ -38,7 +38,8 @@ class PSRSurfNet(torch.nn.Module):
                                                    C_width=C_width,
                                                    N_block=N_block,
                                                    last_activation=torch.relu,
-                                                   use_bn=batch_norm)
+                                                   use_bn=batch_norm,
+                                                   dropout=dropout)
         else:
             if graph_model == 'parallel':
                 self.encoder_model = GraphDiffNetParallel(C_in=in_channels,
@@ -48,7 +49,8 @@ class PSRSurfNet(torch.nn.Module):
                                                           last_activation=torch.relu,
                                                           use_mp=use_mp,
                                                           use_bn=batch_norm,
-                                                          output_graph=output_graph)
+                                                          output_graph=output_graph,
+                                                          dropout=dropout)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
@@ -59,7 +61,8 @@ class PSRSurfNet(torch.nn.Module):
                                                             use_gat=use_gat,
                                                             use_skip=use_skip,
                                                             use_bn=batch_norm,
-                                                            output_graph=output_graph)
+                                                            output_graph=output_graph,
+                                                            dropout=dropout)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
@@ -68,6 +71,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
                                                            flash=flash,
+                                                           dropout=dropout
                                                            )
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
@@ -81,7 +85,8 @@ class PSRSurfNet(torch.nn.Module):
                                                            use_gat=use_gat,
                                                            use_v2=use_v2,
                                                            use_skip=use_skip,
-                                                           neigh_th=neigh_th)
+                                                           neigh_th=neigh_th,
+                                                           dropout=dropout)
         # Top FCs
         in_features = out_channel
         self.top_net = nn.Sequential(*[
