@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from torch.optim.lr_scheduler import _LRScheduler, LinearLR, CosineAnnealingLR, SequentialLR, LambdaLR
 
 
-def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs):
+def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs, eta_min=1E-8):
     warmup_scheduler = LinearLR(optimizer,
                                 start_factor=1E-3,
                                 total_iters=warmup_epochs)
@@ -29,7 +29,7 @@ def get_lr_scheduler(scheduler, optimizer, warmup_epochs, total_epochs):
     elif scheduler == 'CosineAnnealingLRWithWarmup':
         decay_scheduler = CosineAnnealingLR(optimizer,
                                             T_max=total_epochs - warmup_epochs,
-                                            eta_min=1E-8)
+                                            eta_min=eta_min)
     elif scheduler == 'constant':
         lambda1 = lambda epoch: 1.0
         decay_scheduler = LambdaLR(optimizer, lr_lambda=lambda1)
@@ -101,7 +101,8 @@ class Trainer(ABC):
         self.scheduler = get_lr_scheduler(scheduler=config.lr_scheduler,
                                           optimizer=self.optimizer,
                                           warmup_epochs=config.warmup_epochs,
-                                          total_epochs=config.epochs)
+                                          total_epochs=config.epochs,
+                                          eta_min=config.lr_eta_min)
 
         self.criterion = torch.nn.CrossEntropyLoss(reduction='mean')
 

@@ -68,6 +68,9 @@ def train(config):
                        out_features=7,
                        use_graph=True,
                        use_gat=True,
+                       neigh_th=config.neigh_th,
+                       use_v2=config.use_v2,
+                       dropout=config.dropout,
                        graph_model='bipartite',
                        **config)
     # initialize trainer
