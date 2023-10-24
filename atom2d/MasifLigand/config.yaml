@@ -37,9 +37,9 @@ num_gdf: 16
 # model args
 c_width: 150
 n_blocks: 6
-dropout: 0.5
-use_v2: False
-neigh_th: 8
+dropout: 0.3
+use_v2: True
+neigh_th: 4
 
 # optimizer arguments
 optimizer: Adam
@@ -54,6 +54,4 @@ fp16: False
 shrink_outputs: 0.
 shrink_epochs: 30
 
-# model-specific arguments
-model: HMR
 device: -1

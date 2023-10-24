@@ -71,8 +71,7 @@ def train(config):
                        neigh_th=config.neigh_th,
                        use_v2=config.use_v2,
                        dropout=config.dropout,
-                       graph_model='bipartite',
-                       **config)
+                       graph_model='bipartite')
     # initialize trainer
     trainer = Trainer(config, data, model)
     trainer.train()
