@@ -49,17 +49,16 @@ class HoloProtDataset(Dataset):
             frames, mass, L, evals, evecs, grad_x, grad_y = surf_to_operators(vertices=surface.vertices,
                                                                               faces=surface.faces,
                                                                               npz_path=operator_path)
-            grad_x = SparseTensor.from_torch_sparse_coo_tensor(grad_x.float())
+            grad_x = SparseTensor.from_torch_sparse_coo_tensor(grad_x.float()) # TODO : check
             grad_y = SparseTensor.from_torch_sparse_coo_tensor(grad_y.float())
-            geom_feats = 0
             surface = SurfaceObject(features=surface.x, confidence=None, cat_confidence=False,
                                     vertices=surface.vertices, faces=surface.faces,
-                                    mass=mass, L=L, evals=evals, evecs=evecs, gradX=grad_x, gradY=grad_y)
+                                    L=L, mass=mass, evals=evals, evecs=evecs, gradX=grad_x, gradY=grad_y)
 
             item = Data(surface=surface, graph=graph, y=torch.tensor([y]).long())
         except Exception as e:
             print(system, e)
-            item = Data
+            item = Data()
         return item
 
 
@@ -78,9 +77,9 @@ class HoloProtDataModule(pl.LightningDataModule):
         with open(f"{self.raw_dir}/metadata/base_split.json", "r") as f:
             splits = json.load(f)
         # splits = {
-        #     'train': ['4fae_B'],
-        #     'valid': ['4fae_B'],
-        #     'test': ['4fae_B']
+        #     'train': ['4fae_B', '102l_A'],
+        #     'valid': ['4fae_B', '102l_A'],
+        #     'test': ['4fae_B', '102l_A']
         # }
         self.splits = splits
 

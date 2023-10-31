@@ -1,0 +1,56 @@
+run_name: "NA"
+epochs: 300
+device: 0
+seed: 2023
+log_dir: "./"
+path_model: "version_x/checkpoints/last.ckpt"
+
+loader:
+  batch_size_train: 8
+  batch_size_val: 8
+  num_workers: 6
+  pin_memory: False
+  prefetch_factor: 2
+  shuffle: True
+
+model:
+  in_channels: 33
+  in_channels_surf: 2
+  out_features: 384
+  C_width: 4
+  N_block: 1
+  dropout: 0.3
+  use_mean: True
+  batch_norm: True
+  use_graph: True
+  use_graph_only: False
+  graph_model: 'bipartite'
+  use_gat: True
+  use_mp: False
+  use_v2: False
+  use_skip: True
+  neigh_th: 8
+  flash: True
+  output_graph: True
+
+optimizer:
+  lr: 1e-4
+  patience: 100
+  factor: 0.5
+
+train:
+  save_top_k: 2
+  early_stoping_patience: 100
+  accumulate_grad_batches: 1
+  val_check_interval: 1.0
+  limit_train_batches: 1.0
+  limit_val_batches: 1.0
+  limit_test_batches: 1.0
+  overfit_batches: 0.0
+  gradient_clip_val: 10.
+  deterministic: False
+
+
+hydra:
+  run:
+    dir: ../../outputs/holoprot/
