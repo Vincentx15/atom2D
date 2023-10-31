@@ -32,7 +32,7 @@ class HoloProtPreprocess(torch.utils.data.Dataset):
         """
         surface = self.surfaces[idx]
         surf_path = os.path.join(self.surface_path, surface)
-        operator_path = os.path.join(self.operator_path, surface.replace('.pth', '_.npz'))
+        operator_path = os.path.join(self.operator_path, surface.replace('.pth', '.npz'))
         try:
             surface_data = torch.load(surf_path)['prot']
             operators = surf_to_operators(npz_path=operator_path,
