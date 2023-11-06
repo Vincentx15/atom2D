@@ -46,14 +46,14 @@ class HoloProtDataset(Dataset):
         try:
             graph = torch.load(graph_path)['prot']
             surface = torch.load(surf_path)['prot']
-            frames, mass, L, evals, evecs, grad_x, grad_y = surf_to_operators(vertices=surface.vertices,
+            frames, mass, _, evals, evecs, grad_x, grad_y = surf_to_operators(vertices=surface.vertices,
                                                                               faces=surface.faces,
                                                                               npz_path=operator_path)
             grad_x = SparseTensor.from_torch_sparse_coo_tensor(grad_x.float()) # TODO : check
             grad_y = SparseTensor.from_torch_sparse_coo_tensor(grad_y.float())
             surface = SurfaceObject(features=surface.x, confidence=None, cat_confidence=False,
                                     vertices=surface.vertices, faces=surface.faces,
-                                    L=L, mass=mass, evals=evals, evecs=evecs, gradX=grad_x, gradY=grad_y)
+                                    L=torch.rand(1, 3), mass=mass, evals=evals, evecs=evecs, gradX=grad_x, gradY=grad_y)
 
             item = Data(surface=surface, graph=graph, y=torch.tensor([y]).long())
         except Exception as e:
