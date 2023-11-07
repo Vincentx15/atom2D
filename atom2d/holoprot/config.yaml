@@ -29,7 +29,7 @@ model:
   use_mp: False
   use_v2: False
   use_skip: True
-  use_wln: True
+  use_wln: False
   neigh_th: 8
   flash: True
   output_graph: True
