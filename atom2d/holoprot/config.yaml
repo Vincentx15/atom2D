@@ -17,7 +17,7 @@ model:
   in_channels: 33
   in_channels_surf: 2
   out_features: 384
-  C_width: 4
+  C_width: 6
   N_block: 1
   dropout: 0.3
   use_mean: True
@@ -29,11 +29,11 @@ model:
   use_mp: False
   use_v2: False
   use_skip: True
-  use_rgcn: True
+  use_wln: True
   neigh_th: 8
   flash: True
   output_graph: True
-  use_distance: False
+  use_distance: True
 
 optimizer:
   lr: 1e-4

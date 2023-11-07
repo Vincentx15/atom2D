@@ -2,7 +2,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch_geometric.nn import GCNConv, GATConv, GATv2Conv, RGCNConv
+from torch_geometric.nn import GCNConv, GATConv, GATv2Conv
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
@@ -15,15 +15,10 @@ from base_nets import DiffusionNetBlockBatch
 
 
 class GCN(torch.nn.Module):
-    def __init__(self, num_features, hidden_channels, out_channel, drate=None, use_bn=False, use_distance=True,
-                 use_rgcn=False):
+    def __init__(self, num_features, hidden_channels, out_channel, drate=None, use_bn=False, use_distance=True):
         super(GCN, self).__init__()
-        if use_rgcn:
-            self.conv1 = RGCNConv(num_features, hidden_channels, num_relations=2)
-            self.conv2 = RGCNConv(hidden_channels, out_channel, num_relations=2)
-        else:
-            self.conv1 = GCNConv(num_features, hidden_channels)
-            self.conv2 = GCNConv(hidden_channels, out_channel)
+        self.conv1 = GCNConv(num_features, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, out_channel)
         self.use_bn = use_bn
         self.use_distance = use_distance
         if use_bn:
@@ -44,6 +39,95 @@ class GCN(torch.nn.Module):
         if self.use_bn:
             x = self.bn2(x)
         return x
+
+
+class WLNConvLast(MessagePassing):
+
+    def __init__(self, hsize: int, bias: bool):
+        super(WLNConvLast, self).__init__(aggr='mean')
+        self.hsize = hsize
+        self.bias = bias
+        self._build_components()
+
+    def _build_components(self):
+        self.W0 = nn.Linear(self.hsize, self.hsize, self.bias)
+        self.W1 = nn.Linear(self.hsize, self.hsize, self.bias)
+        self.W2 = nn.Linear(self.hsize, self.hsize, self.bias)
+
+    def forward(self, x, edge_index, edge_attr):
+        return self.propagate(edge_index, x=x, edge_attr=edge_attr)
+
+    def message(self, x_i, x_j, edge_attr):
+        mess = self.W0(x_i) * self.W1(edge_attr) * self.W2(x_j)
+        return mess
+
+
+class WLNConv(MessagePassing):
+    def __init__(self,
+                 node_fdim: int,
+                 edge_fdim: int,
+                 depth: int,
+                 hsize: int,
+                 bias: bool = False,
+                 dropout: float = 0.2,
+                 activation: str = 'relu'):
+        super(WLNConv, self).__init__(
+            aggr='mean')  # We use mean here because the node embeddings started to explode otherwise
+        self.hsize = hsize
+        self.bias = bias
+        self.depth = depth
+        self.node_fdim = node_fdim
+        self.edge_fdim = edge_fdim
+        self.dropout_p = dropout
+        if activation == 'relu':
+            self.activation_fn = F.relu
+        elif activation == 'lrelu':
+            self.activation_fn = F.leaky_relu
+        self._build_components()
+
+    def _build_components(self):
+        self.node_emb = nn.Linear(self.node_fdim, self.hsize, self.bias)
+        self.mess_emb = nn.Linear(self.edge_fdim, self.hsize, self.bias)
+        self.U1 = nn.Linear(self.hsize, self.hsize, self.bias)
+        self.U2 = nn.Linear(self.hsize, self.hsize, self.bias)
+        self.V = nn.Linear(2 * self.hsize, self.hsize, self.bias)
+
+        self.dropouts = []
+        self.bns = []
+        self.bns_2 = []
+        for i in range(self.depth):
+            self.dropouts.append(nn.Dropout(p=self.dropout_p))
+            self.bns.append(nn.BatchNorm1d(self.hsize))
+            self.bns_2.append(nn.BatchNorm1d(self.hsize))
+        self.dropouts = nn.ModuleList(self.dropouts)
+        self.bns = nn.ModuleList(self.bns)
+        self.bns_2 = nn.ModuleList(self.bns_2)
+        self.conv_last = WLNConvLast(hsize=self.hsize, bias=self.bias)
+
+    def forward(self, graph):
+        x, edge_index, edge_attr = graph.x, graph.edge_index, graph.edge_attr
+        if x.size(-1) != self.hsize:
+            x = self.node_emb(x)
+        edge_attr = self.mess_emb(edge_attr)
+
+        x_depths = []
+        for i in range(self.depth):
+            x = self.dropouts[i](x)
+            x = self.propagate(edge_index, x=x, edge_attr=edge_attr)
+            x = self.bns[i](x)
+            x_depth = self.conv_last(x=x, edge_index=edge_index, edge_attr=edge_attr)
+            x = self.bns_2[i](x)
+            x_depths.append(x_depth)
+        x_final = x_depths[-1]
+        return x_final
+
+    def update(self, inputs, x):
+        x = self.activation_fn(self.U1(x) + self.U2(inputs))
+        return x
+
+    def message(self, x_j, edge_attr):
+        nei_mess = self.activation_fn(self.V(torch.cat([x_j, edge_attr], dim=-1)))
+        return nei_mess
 
 
 class AddAggregate(MessagePassing):
@@ -430,7 +514,7 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in_graph, C_out, C_in_surf=5, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_gat=False, use_v2=False, use_skip=False, use_distance=False, use_rgcn=False,
+                 output_graph=False, use_gat=False, use_v2=False, use_skip=False, use_distance=False, use_wln=False,
                  neigh_th=8):
         """
         Construct a MixedNet.
@@ -506,8 +590,12 @@ class GraphDiffNetBipartite(nn.Module):
 
         self.gcn_blocks = []
         for i_block in range(self.N_block):
-            gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=dropout, use_bn=use_bn, use_distance=use_distance, use_rgcn=use_rgcn)
+            if use_wln:
+                gcn_block = WLNConv(node_fdim=diffnet_width, edge_fdim=2, depth=1, hsize=diffnet_width, bias=False,
+                                    dropout=dropout, activation='relu')
+            else:
+                gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
+                                drate=dropout, use_bn=use_bn, use_distance=use_distance)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 

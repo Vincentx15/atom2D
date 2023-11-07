@@ -10,7 +10,7 @@ class PSRSurfNet(torch.nn.Module):
                  linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
                  use_graph_only=False, output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, use_distance=False,
-                 use_rgcn=False, **kwargs):
+                 use_wln=False, **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -89,7 +89,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            use_gat=use_gat,
                                                            use_v2=use_v2,
                                                            use_skip=use_skip,
-                                                           use_rgcn=use_rgcn,
+                                                           use_wln=use_wln,
                                                            neigh_th=neigh_th,
                                                            dropout=dropout,
                                                            use_distance=use_distance)
