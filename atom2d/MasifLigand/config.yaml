@@ -28,6 +28,7 @@ use_geom_feat: True
 max_eigen_val: 5.0
 num_signatures: 16
 smoothing: False
+use_distance: False
 
 # loader args
 batch_size: 16

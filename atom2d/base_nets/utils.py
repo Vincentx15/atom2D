@@ -29,4 +29,4 @@ def create_pyg_graph_object(coords, features, sigma=3):
         edge_weight = rbf_weights[row, col]
         edge_weight = torch.cat([edge_weight, edge_weight], dim=0).to(device)
 
-    return Data(x=features, edge_index=edge_index, edge_weight=edge_weight)
+    return Data(x=features, edge_index=edge_index, edge_attr=edge_weight)

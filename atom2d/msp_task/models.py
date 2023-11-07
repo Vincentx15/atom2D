@@ -14,7 +14,7 @@ class MSPSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, hidden_sizes=(128,), drate=0.3,
                  batch_norm=False, use_max=True, use_mean=False, use_graph=False, use_graph_only=False,
                  output_graph=False, graph_model='parallel', use_gat=False, use_v2=False, use_skip=False,
-                 neigh_th=8, flash=True, use_mp=False,**kwargs):
+                 neigh_th=8, flash=True, use_distance=False, use_mp=False, **kwargs):
         super(MSPSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -30,7 +30,8 @@ class MSPSurfNet(torch.nn.Module):
         if use_graph_only:
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
-                                              C_width=C_width)
+                                              C_width=C_width,
+                                              use_distance=use_distance)
         elif not use_graph:
             self.encoder_model = DiffusionNetBatch(C_in=5,
                                                    C_out=out_channel,
@@ -47,7 +48,8 @@ class MSPSurfNet(torch.nn.Module):
                                                           last_activation=torch.relu,
                                                           use_mp=False,
                                                           use_bn=batch_norm,
-                                                          output_graph=output_graph)
+                                                          output_graph=output_graph,
+                                                          use_distance=use_distance)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
@@ -58,7 +60,8 @@ class MSPSurfNet(torch.nn.Module):
                                                             use_skip=use_skip,
                                                             use_gat=use_gat,
                                                             use_bn=batch_norm,
-                                                            output_graph=output_graph)
+                                                            output_graph=output_graph,
+                                                            use_distance=use_distance)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
@@ -68,6 +71,7 @@ class MSPSurfNet(torch.nn.Module):
                                                            use_bn=batch_norm,
                                                            output_graph=output_graph,
                                                            flash=flash,
+                                                           use_distance=use_distance
                                                            )
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
@@ -80,7 +84,8 @@ class MSPSurfNet(torch.nn.Module):
                                                            use_gat=use_gat,
                                                            use_v2=use_v2,
                                                            use_skip=use_skip,
-                                                           neigh_th=neigh_th)
+                                                           neigh_th=neigh_th,
+                                                           use_distance=use_distance)
         if self.use_graph_only:
             # Follow atom3D
             infeature_gcn = 2 * (out_channel + 1) if not self.use_graph_only else C_width * 2
@@ -92,7 +97,7 @@ class MSPSurfNet(torch.nn.Module):
             infeature_gcn = 2 * (out_channel + 1)
 
         self.gcn = GCN(num_features=infeature_gcn, hidden_channels=out_channel, out_channel=out_channel,
-                       drate=drate)
+                       drate=drate, use_distance=use_distance)
         self.top_net_graph = nn.Sequential(*[
             nn.Linear(out_channel * 2, out_channel * 2),
             nn.ReLU(),

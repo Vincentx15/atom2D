@@ -10,7 +10,8 @@ from data_processing import point_cloud_utils
 class PIPNet(torch.nn.Module):
     def __init__(self, in_channels=5, out_channel=64, C_width=128, N_block=4, dropout=0.3, batch_norm=False, sigma=2.5,
                  use_graph=False, use_graph_only=False, clip_output=False, graph_model='parallel', output_graph=False,
-                 use_gat=False, use_v2=False, use_skip=False, neigh_th=8, flash=True, use_mp=False,**kwargs):
+                 use_gat=False, use_v2=False, use_skip=False, neigh_th=8, flash=True, use_distance=False, use_mp=False,
+                 **kwargs):
         super().__init__()
 
         self.in_channels = in_channels
@@ -25,7 +26,8 @@ class PIPNet(torch.nn.Module):
         if use_graph_only:
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
-                                              C_width=C_width)
+                                              C_width=C_width,
+                                              use_distance=use_distance)
         elif not use_graph:
             self.encoder_model = DiffusionNetBatch(C_in=5,
                                                    C_out=out_channel,
@@ -42,7 +44,8 @@ class PIPNet(torch.nn.Module):
                                                           last_activation=torch.relu,
                                                           use_bn=batch_norm,
                                                           use_mp=False,
-                                                          output_graph=output_graph)
+                                                          output_graph=output_graph,
+                                                          use_distance=use_distance)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
@@ -53,7 +56,8 @@ class PIPNet(torch.nn.Module):
                                                             use_mp=use_mp,
                                                             use_skip=use_skip,
                                                             use_gat=use_gat,
-                                                            output_graph=output_graph)
+                                                            output_graph=output_graph,
+                                                            use_distance=use_distance)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
@@ -63,7 +67,7 @@ class PIPNet(torch.nn.Module):
                                                            use_bn=batch_norm,
                                                            output_graph=output_graph,
                                                            flash=flash,
-                                                           )
+                                                           use_distance=use_distance)
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
                                                            C_out=out_channel,
@@ -75,7 +79,8 @@ class PIPNet(torch.nn.Module):
                                                            use_gat=use_gat,
                                                            use_v2=use_v2,
                                                            use_skip=use_skip,
-                                                           neigh_th=neigh_th)
+                                                           neigh_th=neigh_th,
+                                                           use_distance=use_distance)
 
         if self.use_graph_only:
             in_features = C_width * 4

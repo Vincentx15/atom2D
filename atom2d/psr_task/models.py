@@ -9,7 +9,8 @@ class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
                  linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
                  use_graph_only=False, output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
-                 use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, **kwargs):
+                 use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, use_distance=False,
+                 use_rgcn=False, **kwargs):
         super(PSRSurfNet, self).__init__()
 
         self.in_channels = in_channels
@@ -24,7 +25,8 @@ class PSRSurfNet(torch.nn.Module):
             self.encoder_model = AtomNetGraph(C_in=in_channels,
                                               C_out=out_channel,
                                               C_width=C_width,
-                                              last_factor=4)
+                                              last_factor=4,
+                                              use_distance=use_distance)
             self.top_net_graph = nn.Sequential(*[
                 nn.ReLU(),
                 nn.Linear(C_width * 4, C_width * 2),
@@ -50,7 +52,8 @@ class PSRSurfNet(torch.nn.Module):
                                                           use_mp=use_mp,
                                                           use_bn=batch_norm,
                                                           output_graph=output_graph,
-                                                          dropout=dropout)
+                                                          dropout=dropout,
+                                                          use_distance=use_distance)
             elif graph_model == 'sequential':
                 self.encoder_model = GraphDiffNetSequential(C_in=in_channels,
                                                             C_out=out_channel,
@@ -62,7 +65,8 @@ class PSRSurfNet(torch.nn.Module):
                                                             use_skip=use_skip,
                                                             use_bn=batch_norm,
                                                             output_graph=output_graph,
-                                                            dropout=dropout)
+                                                            dropout=dropout,
+                                                            use_distance=use_distance)
             elif graph_model == 'attention':
                 self.encoder_model = GraphDiffNetAttention(C_in=in_channels,
                                                            C_out=out_channel,
@@ -71,8 +75,8 @@ class PSRSurfNet(torch.nn.Module):
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
                                                            flash=flash,
-                                                           dropout=dropout
-                                                           )
+                                                           dropout=dropout,
+                                                           use_distance=use_distance)
             elif graph_model == 'bipartite':
                 self.encoder_model = GraphDiffNetBipartite(C_in_graph=in_channels,
                                                            C_in_surf=in_channels_surf,
@@ -85,8 +89,10 @@ class PSRSurfNet(torch.nn.Module):
                                                            use_gat=use_gat,
                                                            use_v2=use_v2,
                                                            use_skip=use_skip,
+                                                           use_rgcn=use_rgcn,
                                                            neigh_th=neigh_th,
-                                                           dropout=dropout)
+                                                           dropout=dropout,
+                                                           use_distance=use_distance)
         # Top FCs
         in_features = out_channel
         self.top_net = nn.Sequential(*[

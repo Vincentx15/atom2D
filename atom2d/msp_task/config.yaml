@@ -38,6 +38,7 @@ model:
   neigh_th: 8
   flash: True
   output_graph: True
+  use_distance: False
 
 optimizer:
   lr: 1e-4

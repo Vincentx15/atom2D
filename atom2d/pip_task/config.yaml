@@ -41,6 +41,7 @@ model:
   flash: True
   clip_output: False
   output_graph: True
+  use_distance: False
 
 optimizer:
   lr: 1e-4

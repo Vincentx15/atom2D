@@ -72,7 +72,7 @@ class HoloProtPLModule(pl.LightningModule):
         loss, logits, labels = self.step(batch)
         if loss is None or logits.isnan().any() or labels.isnan().any():
             print("validation step skipped!")
-            self.log("acc_cal", 0., prog_bar=True, on_step=False, on_epoch=True, logger=False)
+            self.log("acc_cal", 0., prog_bar=True, on_step=False, on_epoch=True, logger=False, batch_size=1)
             return None
 
         self.log_dict({"loss/val": loss.item()},
@@ -108,7 +108,6 @@ class HoloProtPLModule(pl.LightningModule):
                      'frequency': 1,
                      "strict": True,
                      'name': "epoch/lr"}
-        # return optimizer
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):

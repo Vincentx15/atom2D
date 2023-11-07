@@ -2,7 +2,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch_geometric.nn import GCNConv, GATConv, GATv2Conv
+from torch_geometric.nn import GCNConv, GATConv, GATv2Conv, RGCNConv
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
@@ -15,18 +15,25 @@ from base_nets import DiffusionNetBlockBatch
 
 
 class GCN(torch.nn.Module):
-    def __init__(self, num_features, hidden_channels, out_channel, drate=None, use_bn=False):
+    def __init__(self, num_features, hidden_channels, out_channel, drate=None, use_bn=False, use_distance=True,
+                 use_rgcn=False):
         super(GCN, self).__init__()
-        self.conv1 = GCNConv(num_features, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, out_channel)
+        if use_rgcn:
+            self.conv1 = RGCNConv(num_features, hidden_channels, num_relations=2)
+            self.conv2 = RGCNConv(hidden_channels, out_channel, num_relations=2)
+        else:
+            self.conv1 = GCNConv(num_features, hidden_channels)
+            self.conv2 = GCNConv(hidden_channels, out_channel)
         self.use_bn = use_bn
+        self.use_distance = use_distance
         if use_bn:
             self.bn1 = nn.BatchNorm1d(hidden_channels)
             self.bn2 = nn.BatchNorm1d(out_channel)
         self.drate = drate
 
     def forward(self, data):
-        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_weight
+        x, edge_index = data.x, data.edge_index
+        edge_weight = data.edge_attr if self.use_distance else None
         x = self.conv1(x, edge_index, edge_weight)
         if self.use_bn:
             x = self.bn1(x)
@@ -93,6 +100,7 @@ class GraphDiffNetParallel(nn.Module):
             use_mp=False,
             neigh_thresh=8,
             output_graph=False,
+            use_distance=False
     ):
         """
         Construct a MixedNet.
@@ -166,7 +174,7 @@ class GraphDiffNetParallel(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=dropout, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn, use_distance=use_distance)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -248,7 +256,7 @@ class GraphDiffNetParallel(nn.Module):
 class GraphDiffNetSequential(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_mp=False, use_gat=False, use_skip=False, neigh_thresh=8):
+                 output_graph=False, use_mp=False, use_gat=False, use_skip=False, neigh_thresh=8, use_distance=False):
         """
         Construct a MixedNet in a sequential manner, with DiffusionNet blocks followed by GCN blocks.
         instead of the // architecture GraphDiffNet
@@ -324,7 +332,7 @@ class GraphDiffNetSequential(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=dropout, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn, use_distance=use_distance)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -422,7 +430,8 @@ class GraphDiffNetSequential(nn.Module):
 class GraphDiffNetBipartite(nn.Module):
     def __init__(self, C_in_graph, C_out, C_in_surf=5, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, use_gat=False, use_v2=False, use_skip=False, neigh_th=8):
+                 output_graph=False, use_gat=False, use_v2=False, use_skip=False, use_distance=False, use_rgcn=False,
+                 neigh_th=8):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed using GCN
@@ -498,7 +507,7 @@ class GraphDiffNetBipartite(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=dropout, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn, use_distance=use_distance, use_rgcn=use_rgcn)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 
@@ -546,10 +555,11 @@ class GraphDiffNetBipartite(nn.Module):
 
         # Apply each of the blocks
         NL = len(self.gcn_blocks) - 1
-        for layer_i, (graph_block, diff_block, graphsurf_block, surfgraph_block) in enumerate(zip(self.gcn_blocks,
-                                                                                                  self.diff_blocks,
-                                                                                                  self.graphsurf_blocks,
-                                                                                                  self.surfgraph_blocks)):
+        for layer_i, (graph_block, diff_block,
+                      graphsurf_block, surfgraph_block) in enumerate(zip(self.gcn_blocks,
+                                                                         self.diff_blocks,
+                                                                         self.graphsurf_blocks,
+                                                                         self.surfgraph_blocks)):
             diff_x = diff_block(diff_x, mass, L, evals, evecs, gradX, gradY)
             graph.x = graph_block(graph)
 
@@ -578,7 +588,7 @@ class GraphDiffNetBipartite(nn.Module):
 
 
 class AtomNetGraph(torch.nn.Module):
-    def __init__(self, C_in, C_out, C_width, last_factor=2):
+    def __init__(self, C_in, C_out, C_width, last_factor=2, use_distance=False):
         super().__init__()
 
         self.conv1 = GCNConv(C_in, C_width)
@@ -591,9 +601,11 @@ class AtomNetGraph(torch.nn.Module):
         self.bn4 = nn.BatchNorm1d(C_width * 4)
         self.conv5 = GCNConv(C_width * 4, C_width * last_factor)
         self.bn5 = nn.BatchNorm1d(C_width * last_factor)
+        self.use_distance = use_distance
 
     def forward(self, graph, *largs, **kwargs, ):
-        x, edge_index, edge_weight = graph.x, graph.edge_index, graph.edge_weight
+        x, edge_index = graph.x, graph.edge_index
+        edge_weight = graph.edge_attr if self.use_distance else None
         x = self.conv1(x, edge_index, edge_weight)
         x = self.bn1(x)
         x = F.relu(x)
@@ -689,7 +701,7 @@ class AttentionalPropagation(nn.Module):
 class GraphDiffNetAttention(nn.Module):
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, dropout=0.5,
                  with_gradient_features=True, with_gradient_rotations=True, diffusion_method="spectral", use_bn=True,
-                 output_graph=False, flash=True):
+                 use_distance=False, output_graph=False, flash=True):
         """
         Construct a MixedNet.
         Channels are split into graphs and diff_block channels, then convoluted, then mixed
@@ -763,7 +775,7 @@ class GraphDiffNetAttention(nn.Module):
         self.gcn_blocks = []
         for i_block in range(self.N_block):
             gcn_block = GCN(diffnet_width, diffnet_width, diffnet_width,
-                            drate=dropout, use_bn=use_bn)
+                            drate=dropout, use_bn=use_bn, use_distance=use_distance)
             self.gcn_blocks.append(gcn_block)
             self.add_module("gcn_block_" + str(i_block), gcn_block)
 

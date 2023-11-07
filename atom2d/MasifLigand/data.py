@@ -146,14 +146,14 @@ def load_preprocessed_data(processed_fpath, operator_path):
     node_pos = data['node_pos']
     node_info = data['node_info']
     edge_index = data['edge_index']
-    edge_feats = data['edge_feats']
+    edge_attr = data['edge_feats']
 
     ##############################  chem feats  ##############################
     # full chemistry features in node_info :
     # res_type  atom_type  hphob  charge  radius  is_alphaC
     # OH 21     OH 11      1      1       1       1
 
-    graph_res = node_pos, node_info, edge_index, edge_feats
+    graph_res = node_pos, node_info, edge_index, edge_attr
 
     # GET SURFACE
     geom_info = data['geom_info']
@@ -327,12 +327,12 @@ class DatasetMasifLigand(Dataset):
         # res_type  atom_type  hphob  charge  radius  is_alphaC
         # OH 21     OH 12      1      1       1       1
 
-        node_pos, node_info, edge_index, edge_feats = graph_res
+        node_pos, node_info, edge_index, edge_attr = graph_res
         res_hot = np.eye(21, dtype=np.float32)[node_info[:, 0].astype(int)]
         atom_hot = np.eye(12, dtype=np.float32)[node_info[:, 1].astype(int)]
         node_feats = np.concatenate((res_hot, atom_hot, node_info[:, 2:]), axis=1)
-        node_pos, node_feats, edge_index, edge_feats = list_from_numpy([node_pos, node_feats, edge_index, edge_feats])
-        graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_feats=edge_feats)
+        node_pos, node_feats, edge_index, edge_attr = list_from_numpy([node_pos, node_feats, edge_index, edge_attr])
+        graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr)
         if self.skip_hydro:
             not_hydro = np.where(node_info[:, 1] > 0)[0]
             graph = graph.subgraph(torch.from_numpy(not_hydro))
