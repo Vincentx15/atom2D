@@ -96,13 +96,20 @@ class MSPDataset(Atom3DDataset):
                 if any([geom is None for geom in geom_feats]):
                     raise ValueError("A geometric feature is buggy")
                 else:
-                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in geom_feats]
+                    surface_lo, surface_ro, surface_lm, surface_rm = [SurfaceObject(*geom_feat) for geom_feat in
+                                                                      geom_feats]
                     surface_lo = normalizer_orig.transform_surface(surface_lo)
                     surface_ro = normalizer_orig.transform_surface(surface_ro)
                     surface_lm = normalizer_mut.transform_surface(surface_lm)
                     surface_rm = normalizer_mut.transform_surface(surface_rm)
 
             if self.return_graph:
+                # graph_feats = [get_graph(name=name,
+                #                          df=df,
+                #                          recompute=True,
+                #                          dump_graph_dir=self.get_graph_dir(name),
+                #                          big=self.big_graphs)
+                #                for i, (name, df) in enumerate(zip(names, dfs))]
                 graph_feats = [load_graph(name=name,
                                           dump_graph_dir=self.get_graph_dir(name))
                                for i, (name, df) in enumerate(zip(names, dfs))]
