@@ -101,8 +101,10 @@ class HoloProtPLModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_params = self.hparams.hparams.optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=opt_params.lr)
-        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt_params.patience,
-                                                                             factor=opt_params.factor, mode='max'),
+        scheduler = {'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                             patience=opt_params.patience,
+                                                                             factor=opt_params.factor,
+                                                                             mode='max'),
                      'monitor': "acc_val",
                      'interval': "epoch",
                      'frequency': 1,

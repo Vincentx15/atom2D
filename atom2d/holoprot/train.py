@@ -25,6 +25,7 @@ def main(cfg=None):
     # init model
     model = HoloProtPLModule(cfg)
 
+
     # init logger
     version = TensorBoardLogger(save_dir=cfg.log_dir).version
     version_name = f"version_{version}_{cfg.run_name}"
@@ -32,7 +33,7 @@ def main(cfg=None):
     loggers = [tb_logger]
 
     # callbacks
-    lr_logger = pl.callbacks.LearningRateMonitor()
+    lr_logger = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         filename="{epoch}-{acc_val:.2f}",
