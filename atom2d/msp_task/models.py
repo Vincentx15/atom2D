@@ -4,7 +4,6 @@ from torch_geometric.data import Batch
 
 from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
     GraphDiffNetBipartite, AtomNetGraph, GCN
-from base_nets.diffusion_net.layers import get_mlp
 from base_nets.utils import create_pyg_graph_object
 from data_processing.point_cloud_utils import torch_rbf
 

@@ -4,24 +4,6 @@ import torch.nn as nn
 from .geometry import to_basis, from_basis
 
 
-def get_mlp(in_features, hidden_sizes, batch_norm=True, drate=None):
-    layers = []
-    for units in hidden_sizes:
-        layers.extend([
-            nn.Linear(in_features, units),
-            nn.ReLU()
-        ])
-        if batch_norm:
-            layers.append(nn.BatchNorm1d(units))
-        if drate is not None:
-            layers.append(nn.Dropout(drate))
-        in_features = units
-
-    # Final FC layer
-    layers.append(nn.Linear(in_features, 1))
-    return nn.Sequential(*layers)
-
-
 class MiniMLP(nn.Sequential):
     """
     A simple MLP with configurable hidden layer sizes.
@@ -78,13 +60,15 @@ class LearnedTimeDiffusion(nn.Module):
         self.diffusion_time = nn.Parameter(torch.Tensor(C_inout))  # (C)
         self.method = method  # one of ['spectral', 'implicit_dense']
 
-        nn.init.constant_(self.diffusion_time, 0.0)
+        # nn.init.constant_(self.diffusion_time, 0.0)
+        nn.init.normal_(self.diffusion_time, mean=2.0, std=2.0)
 
     def forward(self, x, L, mass, evals, evecs):
 
         # project times to the positive halfspace
         # (and away from 0 in the incredibly rare chance that they get stuck)
         with torch.no_grad():
+            self.diffusion_time = torch.abs(self.diffusion_time)
             self.diffusion_time.data = torch.clamp(self.diffusion_time, min=1e-8)
 
         if x.shape[-1] != self.C_inout:
