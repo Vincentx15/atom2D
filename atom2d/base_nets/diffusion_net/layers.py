@@ -68,8 +68,8 @@ class LearnedTimeDiffusion(nn.Module):
         # project times to the positive halfspace
         # (and away from 0 in the incredibly rare chance that they get stuck)
         with torch.no_grad():
-            self.diffusion_time = torch.abs(self.diffusion_time)
-            self.diffusion_time.data = torch.clamp(self.diffusion_time, min=1e-8)
+            diffusion_time = torch.abs(self.diffusion_time)
+            diffusion_time = torch.clamp(diffusion_time, min=1e-8)
 
         if x.shape[-1] != self.C_inout:
             raise ValueError(
@@ -84,8 +84,7 @@ class LearnedTimeDiffusion(nn.Module):
             x_spec = to_basis(x, evecs, mass)
 
             # Diffuse
-            time = self.diffusion_time
-            diffusion_coefs = torch.exp(-evals.unsqueeze(-1) * time.unsqueeze(0))
+            diffusion_coefs = torch.exp(-evals.unsqueeze(-1) * diffusion_time.unsqueeze(0))
             x_diffuse_spec = diffusion_coefs * x_spec
 
             # Transform back to per-vertex
@@ -96,7 +95,7 @@ class LearnedTimeDiffusion(nn.Module):
 
             # Form the dense matrices (M + tL) with dims (B,C,V,V)
             mat_dense = L.to_dense().unsqueeze(1).expand(-1, self.C_inout, V, V).clone()
-            mat_dense *= self.diffusion_time.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+            mat_dense *= diffusion_time.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
             mat_dense += torch.diag_embed(mass).unsqueeze(1)
 
             # Factor the system
