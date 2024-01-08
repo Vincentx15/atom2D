@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
-    GraphDiffNetBipartite, AtomNetGraph
+    GraphDiffNetBipartite, AtomNetGraph, PestoModel, CONFIG_MODEL
 
 
 class PSRSurfNet(torch.nn.Module):
@@ -27,6 +27,8 @@ class PSRSurfNet(torch.nn.Module):
                                               C_width=C_width,
                                               last_factor=4,
                                               use_distance=use_distance)
+            # cfg = CONFIG_MODEL
+            # self.encoder_model = PestoModel(cfg)
             self.top_net_graph = nn.Sequential(*[
                 nn.ReLU(),
                 nn.Linear(C_width * 4, C_width * 2),

@@ -67,9 +67,12 @@ class LearnedTimeDiffusion(nn.Module):
 
         # project times to the positive halfspace
         # (and away from 0 in the incredibly rare chance that they get stuck)
-        with torch.no_grad():
-            diffusion_time = torch.abs(self.diffusion_time)
-            diffusion_time = torch.clamp(diffusion_time, min=1e-8)
+        # with torch.no_grad():
+        diffusion_time = torch.abs(self.diffusion_time)
+        diffusion_time = torch.clamp(diffusion_time, min=1e-8)
+
+        # with torch.no_grad():
+        #     self.diffusion_time.data = torch.clamp(self.diffusion_time, min=1e-8)
 
         if x.shape[-1] != self.C_inout:
             raise ValueError(
@@ -84,6 +87,7 @@ class LearnedTimeDiffusion(nn.Module):
             x_spec = to_basis(x, evecs, mass)
 
             # Diffuse
+            # diffusion_coefs = torch.exp(-evals.unsqueeze(-1) * self.diffusion_time.unsqueeze(0))
             diffusion_coefs = torch.exp(-evals.unsqueeze(-1) * diffusion_time.unsqueeze(0))
             x_diffuse_spec = diffusion_coefs * x_spec
 

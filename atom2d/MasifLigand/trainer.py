@@ -243,7 +243,8 @@ class Trainer(ABC):
                     output = self.model.forward(batch).squeeze(-1)
                     cross_entropy_loss = self.criterion(output, batch.labels)
 
-                # print(output) TODO: shrink outputs for stability :
+                # print(self.model.encoder_model.diffnet_block_0.diffusion.diffusion_time[:3])
+                # print(output) # TODO: shrink outputs for stability :
                 #  current outputs look like :
                 #  -1078.4442, -1106.6555, 370.8554, -570.8733, -265.3181, -603.5452, 745.7878
 
