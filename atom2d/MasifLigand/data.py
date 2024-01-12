@@ -275,6 +275,8 @@ class DatasetMasifLigand(Dataset):
         self.operator_dir.mkdir(exist_ok=True, parents=True)
         self.fpaths = fpaths
 
+        self.use_graph_only = config.use_graph_only
+
     @staticmethod
     def collate_wrapper(unbatched_list):
         unbatched_list = [elt for elt in unbatched_list if elt is not None]
@@ -343,22 +345,25 @@ class DatasetMasifLigand(Dataset):
             graph = graph.subgraph(torch.from_numpy(not_hydro))
 
         # GET SURFACE
-        mass, L, evals, evecs, grad_x, grad_y, faces, geom_info, verts = surface_res
+        if self.use_graph_only:
+            surface = None
+        else:
+            mass, L, evals, evecs, grad_x, grad_y, faces, geom_info, verts = surface_res
 
-        ##############################  geom feats  ##############################
-        # full geom features
-        #     verts   vnormal gauss_curv  mean_curv   signature
-        #     0 ~ 2   3 ~ 5   0           1            2 ~ 2 + num_signature - 1
+            ##############################  geom feats  ##############################
+            # full geom features
+            #     verts   vnormal gauss_curv  mean_curv   signature
+            #     0 ~ 2   3 ~ 5   0           1            2 ~ 2 + num_signature - 1
 
-        # expand curvatures to gdf
-        gauss_curvs = geom_info[:, 0]
-        gauss_curvs_gdf = self.gauss_curv_gdf.expand(gauss_curvs)
-        mean_curvs = geom_info[:, 1]
-        mean_curvs_gdf = self.mean_curv_gdf.expand(mean_curvs)
-        geom_feats = np.concatenate((gauss_curvs_gdf, mean_curvs_gdf, geom_info[:, 2:]), axis=-1)
-        geom_feats = torch.from_numpy(geom_feats)
-        surface = SurfaceObject(features=geom_feats, confidence=None, vertices=verts, mass=mass, L=L, evals=evals,
-                                evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False)
+            # expand curvatures to gdf
+            gauss_curvs = geom_info[:, 0]
+            gauss_curvs_gdf = self.gauss_curv_gdf.expand(gauss_curvs)
+            mean_curvs = geom_info[:, 1]
+            mean_curvs_gdf = self.mean_curv_gdf.expand(mean_curvs)
+            geom_feats = np.concatenate((gauss_curvs_gdf, mean_curvs_gdf, geom_info[:, 2:]), axis=-1)
+            geom_feats = torch.from_numpy(geom_feats)
+            surface = SurfaceObject(features=geom_feats, confidence=None, vertices=verts, mass=mass, L=L, evals=evals,
+                                    evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False)
 
         item = Data(labels=label, surface=surface, graph=graph)
         return item

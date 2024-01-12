@@ -27,19 +27,26 @@ class PSRSurfNet(torch.nn.Module):
             if self.use_pesto:
                 cfg = get_config_model(pesto_width)
                 self.encoder_model = PestoModel(cfg)
+                self.top_net_graph = nn.Sequential(*[
+                    nn.ReLU(),
+                    nn.Linear(64, pesto_width * 2),
+                    nn.ReLU(),
+                    nn.Dropout(p=0.25),
+                    nn.Linear(pesto_width * 2, out_features)
+                ])
             else:
                 self.encoder_model = AtomNetGraph(C_in=in_channels,
                                                   C_out=out_channel,
                                                   C_width=C_width,
                                                   last_factor=4,
                                                   use_distance=use_distance)
-            self.top_net_graph = nn.Sequential(*[
-                nn.ReLU(),
-                nn.Linear(C_width * 4, C_width * 2),
-                nn.ReLU(),
-                nn.Dropout(p=0.25),
-                nn.Linear(C_width * 2, 1)
-            ])
+                self.top_net_graph = nn.Sequential(*[
+                    nn.ReLU(),
+                    nn.Linear(C_width * 4, C_width * 2),
+                    nn.ReLU(),
+                    nn.Dropout(p=0.25),
+                    nn.Linear(C_width * 2, out_features)
+                ])
         elif not use_graph:
             self.encoder_model = DiffusionNetBatch(C_in=in_channels_surf,
                                                    C_out=out_channel,
@@ -132,13 +139,21 @@ class PSRSurfNet(torch.nn.Module):
         processed = self.encoder_model(graph=graph, surface=surface)
 
         if self.use_graph_only:
-            graph.x = processed
-            graph_embs = []
-            for individual_graph in graph.to_data_list():
-                x = torch.max(individual_graph.x, dim=-2).values
-                x = self.top_net_graph(x).view(-1)
-                graph_embs.append(x)
-            return torch.cat(graph_embs)
+            if self.use_pesto:
+                graph_embs = []
+                for individual_emb in processed:
+                    x = torch.max(individual_emb, dim=-2).values
+                    x = self.top_net_graph(x).view(-1)
+                    graph_embs.append(x)
+                return torch.stack(graph_embs)
+            else:
+                graph_embs = []
+                graph.x = processed
+                for individual_graph in graph.to_data_list():
+                    x = torch.max(individual_graph.x, dim=-2).values
+                    x = self.top_net_graph(x).view(-1)
+                    graph_embs.append(x)
+                return torch.cat(graph_embs)
         else:
             if self.use_mean:
                 x = torch.stack([torch.mean(x, dim=-2) for x in processed])

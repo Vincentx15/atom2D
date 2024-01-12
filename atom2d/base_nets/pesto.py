@@ -4,7 +4,7 @@ from torch.utils.checkpoint import checkpoint
 
 def get_config_model(Ns):
     return {
-        "em": {'N0': 37, 'N1': 32},
+        "em": {'N0': 37, 'N1': Ns},
         "sum": [
             {'Ns': Ns, 'Nh': 2, 'Nk': 3, 'nn': 8},
             {'Ns': Ns, 'Nh': 2, 'Nk': 3, 'nn': 8},
@@ -39,9 +39,10 @@ def get_config_model(Ns):
             {'Ns': Ns, 'Nh': 2, 'Nk': 3, 'nn': 64},
             {'Ns': Ns, 'Nh': 2, 'Nk': 3, 'nn': 64},
         ],
-        "spl": {'N0': 32, 'N1': 32, 'Nh': 4},
-        "dm": {'N0': 32, 'N1': 32, 'N2': 5}
+        "spl": {'N0': Ns, 'N1': 32, 'Nh': 4},
+        "dm": {'N0': 32, 'N1': 32, 'N2': 7}
     }
+
 
 # >> UTILS
 def unpack_state_features(X, ids_topk, q):
@@ -392,20 +393,25 @@ def get_top_k_m_batch(batch, k=64):
         offset_residue = 0
         all_top_k = []
         all_m = []
+        atoms_sizes = []
+        residue_sizes = []
         # Automatic batching does not work for variable created post graph
         for graph in graphs:
             dists = torch.cdist(graph.pos, graph.pos)
             top_k = dists.topk(k=k, largest=False).indices + offset
             all_top_k.append(top_k)
+            atoms_sizes.append(top_k)
             offset += len(dists)
 
             all_m.append(graph.atom_to_res_map + offset_residue)
-            offset_residue += graph.atom_to_res_map.max()
+            residue_size = int(graph.atom_to_res_map.max())
+            offset_residue += residue_size
+            residue_sizes.append(residue_size)
         all_top_k = torch.vstack(all_top_k)
         all_m = torch.hstack(all_m).long() - 1
         M = torch.zeros((len(all_m), int(all_m.max() + 1)))
         M[torch.arange(len(all_m)), all_m] = 1
-    return all_top_k, M
+    return all_top_k, M, atoms_sizes, residue_sizes
 
 
 class PestoModel(torch.nn.Module):
@@ -426,13 +432,13 @@ class PestoModel(torch.nn.Module):
         self.spl = StatePoolLayer(config['spl']['N0'], config['spl']['N1'], config['spl']['Nh'])
 
         # decoding mlp
-        self.dm = torch.nn.Sequential(
-            torch.nn.Linear(2 * config['dm']['N0'], config['dm']['N1']),
-            torch.nn.ELU(),
-            torch.nn.Linear(config['dm']['N1'], config['dm']['N1']),
-            torch.nn.ELU(),
-            torch.nn.Linear(config['dm']['N1'], config['dm']['N2']),
-        )
+        # self.dm = torch.nn.Sequential(
+        #     torch.nn.Linear(2 * config['dm']['N0'], config['dm']['N1']),
+        #     torch.nn.ELU(),
+        #     torch.nn.Linear(config['dm']['N1'], config['dm']['N1']),
+        #     torch.nn.ELU(),
+        #     torch.nn.Linear(config['dm']['N1'], config['dm']['N2']),
+        # )
 
     def forward(self, graph, surface):
         """
@@ -444,7 +450,7 @@ class PestoModel(torch.nn.Module):
         :return:
         """
         X, q0 = graph.pos, graph.x
-        ids_topk, M = get_top_k_m_batch(graph)
+        ids_topk, M, atom_sizes, residue_sizes = get_top_k_m_batch(graph)
 
         # encode features
         q = self.em.forward(q0)
@@ -463,5 +469,8 @@ class PestoModel(torch.nn.Module):
 
         # decode state
         zr = torch.cat([qr, torch.norm(pr, dim=1)], dim=1)
-        z = self.dm.forward(zr)
-        return z
+
+        # z = self.dm.forward(zr)
+        split_embs = torch.split(zr, residue_sizes, dim=0)
+
+        return split_embs
