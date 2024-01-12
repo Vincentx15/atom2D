@@ -257,7 +257,6 @@ class DatasetMasifLigand(Dataset):
         self.atom_angle = True
         self.skip_hydro = config.skip_hydro
 
-
         self.max_eigen_val = config.max_eigen_val
         self.smoothing = config.smoothing
         self.num_signatures = config.num_signatures
@@ -332,7 +331,13 @@ class DatasetMasifLigand(Dataset):
         atom_hot = np.eye(12, dtype=np.float32)[node_info[:, 1].astype(int)]
         node_feats = np.concatenate((res_hot, atom_hot, node_info[:, 2:]), axis=1)
         node_pos, node_feats, edge_index, edge_attr = list_from_numpy([node_pos, node_feats, edge_index, edge_attr])
-        graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr)
+
+        # node_feat[-1] is CA position, its almost residue id with offset of one because of nitrogen.
+        ca_loc = node_feats[:, -1]
+        offset = torch.cat((ca_loc[1:], torch.zeros(1)))
+        atom_to_res_map = torch.cumsum(offset, dim=0)
+        graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr,
+                     atom_to_res_map=atom_to_res_map)
         if self.skip_hydro:
             not_hydro = np.where(node_info[:, 1] > 0)[0]
             graph = graph.subgraph(torch.from_numpy(not_hydro))

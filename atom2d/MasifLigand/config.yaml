@@ -40,6 +40,9 @@ c_width: 150
 n_blocks: 6
 dropout: 0.5
 use_v2: False
+use_pesto: False
+pesto_width: 16
+use_graph_only: False
 neigh_th: 8
 
 # optimizer arguments

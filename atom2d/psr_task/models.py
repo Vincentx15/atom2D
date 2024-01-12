@@ -2,13 +2,14 @@ import torch
 import torch.nn as nn
 
 from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
-    GraphDiffNetBipartite, AtomNetGraph, PestoModel, CONFIG_MODEL
+    GraphDiffNetBipartite, AtomNetGraph, PestoModel, get_config_model
 
 
 class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
                  linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
-                 use_graph_only=False, output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
+                 use_graph_only=False, use_pesto=False, pesto_width=16,
+                 output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, use_distance=False,
                  use_wln=False, **kwargs):
         super(PSRSurfNet, self).__init__()
@@ -21,14 +22,17 @@ class PSRSurfNet(torch.nn.Module):
         # Create the model
         self.use_graph = use_graph or use_graph_only
         self.use_graph_only = use_graph_only
+        self.use_pesto = use_pesto
         if use_graph_only:
-            self.encoder_model = AtomNetGraph(C_in=in_channels,
-                                              C_out=out_channel,
-                                              C_width=C_width,
-                                              last_factor=4,
-                                              use_distance=use_distance)
-            # cfg = CONFIG_MODEL
-            # self.encoder_model = PestoModel(cfg)
+            if self.use_pesto:
+                cfg = get_config_model(pesto_width)
+                self.encoder_model = PestoModel(cfg)
+            else:
+                self.encoder_model = AtomNetGraph(C_in=in_channels,
+                                                  C_out=out_channel,
+                                                  C_width=C_width,
+                                                  last_factor=4,
+                                                  use_distance=use_distance)
             self.top_net_graph = nn.Sequential(*[
                 nn.ReLU(),
                 nn.Linear(C_width * 4, C_width * 2),

@@ -57,7 +57,6 @@ def train(config):
     # Model = load_model(config.model)
     # model = Model(config)
 
-
     model = PSRSurfNet(C_width=config.c_width,
                        N_block=config.n_blocks,
                        use_mean=True,
@@ -69,15 +68,15 @@ def train(config):
                        out_channel=128,
                        out_features=7,
                        use_graph=True,
-                       # use_graph_only=True,
+                       use_graph_only=config.use_graph_only,
+                       use_pesto=config.use_pesto,
+                       pesto_width=config.pesto_width,
                        use_gat=True,
                        neigh_th=config.neigh_th,
                        use_v2=config.use_v2,
                        dropout=config.dropout,
                        graph_model='bipartite',
                        use_distance=config.use_distance)
-
-
 
     # w_path = "/home/vmallet/projects/atom2d/data/MasifLigand/out_dir/new_init_6/model_last.pt"
     # state_dict = torch.load(w_path, map_location="cpu")['model']
