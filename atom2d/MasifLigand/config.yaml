@@ -38,6 +38,7 @@ num_gdf: 16
 # model args
 c_width: 150
 n_blocks: 6
+with_gradient_features: True
 dropout: 0.5
 use_v2: False
 use_pesto: False

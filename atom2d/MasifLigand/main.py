@@ -59,6 +59,7 @@ def train(config):
 
     model = PSRSurfNet(C_width=config.c_width,
                        N_block=config.n_blocks,
+                       with_gradient_features=config.with_gradient_features,
                        use_mean=True,
                        batch_norm=True,
                        output_graph=False,
