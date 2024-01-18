@@ -45,6 +45,9 @@ use_pesto: False
 pesto_width: 16
 use_graph_only: False
 neigh_th: 8
+use_ema: False
+ema_decay: 0.995
+ema_update_every: 10
 
 # optimizer arguments
 optimizer: Adam

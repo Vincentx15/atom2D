@@ -10,6 +10,7 @@ import time
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.distributed import DistributedSampler
 from hmr_min import CSVWriter
+from ema_pytorch import EMA
 
 from metrics import multi_class_eval
 from abc import ABC, abstractmethod
@@ -78,11 +79,17 @@ class Trainer(ABC):
         self.test_best = False
         self.shrink_outputs = config.shrink_outputs
         self.shrink_epochs = config.shrink_epochs
+        self.use_ema = config.use_ema
 
         # model
         self.model = model
         if self.device != 'cpu':
             self.model = self.model.to(self.device)
+
+        # ema
+        if self.use_ema:
+            self.ema = EMA(self.model, beta=config.ema_decay, update_every=config.ema_update_every)
+
         # logging.info(self.model)
         learnable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         logging.info(f'Number of learnable model parameters: {learnable_params}')
@@ -220,6 +227,8 @@ class Trainer(ABC):
             self.model.train()
         else:
             self.model.eval()
+            if self.use_ema:
+                self.ema.ema_model.eval()
 
         exploding_grad = []
         context = contextlib.nullcontext() if partition == 'train' else torch.no_grad()
@@ -240,7 +249,10 @@ class Trainer(ABC):
                                 shrink_loss = self.shrink_outputs * torch.mean(output) ** 2
                                 cross_entropy_loss += shrink_loss
                 else:
-                    output = self.model.forward(batch).squeeze(-1)
+                    if self.use_ema:
+                        output = self.ema.ema_model.forward(batch).squeeze(-1)
+                    else:
+                        output = self.model.forward(batch).squeeze(-1)
                     cross_entropy_loss = self.criterion(output, batch.labels)
 
                 # print(self.model.encoder_model.diffnet_block_0.diffusion.diffusion_time[:3])
@@ -265,6 +277,10 @@ class Trainer(ABC):
                         if grad_norm > self.clip_grad_norm:
                             exploding_grad.append(grad_norm.item())
                         self.optimizer.step()
+
+                    # update ema model
+                    if self.use_ema:
+                        self.ema.update()
 
                 # add ouputs
                 pred_scores.append(output)
