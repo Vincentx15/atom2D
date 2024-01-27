@@ -68,7 +68,7 @@ def train(config):
                        in_channels_surf=54,
                        out_channel=128,
                        out_features=7,
-                       use_graph=True,
+                       use_graph=config.use_graph,
                        use_graph_only=config.use_graph_only,
                        use_pesto=config.use_pesto,
                        pesto_width=config.pesto_width,

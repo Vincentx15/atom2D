@@ -43,6 +43,7 @@ dropout: 0.5
 use_v2: False
 use_pesto: False
 pesto_width: 16
+use_graph: True
 use_graph_only: False
 neigh_th: 8
 use_ema: False
