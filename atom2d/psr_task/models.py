@@ -53,6 +53,7 @@ class PSRSurfNet(torch.nn.Module):
                                                    C_width=C_width,
                                                    N_block=N_block,
                                                    last_activation=torch.relu,
+                                                   with_gradient_features=with_gradient_features,
                                                    use_bn=batch_norm,
                                                    dropout=dropout)
         else:
@@ -62,6 +63,7 @@ class PSRSurfNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
+                                                          with_gradient_features=with_gradient_features,
                                                           use_mp=use_mp,
                                                           use_bn=batch_norm,
                                                           output_graph=output_graph,
@@ -73,6 +75,7 @@ class PSRSurfNet(torch.nn.Module):
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
+                                                            with_gradient_features=with_gradient_features,
                                                             use_mp=use_mp,
                                                             use_gat=use_gat,
                                                             use_skip=use_skip,
@@ -86,6 +89,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
+                                                           with_gradient_features=with_gradient_features,
                                                            use_bn=batch_norm,
                                                            flash=flash,
                                                            dropout=dropout,
