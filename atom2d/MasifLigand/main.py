@@ -61,7 +61,7 @@ def train(config):
                        N_block=config.n_blocks,
                        with_gradient_features=config.with_gradient_features,
                        use_mean=True,
-                       batch_norm=True,
+                       batch_norm=config.batch_norm,
                        output_graph=False,
                        use_skip=True,
                        in_channels=37,
