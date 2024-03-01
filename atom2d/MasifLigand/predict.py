@@ -19,7 +19,7 @@ from functools import partialmethod
 from easydict import EasyDict as edict
 from pathlib import Path
 
-from hmr_min import set_seed
+from data_processing.hmr_min import set_seed
 from models import load_model
 from data import load_data_fpaths_from_split_file, DatasetMasifLigand
 from metrics import multi_class_eval

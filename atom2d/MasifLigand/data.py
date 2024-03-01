@@ -10,33 +10,13 @@ from torch_geometric.data import Data
 from torch_sparse import SparseTensor
 from torch_geometric.utils import to_undirected
 
-from hmr_min import DataLoaderBase
-from hmr_min import res_type_to_hphob
-from hmr_min import compute_HKS
+from data_processing.hmr_min import DataLoaderBase
+from data_processing.hmr_min import res_type_to_hphob
+from data_processing.hmr_min import compute_HKS, atom_coords_to_edges
 from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
 from data_processing.data_module import SurfaceObject
 from data_processing.data_module import AtomBatch
-
-
-def atom_coords_to_edges(node_pos, edge_dist_cutoff=4.5):
-    r"""
-    Turn nodes position into neighbors graph.
-    """
-    # import time
-    # t0 = time.time()
-    kd_tree = ss.KDTree(node_pos)
-    edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
-    edges = torch.LongTensor(edge_tuples).t().contiguous()
-    edges = to_undirected(edges)
-    # print(f"time to pre_dist : {time.time() - t0}")
-
-    # t0 = time.time()
-    node_a = node_pos[edges[0, :]]
-    node_b = node_pos[edges[1, :]]
-    with torch.no_grad():
-        my_edge_weights_torch = 1 / (np.linalg.norm(node_a - node_b, axis=1) + 1e-5)
-    return edges, my_edge_weights_torch
 
 
 def preprocess_data(data_fpath,
@@ -97,12 +77,6 @@ def preprocess_data(data_fpath,
 
         geom_feats = np.concatenate(geom_feats, axis=-1)
         geom_feats = np.concatenate([verts, vnormals, geom_feats], axis=-1)
-
-        #############################  Laplace-Beltrami basis  ##############################
-        # eigs = np.concatenate(
-        #     (eigen_vals.reshape(1, -1), eigen_vecs, eigen_vecs_inv.T),
-        #     axis=0
-        # )
 
         ##############################  Cache processed  ##############################
         verts = torch.from_numpy(verts)

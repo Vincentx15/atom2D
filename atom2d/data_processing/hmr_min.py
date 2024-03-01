@@ -8,11 +8,16 @@ import shutil
 import logging
 import numpy as np
 from tqdm import tqdm
+import scipy.spatial as ss
+from torch_geometric.utils import to_undirected
+from subprocess import Popen, PIPE, SubprocessError
 
 import torch
 from abc import ABC, abstractmethod
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
+
+PDB2PQR = "/home/vmallet/projects/holoprot/binaries/pdb2pqr/pdb2pqr"
 
 # atom type label for one-hot-encoding
 atom_type_dict = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'S': 4, 'F': 5, 'P': 6, 'Cl': 7, 'Se': 8,
@@ -34,6 +39,7 @@ res_type_to_hphob = {
     idx: hydrophob_dict[res_type] for res_type, idx in res_type_dict.items()
 }
 
+
 def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000):
     eigen_vals = eigen_vals.flatten()
     assert eigen_vals[1] > 0
@@ -48,6 +54,121 @@ def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000
     HKS /= heat_trace
 
     return HKS
+
+
+def subprocess_run(cmd, print_out=True, out_log=None, err_ignore=False):
+    """Run a shell subprocess.
+    Input cmd can be a list or command string
+
+    Args:
+        print_out (bool): print output to screen
+        out_log (path): also log output to a file
+        err_ignore (bool): don't raise error message. default False.
+
+    Returns:
+        out (str): standard output, utf-8 decoded
+        err (str): standard error, utf-8 decoded
+    """
+    if isinstance(cmd, str):
+        import shlex
+        cmd = shlex.split(cmd)
+
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+
+    # print output
+    if print_out:
+        out = ''
+        for line in iter(proc.stdout.readline, b''):
+            out += line.decode('utf-8')
+            print('>>> {}'.format(line.decode('utf-8').rstrip()), flush=True)
+        _, stderr = proc.communicate()
+    else:
+        stdout, stderr = proc.communicate()
+        out = stdout.decode('utf-8').strip('\n')
+    err = stderr.decode('utf-8').strip('\n')
+
+    # log output to file
+    if out_log is not None:
+        with open(out_log, 'w') as handle:
+            handle.write(out)
+
+    if not err_ignore and err != '':
+        raise SubprocessError(f"Error encountered: {' '.join(cmd)}\n{err}")
+
+    return out, err
+
+
+def pdb_to_atom_info(pdb_path):
+    try:
+        pdb_path = Path(pdb_path)
+        pdb_id = pdb_path.stem
+        out_dir = pdb_path.parent
+        pqr_path = Path(out_dir / f'{pdb_id}.pqr')
+        if not pqr_path.exists():
+            _, err = subprocess_run(
+                [PDB2PQR, '--ff=AMBER', str(pdb_path), str(pqr_path)], print_out=False, out_log=None, err_ignore=True)
+        if 'CRITICAL' in err:
+            print(f'{pdb_id} pdb2pqr failed', flush=True)
+            return None
+
+        with open(pqr_path, 'r') as f:
+            f_read = f.readlines()
+        os.remove(pqr_path)
+        atom_info = []
+        for line in f_read:
+            if line[:4] == 'ATOM':
+                assert (len(line) == 70) and (line[69] == '\n')
+                # atom_id = int(line[6:11])  # 1-based indexing
+                assert line[11] == ' '
+                atom_name = line[12:16].strip()
+                assert atom_name[0] in atom_type_dict
+                assert line[16] == ' '
+                res_name = line[17:20]
+                if not res_name in res_type_dict:
+                    res_name = 'UNK'
+                # res_id = int(line[22:26].strip())  # 1-based indexing
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                assert line[54] == ' '
+                charge = float(line[55:62])
+                assert line[62] == ' '
+                radius = float(line[63:69])
+                assert res_name in res_type_dict
+                assert atom_name[0] in atom_type_dict
+                alpha_carbon = atom_name.upper() == 'CA'
+                atom_info.append(
+                    [x, y, z, res_type_dict[res_name],
+                     atom_type_dict[atom_name[0]],
+                     float(charge),
+                     float(radius),
+                     alpha_carbon]
+                )
+        return np.array(atom_info, dtype=float)
+
+    except Exception as e:
+        print(e)
+        return None
+
+
+def atom_coords_to_edges(node_pos, edge_dist_cutoff=4.5):
+    r"""
+    Turn nodes position into neighbors graph.
+    """
+    # import time
+    # t0 = time.time()
+    kd_tree = ss.KDTree(node_pos)
+    edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
+    edges = torch.LongTensor(edge_tuples).t().contiguous()
+    edges = to_undirected(edges)
+    # print(f"time to pre_dist : {time.time() - t0}")
+
+    # t0 = time.time()
+    node_a = node_pos[edges[0, :]]
+    node_b = node_pos[edges[1, :]]
+    with torch.no_grad():
+        my_edge_weights_torch = 1 / (np.linalg.norm(node_a - node_b, axis=1) + 1e-5)
+    return edges, my_edge_weights_torch
 
 
 class CSVWriter(object):
@@ -149,4 +270,3 @@ def set_seed(seed):
     torch.backends.cudnn.determinstic = True
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
-

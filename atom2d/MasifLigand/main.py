@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
 from trainer import Trainer
 from data import DataLoaderMasifLigand
-from hmr_min import set_logger, set_seed
+from data_processing.hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
 
 torch.multiprocessing.set_sharing_strategy('file_system')
