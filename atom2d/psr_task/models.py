@@ -6,7 +6,7 @@ from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSeque
 
 
 class PSRSurfNet(torch.nn.Module):
-    def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
+    def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4, with_gradient_features=True,
                  linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
                  use_graph_only=False, use_pesto=False, pesto_width=16,
                  output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
@@ -53,6 +53,7 @@ class PSRSurfNet(torch.nn.Module):
                                                    C_width=C_width,
                                                    N_block=N_block,
                                                    last_activation=torch.relu,
+                                                   with_gradient_features=with_gradient_features,
                                                    use_bn=batch_norm,
                                                    dropout=dropout)
         else:
@@ -62,6 +63,7 @@ class PSRSurfNet(torch.nn.Module):
                                                           C_width=C_width,
                                                           N_block=N_block,
                                                           last_activation=torch.relu,
+                                                          with_gradient_features=with_gradient_features,
                                                           use_mp=use_mp,
                                                           use_bn=batch_norm,
                                                           output_graph=output_graph,
@@ -73,6 +75,7 @@ class PSRSurfNet(torch.nn.Module):
                                                             C_width=C_width,
                                                             N_block=N_block,
                                                             last_activation=torch.relu,
+                                                            with_gradient_features=with_gradient_features,
                                                             use_mp=use_mp,
                                                             use_gat=use_gat,
                                                             use_skip=use_skip,
@@ -86,6 +89,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            C_width=C_width,
                                                            N_block=N_block,
                                                            last_activation=torch.relu,
+                                                           with_gradient_features=with_gradient_features,
                                                            use_bn=batch_norm,
                                                            flash=flash,
                                                            dropout=dropout,
@@ -96,6 +100,7 @@ class PSRSurfNet(torch.nn.Module):
                                                            C_out=out_channel,
                                                            C_width=C_width,
                                                            N_block=N_block,
+                                                           with_gradient_features=with_gradient_features,
                                                            last_activation=torch.relu,
                                                            use_bn=batch_norm,
                                                            output_graph=output_graph,

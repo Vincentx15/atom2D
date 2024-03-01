@@ -572,8 +572,7 @@ class DiffusionNetBatch(nn.Module):
         x_in, mass, L, evals, evecs, gradX, gradY = surface.x, surface.mass, surface.L, surface.evals, surface.evecs, surface.gradX, surface.gradY
 
         assert isinstance(x_in, list), "inputs to `DiffusionNetBatch` must be a lists"
-        assert x_in[0].shape[
-                   -1] == self.C_in, f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in[0].shape[-1]}"
+        assert x_in[0].shape[-1] == self.C_in, f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in[0].shape[-1]}"
 
         mass = [m.unsqueeze(0) for m in mass]
         L = [ll.unsqueeze(0) for ll in L]

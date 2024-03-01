@@ -166,3 +166,9 @@ msp_task/logs/*
 psr_task/logs/*
 outputs/*
 dataa/
+msp_slurm/
+pip_slurm/
+psr_slurm/
+hmr_slurm/
+holoprot_slurm/
+atom2d/MasifLigand/outputs/
