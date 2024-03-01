@@ -11,3 +11,7 @@ Then, we have pdbs that need to be turned into a graph and ply files that incorp
 P["mesh_xyz"] and P["mesh_labels"].
 The code to compute loss and metrics is [here](https://github.com/FreyrS/dMaSIF/blob/master/data_iteration.py#L157).
 
+## Diff with HMR
+- There are other info on the surface (following masif)
+- We don't use Gaussian Distance Function encoding for curvatures
+- We use the ply files from masif and our own evecs
