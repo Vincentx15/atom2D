@@ -2,13 +2,19 @@ import os
 import sys
 
 import numpy as np
+from pathlib import Path
+
 import torch
 from torch.utils.data import Dataset
 from torch_geometric.data import Data
+from torch_geometric.data import DataLoader
 from torch_sparse import SparseTensor
+import pytorch_lightning as pl
 
 if __name__ == '__main__':
-    sys.path.append('..')
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
+
 
 from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
@@ -49,17 +55,17 @@ def load_preprocessed_data(processed_fpath, operator_path):
     return surface_res, graph_res, labels
 
 
-class DatasetMasifSite(Dataset):
+class MasifSiteDataset(Dataset):
 
     def __init__(self,
-                 systems_list='../../data/masif_site/train_list.txt',
+                 systems_list=(),
                  processed_dir='../../data/masif_site/processed'):
-        all_sys = [name.strip() for name in open(systems_list, 'r').readlines()]
         self.processed_dir = processed_dir
         successful_operators_pdb = [file.rstrip('_operator.npz') for file in os.listdir(self.processed_dir)]
         successful_processed_pdb = [file.rstrip('_processed.npz') for file in os.listdir(self.processed_dir)]
-        self.all_sys = list(set(all_sys).intersection(successful_operators_pdb).intersection(successful_processed_pdb))
-        print(len(all_sys))
+        self.all_sys = list(
+            set(systems_list).intersection(successful_operators_pdb).intersection(successful_processed_pdb))
+        print(len(systems_list))
         print(len(self.all_sys))
         self.skip_hydro = False
 
@@ -97,10 +103,45 @@ class DatasetMasifSite(Dataset):
         return item
 
 
-if __name__ == '__main__':
-    from torch_geometric.data import DataLoader
+class MasifSiteDataModule(pl.LightningDataModule):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.data_dir = Path(cfg.dataset.data_dir)
+        self.processed_dir = str(self.data_dir / 'processed')
+        train_systems_list = self.data_dir / 'train_list.txt'
+        trainval_sys = [name.strip() for name in open(train_systems_list, 'r').readlines()]
+        np.random.shuffle(trainval_sys)
+        trainval_cut = int(0.9 * len(trainval_sys))
+        self.train_sys = trainval_sys[:trainval_cut]
+        self.val_sys = trainval_sys[trainval_cut:]
 
-    dataset = DatasetMasifSite()
+        test_systems_list = self.data_dir / 'test_list.txt'
+        self.test_sys = [name.strip() for name in open(test_systems_list, 'r').readlines()]
+
+    def train_dataloader(self):
+        dataset = MasifSiteDataset(systems_list=self.train_sys, processed_dir=self.processed_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
+                          shuffle=self.cfg.loader.shuffle, collate_fn=lambda x: AtomBatch.from_data_list(x))
+
+    def val_dataloader(self):
+        dataset = MasifSiteDataset(systems_list=self.val_sys, processed_dir=self.processed_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
+                          shuffle=self.cfg.loader.shuffle, collate_fn=lambda x: AtomBatch.from_data_list(x))
+
+    def test_dataloader(self):
+        dataset = MasifSiteDataset(systems_list=self.test_sys, processed_dir=self.processed_dir)
+        return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
+                          pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
+                          shuffle=self.cfg.loader.shuffle, collate_fn=lambda x: AtomBatch.from_data_list(x))
+
+
+if __name__ == '__main__':
+    systems_list = '../../data/masif_site/train_list.txt'
+    all_sys = [name.strip() for name in open(systems_list, 'r').readlines()]
+    dataset = MasifSiteDataset(systems_list=all_sys)
     dataloader = DataLoader(dataset, num_workers=4, batch_size=1)
     for i, item in enumerate(dataloader):
         print(i, item)

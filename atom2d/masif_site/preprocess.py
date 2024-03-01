@@ -8,7 +8,8 @@ from torch.utils.data import Dataset
 from torch_geometric.data import DataLoader
 
 if __name__ == '__main__':
-    sys.path.append('..')
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
 
 from data_processing.hmr_min import compute_HKS
 from data_processing.hmr_min import res_type_to_hphob, pdb_to_atom_info, atom_coords_to_edges

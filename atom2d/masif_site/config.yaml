@@ -6,14 +6,11 @@ log_dir: "./"
 path_model: "version_x/checkpoints/last.ckpt"
 
 dataset:
-  data_dir: "../../data/PSR/"
-  recompute: False
-  big_graphs: False
-  use_xyz: False
+  data_dir: "../../data/masif_site/"
 
 loader:
-  batch_size_train: 8
-  batch_size_val: 8
+  batch_size_train: 40
+  batch_size_val: 40
   num_workers: 1
   pin_memory: False
   prefetch_factor: 2
@@ -27,16 +24,11 @@ model:
   dropout: 0.3
   use_mean: False
   batch_norm: True
-  use_graph: True
-  use_graph_only: False
   graph_model: 'bipartite'
   use_gat: False
-  use_mp: False
   use_v2: False
   use_skip: False
   neigh_th: 8
-  flash: True
-  output_graph: True
   use_distance: False
 
 optimizer:
@@ -59,4 +51,4 @@ train:
 
 hydra:
   run:
-    dir: ../../outputs/psr/
+    dir: ../../outputs/masif_site/
