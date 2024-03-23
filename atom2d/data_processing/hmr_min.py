@@ -39,6 +39,36 @@ res_type_to_hphob = {
     idx: hydrophob_dict[res_type] for res_type, idx in res_type_dict.items()
 }
 
+protein_letters_1to3 = {
+    "A": "Ala",
+    "C": "Cys",
+    "D": "Asp",
+    "E": "Glu",
+    "F": "Phe",
+    "G": "Gly",
+    "H": "His",
+    "I": "Ile",
+    "K": "Lys",
+    "L": "Leu",
+    "M": "Met",
+    "N": "Asn",
+    "P": "Pro",
+    "Q": "Gln",
+    "R": "Arg",
+    "S": "Ser",
+    "T": "Thr",
+    "V": "Val",
+    "W": "Trp",
+    "Y": "Tyr",
+    "X": "Unk"
+}
+
+protein_letters_3to1 = {value.upper(): key for key, value in protein_letters_1to3.items()}
+
+res_type_idx_to_1 = {
+    idx: protein_letters_3to1[res_type] for res_type, idx in res_type_dict.items()
+}
+
 
 def compute_HKS(eigen_vecs, eigen_vals, num_t, t_min=0.1, t_max=1000, scale=1000):
     eigen_vals = eigen_vals.flatten()

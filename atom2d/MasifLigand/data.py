@@ -17,6 +17,7 @@ from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
 from data_processing.data_module import SurfaceObject
 from data_processing.data_module import AtomBatch
+from MasifLigand.add_seq_embs import compute_esm_embs, get_esm_embs
 
 
 def preprocess_data(data_fpath,
@@ -245,11 +246,15 @@ class DatasetMasifLigand(Dataset):
         assert self.data_dir.exists(), f"Dataset dir {self.data_dir} not found"
         self.processed_dir = Path(config.processed_dir)
         self.operator_dir = Path(config.operator_dir)
+        self.pdb_dir = self.data_dir.parent / 'raw_data_MasifLigand/pdb'
+        self.seq_emb_dir = self.data_dir.parent / 'computed_embs'
         self.processed_dir.mkdir(exist_ok=True, parents=True)
         self.operator_dir.mkdir(exist_ok=True, parents=True)
+        self.seq_emb_dir.mkdir(exist_ok=True, parents=True)
         self.fpaths = fpaths
-
         self.use_graph_only = config.use_graph_only
+        self.add_seq_emb = config.add_seq_emb
+        self.recompute_surf = False
 
     @staticmethod
     def collate_wrapper(unbatched_list):
@@ -267,6 +272,8 @@ class DatasetMasifLigand(Dataset):
         # load data
         fpath = self.fpaths[idx]
         fname = Path(fpath).name
+        pdb_code, chains = fname.split('_')[:2]
+        pdb_chains = '_'.join((pdb_code, chains))
         processed_fpath = self.processed_dir / fname
         operator_fpath = self.operator_dir / fname
         success = True
@@ -296,6 +303,13 @@ class DatasetMasifLigand(Dataset):
             print(fpath)
             return None
         surface_res, graph_res, label = load_preprocessed_data(processed_fpath, operator_fpath)
+
+        if self.add_seq_emb and self.recompute_surf:
+            compute_esm_embs(pdb=pdb_chains + '.pdb',
+                             pdb_dir=self.pdb_dir,
+                             out_emb_dir=self.seq_emb_dir,
+                             recompute=False)
+
         label = int(label)
         ##############################  chem feats  ##############################
         # full chemistry features in node_info :
@@ -312,6 +326,17 @@ class DatasetMasifLigand(Dataset):
         ca_loc = node_feats[:, -1]
         offset = torch.cat((ca_loc[1:], torch.zeros(1)))
         atom_to_res_map = torch.cumsum(offset, dim=0)
+
+        # Now concatenate the embeddings
+        if self.add_seq_emb:
+            esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
+            if esm_embs is None:
+                print('Failed to load embs', pdb_chains)
+                return None
+            esm_embs = torch.from_numpy(esm_embs)
+            expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
+            node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
+
         graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr,
                      atom_to_res_map=atom_to_res_map)
         if self.skip_hydro:

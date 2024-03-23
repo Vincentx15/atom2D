@@ -9,7 +9,7 @@ import time
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.distributed import DistributedSampler
-from ema_pytorch import EMA
+# from ema_pytorch import EMA
 from data_processing.hmr_min import CSVWriter
 
 from metrics import multi_class_eval
