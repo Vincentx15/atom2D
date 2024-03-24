@@ -331,6 +331,9 @@ class DatasetMasifLigand(Dataset):
             if esm_embs is None:
                 print('Failed to load embs', pdb_chains)
                 return None
+            if atom_to_res_map.max().item() > len(esm_embs):
+                print('Max # res is longer than embeddings', pdb_chains)
+                return None
             esm_embs = torch.from_numpy(esm_embs)
             expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
             node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
