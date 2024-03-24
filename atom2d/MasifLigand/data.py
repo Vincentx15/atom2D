@@ -9,35 +9,15 @@ import scipy.spatial as ss
 from sklearn.neighbors import BallTree
 from torch_geometric.data import Data
 from torch_sparse import SparseTensor
-from torch_geometric.utils import to_undirected
 
-from hmr_min import DataLoaderBase
-from hmr_min import res_type_to_hphob
-from hmr_min import compute_HKS
+from data_processing.hmr_min import DataLoaderBase
+from data_processing.hmr_min import res_type_to_hphob
+from data_processing.hmr_min import compute_HKS, atom_coords_to_edges
 from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
 from data_processing.data_module import SurfaceObject
 from data_processing.data_module import AtomBatch
-
-
-def atom_coords_to_edges(node_pos, edge_dist_cutoff=4.5):
-    r"""
-    Turn nodes position into neighbors graph.
-    """
-    # import time
-    # t0 = time.time()
-    kd_tree = ss.KDTree(node_pos)
-    edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
-    edges = torch.LongTensor(edge_tuples).t().contiguous()
-    edges = to_undirected(edges)
-    # print(f"time to pre_dist : {time.time() - t0}")
-
-    # t0 = time.time()
-    node_a = node_pos[edges[0, :]]
-    node_b = node_pos[edges[1, :]]
-    with torch.no_grad():
-        my_edge_weights_torch = 1 / (np.linalg.norm(node_a - node_b, axis=1) + 1e-5)
-    return edges, my_edge_weights_torch
+from data_processing.add_seq_embs import compute_esm_embs, get_esm_embs
 
 
 def preprocess_data(data_fpath,
@@ -99,12 +79,6 @@ def preprocess_data(data_fpath,
 
         geom_feats = np.concatenate(geom_feats, axis=-1)
         geom_feats = np.concatenate([verts, vnormals, geom_feats], axis=-1)
-
-        #############################  Laplace-Beltrami basis  ##############################
-        # eigs = np.concatenate(
-        #     (eigen_vals.reshape(1, -1), eigen_vecs, eigen_vecs_inv.T),
-        #     axis=0
-        # )
 
         ##############################  Cache processed  ##############################
         verts = torch.from_numpy(verts)
@@ -315,11 +289,15 @@ class DatasetMasifLigand(Dataset):
         assert self.data_dir.exists(), f"Dataset dir {self.data_dir} not found"
         self.processed_dir = Path(config.processed_dir)
         self.operator_dir = Path(config.operator_dir)
+        self.pdb_dir = self.data_dir.parent / 'raw_data_MasifLigand/pdb'
+        self.seq_emb_dir = self.data_dir.parent / 'computed_embs'
         self.processed_dir.mkdir(exist_ok=True, parents=True)
         self.operator_dir.mkdir(exist_ok=True, parents=True)
+        self.seq_emb_dir.mkdir(exist_ok=True, parents=True)
         self.fpaths = fpaths
-
         self.use_graph_only = config.use_graph_only
+        self.add_seq_emb = config.add_seq_emb
+        self.recompute_surf = False
 
     @staticmethod
     def collate_wrapper(unbatched_list):
@@ -337,6 +315,8 @@ class DatasetMasifLigand(Dataset):
         # load data
         fpath = self.fpaths[idx]
         fname = Path(fpath).name
+        pdb_code, chains = fname.split('_')[:2]
+        pdb_chains = '_'.join((pdb_code, chains))
         processed_fpath = self.processed_dir / fname
         operator_fpath = self.operator_dir / fname
         success = True
@@ -366,6 +346,13 @@ class DatasetMasifLigand(Dataset):
             print(fpath)
             return None
         surface_res, graph_res, label, chem_feats, geom_feats_, nbr_vids = load_preprocessed_data(processed_fpath, operator_fpath, self)
+
+        if self.add_seq_emb and self.recompute_surf:
+            compute_esm_embs(pdb=pdb_chains + '.pdb',
+                             pdb_dir=self.pdb_dir,
+                             out_emb_dir=self.seq_emb_dir,
+                             recompute=False)
+
         label = int(label)
         ##############################  chem feats  ##############################
         # full chemistry features in node_info :
@@ -382,6 +369,20 @@ class DatasetMasifLigand(Dataset):
         ca_loc = node_feats[:, -1]
         offset = torch.cat((ca_loc[1:], torch.zeros(1)))
         atom_to_res_map = torch.cumsum(offset, dim=0)
+
+        # Now concatenate the embeddings
+        if self.add_seq_emb:
+            esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
+            if esm_embs is None:
+                print('Failed to load embs', pdb_chains)
+                return None
+            if atom_to_res_map.max().item() > len(esm_embs):
+                print('Max # res is longer than embeddings', pdb_chains)
+                return None
+            esm_embs = torch.from_numpy(esm_embs)
+            expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
+            node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
+
         graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr,
                      atom_to_res_map=atom_to_res_map)
         if self.skip_hydro:
@@ -405,6 +406,7 @@ class DatasetMasifLigand(Dataset):
             mean_curvs_gdf = self.mean_curv_gdf.expand(mean_curvs)
             geom_feats = np.concatenate((gauss_curvs_gdf, mean_curvs_gdf, geom_info[:, 2:]), axis=-1)
             geom_feats = torch.from_numpy(geom_feats)
+
             surface = SurfaceObject(features=geom_feats, confidence=None, vertices=verts, mass=mass, L=L, evals=evals,
                                     evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False,
                                     chem_feats=chem_feats, geom_feats=geom_feats_, nbr_vids=nbr_vids)

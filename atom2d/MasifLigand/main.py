@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
 from trainer import Trainer
 from data import DataLoaderMasifLigand
-from hmr_min import set_logger, set_seed
+from data_processing.hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
 from models import MasifLigandNet
 
@@ -63,6 +63,7 @@ def train(config):
     elif config.model_name == 'masif':
         used_model = MasifLigandNet
 
+    in_channels = 37 + 1280 if config.add_seq_emb else 37
     model = used_model(C_width=config.c_width,
                        N_block=config.n_blocks,
                        with_gradient_features=config.with_gradient_features,
@@ -70,7 +71,7 @@ def train(config):
                        batch_norm=config.batch_norm,
                        output_graph=False,
                        use_skip=True,
-                       in_channels=37,
+                       in_channels=in_channels,
                        in_channels_surf=config.in_channels_surf,
                        out_channel=128,
                        out_features=7,
