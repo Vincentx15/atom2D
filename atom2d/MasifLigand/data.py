@@ -361,6 +361,7 @@ class DatasetMasifLigand(Dataset):
             mean_curvs_gdf = self.mean_curv_gdf.expand(mean_curvs)
             geom_feats = np.concatenate((gauss_curvs_gdf, mean_curvs_gdf, geom_info[:, 2:]), axis=-1)
             geom_feats = torch.from_numpy(geom_feats)
+
             surface = SurfaceObject(features=geom_feats, confidence=None, vertices=verts, mass=mass, L=L, evals=evals,
                                     evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False)
 

@@ -17,7 +17,7 @@ def masif_site_loss(preds, labels):
     # Inspired from dmasif
     pos_preds = preds[labels == 1]
     pos_labels = torch.ones_like(pos_preds)
-    neg_preds = [preds][labels == 0]
+    neg_preds = preds[labels == 0]
     neg_labels = torch.zeros_like(pos_preds)
     n_points_sample = min(len(pos_labels), len(neg_labels))
     pos_indices = torch.randperm(len(pos_labels))[:n_points_sample]
@@ -44,11 +44,11 @@ class MasifSiteModule(pl.LightningModule):
 
     def step(self, batch):
         if (not hasattr(batch, "surface") and
-                not hasattr(batch,"graph")):  # if no surface and no graph, then the full batch was filtered out
+                not hasattr(batch, "graph")):  # if no surface and no graph, then the full batch was filtered out
             return None, None, None
-        labels = batch.labels.flatten()
-        output = self(batch).flatten()
-        loss, preds_concat, labels_concat = masif_site_loss(output, labels)
+        labels = torch.concatenate(batch.labels)
+        outputs = torch.concatenate(self(batch)).flatten()
+        loss, preds_concat, labels_concat = masif_site_loss(outputs, labels)
         return loss, preds_concat, labels_concat
 
     def training_step(self, batch, batch_idx):

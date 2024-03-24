@@ -104,7 +104,7 @@ def preprocess_one(pdb_name,
     # x  y  z  res_type  atom_type  charge  radius  is_alphaC
     # 0  1  2  3         4          5       6       7
     # get hphob
-    atom_info = pdb_to_atom_info(pdb)
+    atom_info = pdb_to_atom_info(pdb).astype(np.float32)
     atom_coords = torch.from_numpy(atom_info[:, :3])
     atom_hphob = np.array([[res_type_to_hphob[atom_inf[3]]] for atom_inf in atom_info])
     atom_feats = np.concatenate([atom_info[:, :5], atom_hphob, atom_info[:, 5:]], axis=1)
@@ -116,7 +116,7 @@ def preprocess_one(pdb_name,
     np.savez(processed_path,
              label=iface_labels,
              node_pos=atom_coords,
-             node_feats=atom_feats[:, 3:].astype(np.float32),
+             node_feats=atom_feats[:, 3:],
              edge_index=edge_index,
              edge_feats=edge_feats,
              verts=verts,

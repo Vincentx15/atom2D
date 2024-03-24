@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
 
-from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
-    GraphDiffNetBipartite, AtomNetGraph, PestoModel, get_config_model
+from base_nets import GraphDiffNetBipartite
 
 
 class MasifSiteNet(torch.nn.Module):
-    def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4,
+    def __init__(self, in_channels=37, in_channels_surf=25, out_channel=64, C_width=128, N_block=4,
                  with_gradient_features=True, dropout=0.3, batch_norm=False, use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, out_features=1, use_distance=False,
                  use_wln=False, **kwargs):
@@ -47,16 +46,7 @@ class MasifSiteNet(torch.nn.Module):
         return next(self.parameters()).device
 
     def forward(self, batch):
-        """
-        Both inputs should unwrap as (features, confidence, vertices, mass, L, evals, evecs, gradX, gradY, faces)
-        pairs_loc are the coordinates of points shape (n_pairs, 2, 3)
-        :param x_left:
-        :param x_right:
-        :return:
-        """
-
         surface = batch.surface
         graph = batch.graph
         processed = self.encoder_model(graph=graph, surface=surface)
-        x = self.top_net(processed)
-        return x
+        return [self.top_net(proc) for proc in processed]

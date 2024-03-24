@@ -82,13 +82,16 @@ def get_esm_embs(pdb, out_emb_dir):
 
 
 if __name__ == '__main__':
-    device = 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model, alphabet = torch.hub.load("facebookresearch/esm", 'esm1b_t33_650M_UR50S')
     model = model.to(device)
 
     # compute_esm_embs("1A27_AB.pdb", recompute=True, loaded_model=(model, alphabet))
-    input_dir = "../../data/MasifLigand/raw_data_MasifLigand/pdb"
-    for i, pdb in enumerate(os.listdir(input_dir)):
+    pdb_dir = "../../data/MasifLigand/raw_data_MasifLigand/pdb"
+    out_emb_dir = "../../data/MasifLigand/computed_embs/"
+
+    for i, pdb in enumerate(os.listdir(pdb_dir)):
         if not i % 20:
-            print(f"Doing {i}/{len(os.listdir(input_dir))}")
-        compute_esm_embs(pdb, loaded_model=(model, alphabet), recompute=True)
+            print(f"Doing {i}/{len(os.listdir(pdb_dir))}")
+        compute_esm_embs(pdb, pdb_dir=pdb_dir, out_emb_dir=out_emb_dir,
+                         loaded_model=(model, alphabet), recompute=True)

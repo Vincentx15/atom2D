@@ -11,13 +11,14 @@ dataset:
 loader:
   batch_size_train: 40
   batch_size_val: 40
-  num_workers: 1
+  num_workers: 4
   pin_memory: False
   prefetch_factor: 2
   shuffle: True
 
 model:
-  in_channels: 5
+  in_channels: 37
+  in_channels_surf: 25
   out_channel: 64
   C_width: 96
   N_block: 3
