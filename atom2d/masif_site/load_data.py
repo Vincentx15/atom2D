@@ -18,6 +18,7 @@ from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
 from data_processing.data_module import SurfaceObject
 from data_processing.data_module import AtomBatch
+from data_processing.add_seq_embs import get_esm_embs
 
 
 def load_preprocessed_data(processed_fpath, operator_path):
@@ -58,7 +59,8 @@ class MasifSiteDataset(Dataset):
 
     def __init__(self,
                  systems_list=(),
-                 processed_dir='../../data/masif_site/processed'):
+                 processed_dir='../../data/masif_site/processed',
+                 add_seq_emb=False):
         self.processed_dir = processed_dir
         successful_operators_pdb = [file.rstrip('_operator.npz') for file in os.listdir(self.processed_dir)]
         successful_processed_pdb = [file.rstrip('_processed.npz') for file in os.listdir(self.processed_dir)]
@@ -67,6 +69,9 @@ class MasifSiteDataset(Dataset):
         print(len(systems_list))
         print(len(self.all_sys))
         self.skip_hydro = False
+
+        self.add_seq_emb = add_seq_emb
+        self.seq_emb_dir = os.path.join(processed_dir, '..', 'computed_embs')
 
     def __len__(self):
         return len(self.all_sys)
@@ -88,6 +93,20 @@ class MasifSiteDataset(Dataset):
         atom_hot = np.eye(12, dtype=np.float32)[node_info[:, 1].astype(int)]
         node_feats = np.concatenate((res_hot, atom_hot, node_info[:, 2:]), axis=1)
         node_pos, node_feats, edge_index, edge_attr = list_from_numpy([node_pos, node_feats, edge_index, edge_attr])
+
+        ca_loc = node_feats[:, -1]
+        offset = torch.cat((ca_loc[1:], torch.zeros(1)))
+        atom_to_res_map = torch.cumsum(offset, dim=0)
+        # Now concatenate the embeddings
+        if self.add_seq_emb:
+            esm_embs = get_esm_embs(pdb=pdb_name, out_emb_dir=self.seq_emb_dir)
+            if esm_embs is None:
+                print('Failed to load embs', pdb_name)
+                return None
+            esm_embs = torch.from_numpy(esm_embs)
+            expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
+            node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
+
         graph = Data(pos=node_pos, x=node_feats, edge_index=edge_index, edge_attr=edge_attr)
         if self.skip_hydro:
             not_hydro = np.where(node_info[:, 1] > 0)[0]
@@ -125,19 +144,23 @@ class MasifSiteDataModule(pl.LightningDataModule):
         self.test_sys = [name.strip() for name in open(test_systems_list, 'r').readlines()]
 
     def train_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.train_sys, processed_dir=self.processed_dir)
+        dataset = MasifSiteDataset(systems_list=self.train_sys,
+                                   processed_dir=self.processed_dir,
+                                   add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
                           shuffle=self.cfg.loader.shuffle, collate_fn=collater)
 
     def val_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.val_sys, processed_dir=self.processed_dir)
+        dataset = MasifSiteDataset(systems_list=self.val_sys, processed_dir=self.processed_dir,
+                                   add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
                           shuffle=self.cfg.loader.shuffle, collate_fn=collater)
 
     def test_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.test_sys, processed_dir=self.processed_dir)
+        dataset = MasifSiteDataset(systems_list=self.test_sys, processed_dir=self.processed_dir,
+                                   add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
                           shuffle=self.cfg.loader.shuffle, collate_fn=collater)

@@ -31,6 +31,7 @@ model:
   use_skip: False
   neigh_th: 8
   use_distance: False
+  add_seq_emb: False
 
 optimizer:
   lr: 1e-4
