@@ -87,8 +87,12 @@ if __name__ == '__main__':
     model = model.to(device)
 
     # compute_esm_embs("1A27_AB.pdb", recompute=True, loaded_model=(model, alphabet))
-    pdb_dir = "../../data/MasifLigand/raw_data_MasifLigand/pdb"
-    out_emb_dir = "../../data/MasifLigand/computed_embs/"
+
+    # pdb_dir = "../../data/MasifLigand/raw_data_MasifLigand/pdb/"
+    # out_emb_dir = "../../data/MasifLigand/computed_embs/"
+
+    pdb_dir = "../../data/masif_site/01-benchmark_pdbs/"
+    out_emb_dir = "../../data/masif_site/computed_embs/"
 
     for i, pdb in enumerate(os.listdir(pdb_dir)):
         if not i % 20:

@@ -5,10 +5,8 @@ import numpy as np
 from pathlib import Path
 from torch.utils.data import Dataset
 
-import scipy.spatial as ss
 from torch_geometric.data import Data
 from torch_sparse import SparseTensor
-from torch_geometric.utils import to_undirected
 
 from data_processing.hmr_min import DataLoaderBase
 from data_processing.hmr_min import res_type_to_hphob
@@ -17,7 +15,7 @@ from atom2d_utils.learning_utils import list_from_numpy
 from data_processing.get_operators import get_operators
 from data_processing.data_module import SurfaceObject
 from data_processing.data_module import AtomBatch
-from MasifLigand.add_seq_embs import compute_esm_embs, get_esm_embs
+from data_processing.add_seq_embs import compute_esm_embs, get_esm_embs
 
 
 def preprocess_data(data_fpath,
