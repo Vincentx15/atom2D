@@ -9,8 +9,8 @@ dataset:
   data_dir: "../../data/masif_site/"
 
 loader:
-  batch_size_train: 40
-  batch_size_val: 40
+  batch_size_train: 16
+  batch_size_val: 16
   num_workers: 4
   pin_memory: False
   prefetch_factor: 2

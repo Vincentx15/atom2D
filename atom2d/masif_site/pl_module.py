@@ -49,6 +49,8 @@ class MasifSiteModule(pl.LightningModule):
         labels = torch.concatenate(batch.labels)
         outputs = torch.concatenate(self(batch)).flatten()
         loss, preds_concat, labels_concat = masif_site_loss(outputs, labels)
+        if torch.isnan(loss).any():
+            return None, None, None
         return loss, preds_concat, labels_concat
 
     def training_step(self, batch, batch_idx):
