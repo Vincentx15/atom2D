@@ -227,6 +227,7 @@ class Trainer(ABC):
             self.model.train()
         else:
             self.model.eval()
+            self.model.train()
             if self.use_ema:
                 self.ema.ema_model.eval()
 

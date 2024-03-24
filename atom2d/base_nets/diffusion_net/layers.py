@@ -581,6 +581,7 @@ class DiffusionNetBatch(nn.Module):
 
         # Apply the first linear layer
         x = [self.first_lin(y) for y in x_in]
+        # x = [y for y in x_in]
 
         # Apply each of the blocks
         for b in self.blocks:
@@ -588,6 +589,7 @@ class DiffusionNetBatch(nn.Module):
 
         # Apply the last linear layer
         x_out = [self.last_lin(y) for y in x]
+        # x_out = [y for y in x]
 
         # Apply last nonlinearity if specified
         if self.last_activation is not None:
