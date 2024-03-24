@@ -57,7 +57,7 @@ def train(config):
     # Model = load_model(config.model)
     # model = Model(config)
 
-    in_channels = 37 + 2080 if config.add_seq_emb else 37
+    in_channels = 37 + 1280 if config.add_seq_emb else 37
     model = PSRSurfNet(C_width=config.c_width,
                        N_block=config.n_blocks,
                        with_gradient_features=config.with_gradient_features,

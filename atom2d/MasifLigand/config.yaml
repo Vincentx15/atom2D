@@ -23,7 +23,7 @@ train_split_file: splits/train-list.txt
 valid_split_file: splits/val-list.txt
 test_split_file: splits/test-list.txt
 use_chem_feat: True
-add_seq_emb: True
+add_seq_emb: False
 skip_hydro: False
 use_geom_feat: True
 max_eigen_val: 5.0

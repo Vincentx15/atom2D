@@ -8,10 +8,12 @@ class MasifSiteNet(torch.nn.Module):
     def __init__(self, in_channels=37, in_channels_surf=25, out_channel=64, C_width=128, N_block=4,
                  with_gradient_features=True, dropout=0.3, batch_norm=False, use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, out_features=1, use_distance=False,
-                 use_wln=False, **kwargs):
+                 use_wln=False, add_seq_emb=False, **kwargs):
         super(MasifSiteNet, self).__init__()
 
-        self.in_channels = in_channels
+        in_channels = in_channels + 1280 if add_seq_emb else in_channels
+        self.in_channels = in_channels + 1280 if add_seq_emb else in_channels
+
         self.in_channels_surf = in_channels_surf
         self.out_channel = out_channel
 
