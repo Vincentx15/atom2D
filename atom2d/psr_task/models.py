@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 
 from base_nets import DiffusionNetBatch, GraphDiffNetParallel, GraphDiffNetSequential, GraphDiffNetAttention, \
-    GraphDiffNetBipartite, AtomNetGraph, PestoModel, get_config_model
+    GraphDiffNetBipartite, AtomNetGraph, PestoModel, GVPGNN, get_config_model
 
 
 class PSRSurfNet(torch.nn.Module):
     def __init__(self, in_channels=5, in_channels_surf=5, out_channel=64, C_width=128, N_block=4, with_gradient_features=True,
                  linear_sizes=(128,), dropout=0.3, use_mean=False, batch_norm=False, use_graph=False,
-                 use_graph_only=False, use_pesto=False, pesto_width=16,
+                 use_graph_only=False, use_pesto=False, use_gvp=False, pesto_width=16,
                  output_graph=False, graph_model='parallel', use_gat=False, use_v2=False,
                  use_skip=False, neigh_th=8, flash=True, use_mp=False, out_features=1, use_distance=False,
                  use_wln=False, **kwargs):
@@ -23,6 +23,7 @@ class PSRSurfNet(torch.nn.Module):
         self.use_graph = use_graph or use_graph_only
         self.use_graph_only = use_graph_only
         self.use_pesto = use_pesto
+        self.use_gvp = use_gvp
         if use_graph_only:
             if self.use_pesto:
                 cfg = get_config_model(pesto_width)
@@ -33,6 +34,17 @@ class PSRSurfNet(torch.nn.Module):
                     nn.ReLU(),
                     nn.Dropout(p=0.25),
                     nn.Linear(pesto_width * 2, out_features)
+                ])
+            elif self.use_gvp:
+                out_dim = 16
+                self.encoder_model = GVPGNN(node_in_dim=[in_channels, 0],
+                                            node_h_dim=[out_dim, out_channel])
+                self.top_net_graph = nn.Sequential(*[
+                    nn.ReLU(),
+                    nn.Linear(out_dim, out_dim),
+                    nn.ReLU(),
+                    nn.Dropout(p=0.25),
+                    nn.Linear(out_dim, out_features)
                 ])
             else:
                 self.encoder_model = AtomNetGraph(C_in=in_channels,
@@ -158,7 +170,7 @@ class PSRSurfNet(torch.nn.Module):
                     x = torch.max(individual_graph.x, dim=-2).values
                     x = self.top_net_graph(x).view(-1)
                     graph_embs.append(x)
-                return torch.cat(graph_embs)
+                return torch.cat(graph_embs).unsqueeze(0) if len(graph_embs) == 1 else torch.cat(graph_embs)
         else:
             if self.use_mean:
                 x = torch.stack([torch.mean(x, dim=-2) for x in processed])

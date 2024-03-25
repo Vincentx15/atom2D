@@ -9,16 +9,16 @@ hydra:
 
 # logging
 run_name: default
-out_dir: ../../data/MasifLigand/out_dir
+out_dir: ../../data/MasifLigand2/out_dir
 test_freq: 5
 seed: 2023
 auto_resume: False
 mute_tqdm: False
 
 # data args
-data_dir: ../../data/MasifLigand/dataset_MasifLigand/
-processed_dir: ../../data/MasifLigand/cache_npz
-operator_dir: ../../data/MasifLigand/cache_operator
+data_dir: ../../data/MasifLigand2/dataset_MasifLigand/
+processed_dir: ../../data/MasifLigand2/cache_npz
+operator_dir: ../../data/MasifLigand2/cache_operator
 train_split_file: splits/train-list.txt
 valid_split_file: splits/val-list.txt
 test_split_file: splits/test-list.txt
@@ -46,6 +46,7 @@ dropout: 0.5
 use_v2: False
 batch_norm: True
 use_pesto: False
+use_gvp: False
 pesto_width: 16
 use_graph: True
 use_graph_only: False

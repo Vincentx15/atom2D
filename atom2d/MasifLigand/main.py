@@ -78,6 +78,7 @@ def train(config):
                        use_graph=config.use_graph,
                        use_graph_only=config.use_graph_only,
                        use_pesto=config.use_pesto,
+                       use_gvp=config.use_gvp,
                        pesto_width=config.pesto_width,
                        use_gat=True,
                        neigh_th=config.neigh_th,
