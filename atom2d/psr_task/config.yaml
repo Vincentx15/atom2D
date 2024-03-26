@@ -8,19 +8,19 @@ path_model: "version_x/checkpoints/last.ckpt"
 dataset:
   data_dir: "../../data/PSR/"
   recompute: False
-  big_graphs: False
+  big_graphs: True
   use_xyz: False
 
 loader:
-  batch_size_train: 8
-  batch_size_val: 8
-  num_workers: 1
+  batch_size_train: 40
+  batch_size_val: 40
+  num_workers: 2
   pin_memory: False
   prefetch_factor: 2
   shuffle: True
 
 model:
-  in_channels: 5
+  in_channels: 19
   out_channel: 64
   C_width: 96
   N_block: 3
