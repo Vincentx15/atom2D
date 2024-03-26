@@ -12,11 +12,11 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from trainer import Trainer
-from data import DataLoaderMasifLigand
 from data_processing.hmr_min import set_logger, set_seed
+from MasifLigand.data import DataLoaderMasifLigand
+from MasifLigand.models import MasifLigandNet
+from MasifLigand.trainer import Trainer
 from psr_task.models import PSRSurfNet
-from models import MasifLigandNet
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 

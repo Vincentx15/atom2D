@@ -9,7 +9,7 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from data_processing.io import load_diffnetfiles, load_graph, load_pyg, dump_pyg
+from data_processing.io_atomsurf import load_diffnetfiles, load_graph, load_pyg, dump_pyg
 # from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.Atom3DDataset import Atom3DDataset
 from data_processing.data_module import SurfaceObject

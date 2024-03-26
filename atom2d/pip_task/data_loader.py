@@ -13,7 +13,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(script_dir, '..'))
 
 from atom2d_utils import naming_utils
-from data_processing.io import load_diffnetfiles, load_graph, load_pyg, dump_pyg
+from data_processing.io_atomsurf import load_diffnetfiles, load_graph, load_pyg, dump_pyg
 # from data_processing.main import get_diffnetfiles, get_graph
 from data_processing.data_module import SurfaceObject
 from data_processing.transforms import Normalizer

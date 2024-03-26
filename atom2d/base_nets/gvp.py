@@ -22,7 +22,7 @@ class GVPGNN(nn.Module):
     :param node_in_dim: node dimensions in input graph, should be
                         (6, 3) if using original features
     :param node_h_dim: node dimensions to use in GVP-GNN layers
-    :param node_in_dim: edge dimensions in input graph, should be
+    :param edge_in_dim: edge dimensions in input graph, should be
                         (32, 1) if using original features
     :param edge_h_dim: edge dimensions to embed to before use
                        in GVP-GNN layers
