@@ -1,3 +1,4 @@
+import os
 import igl
 import torch
 import logging
@@ -102,7 +103,7 @@ def preprocess_data(data_fpath,
                  faces=faces,
                  geom_info=geom_feats.astype(np.float32),
                  vert_nbr_dist=vert_nbr_dist.astype(np.float32),
-                 vert_nbr_ind=vert_nbr_ind.astype(np.int32),)
+                 vert_nbr_ind=vert_nbr_ind.astype(np.int32), )
         return True
     except:
         return False
@@ -228,10 +229,10 @@ def load_data_fpaths_from_split_file(data_dir, split_fpath):
 
 class DataLoaderMasifLigand(DataLoaderBase):
 
-    def __init__(self, config):
+    def __init__(self, config, use_pronet=False):
         super().__init__(config)
 
-        self._init_datasets(config)
+        self._init_datasets(config, use_pronet)
         self._init_samplers()
         self._init_loaders()
 
@@ -239,7 +240,7 @@ class DataLoaderMasifLigand(DataLoaderBase):
         """Load all matching data (patch) under self.data_dir in the split_fpath"""
         return load_data_fpaths_from_split_file(self.data_dir, split_fpath)
 
-    def _init_datasets(self, config):
+    def _init_datasets(self, config, use_pronet=False):
 
         self.data_dir = Path(config.data_dir)
         self.processed_dir = Path(config.processed_dir)
@@ -256,9 +257,15 @@ class DataLoaderMasifLigand(DataLoaderBase):
         if config.test_split_file:
             test_fpaths = self._load_split_file(config.test_split_file)
 
-        self.train_set = DatasetMasifLigand(config, train_fpaths)
-        self.valid_set = DatasetMasifLigand(config, valid_fpaths)
-        self.test_set = DatasetMasifLigand(config, test_fpaths)
+        if use_pronet:
+            self.train_set = DatasetMasifLigandPronet(config, train_fpaths)
+            self.valid_set = DatasetMasifLigandPronet(config, valid_fpaths)
+            self.test_set = DatasetMasifLigandPronet(config, test_fpaths)
+
+        else:
+            self.train_set = DatasetMasifLigand(config, train_fpaths)
+            self.valid_set = DatasetMasifLigand(config, valid_fpaths)
+            self.test_set = DatasetMasifLigand(config, test_fpaths)
 
         msg = [f'MaSIF-ligand task, train: {len(self.train_set)},',
                f'val: {len(self.valid_set)}, test: {len(self.test_set)}']
@@ -345,7 +352,8 @@ class DatasetMasifLigand(Dataset):
             # 5C3C_ACBEDF_patch_5_ADP.npz
             print(fpath)
             return None
-        surface_res, graph_res, label, chem_feats, geom_feats_, nbr_vids = load_preprocessed_data(processed_fpath, operator_fpath, self)
+        surface_res, graph_res, label, chem_feats, geom_feats_, nbr_vids = load_preprocessed_data(processed_fpath,
+                                                                                                  operator_fpath, self)
 
         if self.add_seq_emb and self.recompute_surf:
             compute_esm_embs(pdb=pdb_chains + '.pdb',
@@ -412,4 +420,71 @@ class DatasetMasifLigand(Dataset):
                                     chem_feats=chem_feats, geom_feats=geom_feats_, nbr_vids=nbr_vids)
 
         item = Data(labels=label, surface=surface, graph=graph)
+        return item
+
+
+class DatasetMasifLigandPronet(Dataset):
+
+    def __init__(self, config, fpaths):
+        # data dir
+        self.data_dir = Path(config.data_dir)
+        assert self.data_dir.exists(), f"Dataset dir {self.data_dir} not found"
+        self.processed_dir = Path(config.processed_dir)
+        self.operator_dir = Path(config.operator_dir)
+        self.pdb_dir = self.data_dir.parent / 'raw_data_MasifLigand/pdb'
+        self.seq_emb_dir = self.data_dir.parent / 'computed_embs'
+        self.pronet_dir = self.data_dir.parent / 'pronet'
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
+        self.seq_emb_dir.mkdir(exist_ok=True, parents=True)
+        self.fpaths = fpaths
+        self.add_seq_emb = config.add_seq_emb
+
+    @staticmethod
+    def collate_wrapper(unbatched_list):
+        unbatched_list = [elt for elt in unbatched_list if elt is not None]
+        return AtomBatch.from_data_list(unbatched_list)
+
+    def __len__(self):
+        return len(self.fpaths)
+
+    def __getitem__(self, idx):
+        """
+        """
+        # load data
+        fpath = self.fpaths[idx]
+        fname = Path(fpath).name
+        pdb_code, chains = fname.split('_')[:2]
+        pdb_chains = '_'.join((pdb_code, chains))
+        processed_fpath = self.processed_dir / fname
+
+        # GET PRONET GRAPH
+        pronet_path = os.path.join(self.pronet_dir, pdb_chains + "pronetgraph.pt")
+        pronet_graph = torch.load(pronet_path)
+
+        # if self.add_seq_emb:
+        #     compute_esm_embs(pdb=pdb_chains + '.pdb',
+        #                      pdb_dir=self.pdb_dir,
+        #                      out_emb_dir=self.seq_emb_dir,
+        #                      recompute=False)
+
+        # # Now concatenate the embeddings
+        # if self.add_seq_emb:
+        #     esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
+        #     if esm_embs is None:
+        #         print('Failed to load embs', pdb_chains)
+        #         return None
+        #     if atom_to_res_map.max().item() > len(esm_embs):
+        #         print('Max # res is longer than embeddings', pdb_chains)
+        #         return None
+        #     esm_embs = torch.from_numpy(esm_embs)
+        #     expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
+        #     node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
+
+        data = np.load(processed_fpath, allow_pickle=True)
+        label = data['label']
+        label = int(label)
+        verts = data['verts']
+        verts = torch.from_numpy(verts)
+
+        item = Data(labels=label, verts=verts, pronet_graph=pronet_graph)
         return item
