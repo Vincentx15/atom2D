@@ -430,7 +430,6 @@ class DatasetMasifLigandPronet(Dataset):
         self.data_dir = Path(config.data_dir)
         assert self.data_dir.exists(), f"Dataset dir {self.data_dir} not found"
         self.processed_dir = Path(config.processed_dir)
-        self.operator_dir = Path(config.operator_dir)
         self.pdb_dir = self.data_dir.parent / 'raw_data_MasifLigand/pdb'
         self.seq_emb_dir = self.data_dir.parent / 'computed_embs'
         self.pronet_dir = self.data_dir.parent / 'pronet'
@@ -461,25 +460,17 @@ class DatasetMasifLigandPronet(Dataset):
         pronet_path = os.path.join(self.pronet_dir, pdb_chains + "pronetgraph.pt")
         pronet_graph = torch.load(pronet_path)
 
-        # if self.add_seq_emb:
-        #     compute_esm_embs(pdb=pdb_chains + '.pdb',
-        #                      pdb_dir=self.pdb_dir,
-        #                      out_emb_dir=self.seq_emb_dir,
-        #                      recompute=False)
-
-        # # Now concatenate the embeddings
-        # if self.add_seq_emb:
-        #     esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
-        #     if esm_embs is None:
-        #         print('Failed to load embs', pdb_chains)
-        #         return None
-        #     if atom_to_res_map.max().item() > len(esm_embs):
-        #         print('Max # res is longer than embeddings', pdb_chains)
-        #         return None
-        #     esm_embs = torch.from_numpy(esm_embs)
-        #     expanded_esm_embs = esm_embs[atom_to_res_map.long() - 1]
-        #     node_feats = torch.concatenate((node_feats, expanded_esm_embs), axis=-1)
-
+        # Now concatenate the embeddings
+        if self.add_seq_emb:
+            esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
+            if esm_embs is None:
+                print('Failed to load embs', pdb_chains)
+                return None
+            if len(pronet_graph.coords_ca) != len(esm_embs):
+                print('Max # res is longer than embeddings', pdb_chains)
+                return None
+            esm_embs = torch.from_numpy(esm_embs)
+            pronet_graph.seq_emb = esm_embs
         data = np.load(processed_fpath, allow_pickle=True)
         label = data['label']
         label = int(label)

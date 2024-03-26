@@ -1,5 +1,3 @@
-import torch
-import torch.nn as nn
 import os
 import sys
 
@@ -7,6 +5,7 @@ from functools import partialmethod
 import hydra
 import logging
 import torch
+import torch.nn as nn
 import torch.multiprocessing
 from tqdm import tqdm
 
@@ -16,27 +15,25 @@ if __name__ == '__main__':
 
 from data_processing.hmr_min import set_logger, set_seed
 from MasifLigand.data import DataLoaderMasifLigand
-from MasifLigand.models import MasifLigandNet
 from MasifLigand.trainer import Trainer
-from psr_task.models import PSRSurfNet
 
 from base_nets.pronet_updated import ProNet
 
 
 class ProNetMasifLigand(torch.nn.Module):
     def __init__(self,
-                 level='aminoacid',
+                 level='allatom',
                  num_blocks=4,
-                 # hidden_channels=128, TODO CHANGE
-                 hidden_channels=12,
+                 hidden_channels=128,
                  mid_emb=64,
                  num_radial=6,
                  num_spherical=2,
                  cutoff=10.0,
                  max_num_neighbors=32,
                  int_emb_layers=3,
-                 out_layers=2,
-                 num_pos_emb=16, ):
+                 # out_layers=2,
+                 num_pos_emb=16,
+                 add_seq_emb=False):
         super(ProNetMasifLigand, self).__init__()
         self.pronet = ProNet(level=level,
                              num_blocks=num_blocks,
@@ -47,7 +44,8 @@ class ProNetMasifLigand(torch.nn.Module):
                              cutoff=cutoff,
                              max_num_neighbors=max_num_neighbors,
                              int_emb_layers=int_emb_layers,
-                             num_pos_emb=num_pos_emb)
+                             num_pos_emb=num_pos_emb,
+                             add_seq_emb=add_seq_emb)
 
         self.top_net = nn.Sequential(*[
             nn.Linear(hidden_channels, hidden_channels),
@@ -66,15 +64,15 @@ class ProNetMasifLigand(torch.nn.Module):
 
     def select_close(self, verts, processed, graph_pos):
         # find nearest neighbors between doing last layers
-        dists = torch.cdist(verts, graph_pos)
-        min_indices = torch.argmin(dists, dim=1)
+        with torch.no_grad():
+            dists = torch.cdist(verts, graph_pos)
+            min_indices = torch.argmin(dists, dim=1)
         selected = processed[min_indices.unique()]
         return selected
 
     def forward(self, batch):
         pronet_graph = batch.pronet_graph
         embed_graph = self.pronet(pronet_graph)
-
         verts = batch.verts
         processed_feats = embed_graph.split(pronet_graph.batch.bincount().tolist())
         selected_feats = []
@@ -120,11 +118,16 @@ def train(config):
     # get dataloader
     # config.batch_size = 2
     # config.num_data_workers = 0
+    # config.add_seq_emb = False
+    # config.c_width = 10
+
     config.data_dir = "../../data/MasifLigand/dataset_MasifLigand/"
     config.processed_dir = "../../data/MasifLigand/cache_npz/"
-    in_channels = 37 + 1280 if config.add_seq_emb else 37
+
     data = DataLoaderMasifLigand(config, use_pronet=True)
-    model = ProNetMasifLigand()
+    model = ProNetMasifLigand(hidden_channels=config.c_width,
+                              add_seq_emb=config.add_seq_emb)
+
     trainer = Trainer(config, data, model)
     trainer.train()
 

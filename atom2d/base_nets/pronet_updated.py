@@ -617,7 +617,7 @@ class ProNet(nn.Module):
 
     def __init__(
             self,
-            level='aminoacid',
+            level='all_atom',
             num_blocks=4,
             hidden_channels=128,
             # out_channels=1,
@@ -632,6 +632,7 @@ class ProNet(nn.Module):
             dropout=0,
             data_augment_eachlayer=False,
             euler_noise=False,
+            add_seq_emb=False,
     ):
         super(ProNet, self).__init__()
         self.cutoff = cutoff
@@ -639,6 +640,7 @@ class ProNet(nn.Module):
         self.num_pos_emb = num_pos_emb
         self.data_augment_eachlayer = data_augment_eachlayer
         self.euler_noise = euler_noise
+        self.add_seq_emb = add_seq_emb
         self.level = level
         self.act = swish
 
@@ -646,11 +648,16 @@ class ProNet(nn.Module):
         self.feature1 = d_angle_emb(num_radial=num_radial, num_spherical=num_spherical, cutoff=cutoff)
 
         if level == 'aminoacid':
+            # TODO find a way for seq embs
             self.embedding = Embedding(num_aa_type, hidden_channels)
         elif level == 'backbone':
-            self.embedding = torch.nn.Linear(num_aa_type + num_bb_embs, hidden_channels)
+            input_dim = num_aa_type + num_bb_embs
+            input_dim = input_dim + 1280 if add_seq_emb else input_dim
+            self.embedding = torch.nn.Linear(input_dim, hidden_channels)
         elif level == 'allatom':
-            self.embedding = torch.nn.Linear(num_aa_type + num_bb_embs + num_side_chain_embs, hidden_channels)
+            input_dim = num_aa_type + num_bb_embs + num_side_chain_embs
+            input_dim = input_dim + 1280 if add_seq_emb else input_dim
+            self.embedding = torch.nn.Linear(input_dim, hidden_channels)
         else:
             print('No supported model!')
 
@@ -715,10 +722,14 @@ class ProNet(nn.Module):
             x = self.embedding(z)
         elif self.level == 'backbone':
             x = torch.cat([torch.squeeze(F.one_hot(z, num_classes=num_aa_type).float()), bb_embs], dim=1)
+            if self.add_seq_emb:
+                x = torch.concatenate((x, batch_data.seq_emb), dim=-1)
             x = self.embedding(x)
         elif self.level == 'allatom':
             x = torch.cat([torch.squeeze(F.one_hot(z, num_classes=num_aa_type).float()), bb_embs, side_chain_embs],
                           dim=1)
+            if self.add_seq_emb:
+                x = torch.concatenate((x, batch_data.seq_emb), dim=-1)
             x = self.embedding(x)
         else:
             print('No supported model!')
