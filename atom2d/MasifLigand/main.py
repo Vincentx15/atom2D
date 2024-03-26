@@ -16,6 +16,7 @@ from trainer import Trainer
 from data import DataLoaderMasifLigand
 from data_processing.hmr_min import set_logger, set_seed
 from psr_task.models import PSRSurfNet
+from models import MasifLigandNet
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -57,8 +58,13 @@ def train(config):
     # Model = load_model(config.model)
     # model = Model(config)
 
+    if config.model_name == 'psr':
+        used_model = PSRSurfNet
+    elif config.model_name == 'masif':
+        used_model = MasifLigandNet
+
     in_channels = 37 + 1280 if config.add_seq_emb else 37
-    model = PSRSurfNet(C_width=config.c_width,
+    model = used_model(C_width=config.c_width,
                        N_block=config.n_blocks,
                        with_gradient_features=config.with_gradient_features,
                        use_mean=True,
@@ -66,12 +72,13 @@ def train(config):
                        output_graph=False,
                        use_skip=True,
                        in_channels=in_channels,
-                       in_channels_surf=54,
+                       in_channels_surf=config.in_channels_surf,
                        out_channel=128,
                        out_features=7,
                        use_graph=config.use_graph,
                        use_graph_only=config.use_graph_only,
                        use_pesto=config.use_pesto,
+                       use_gvp=config.use_gvp,
                        pesto_width=config.pesto_width,
                        use_gat=True,
                        neigh_th=config.neigh_th,

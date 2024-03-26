@@ -129,6 +129,7 @@ class AtomBatch(Data):
 class SurfaceObject(Data):
     def __init__(self, features=None, confidence=None, vertices=None,
                  mass=None, L=None, evals=None, evecs=None, gradX=None, gradY=None, faces=None, cat_confidence=True,
+                 chem_feats=None, geom_feats=None, nbr_vids=None,
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -144,6 +145,9 @@ class SurfaceObject(Data):
         self.evecs = evecs
         self.gradX = gradX
         self.gradY = gradY
+        self.chem_feats = chem_feats
+        self.geom_feats = geom_feats
+        self.nbr_vids = nbr_vids
 
     @classmethod
     def from_data_list(cls, data_list):

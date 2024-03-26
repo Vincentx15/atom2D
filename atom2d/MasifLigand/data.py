@@ -5,6 +5,8 @@ import numpy as np
 from pathlib import Path
 from torch.utils.data import Dataset
 
+import scipy.spatial as ss
+from sklearn.neighbors import BallTree
 from torch_geometric.data import Data
 from torch_sparse import SparseTensor
 
@@ -59,8 +61,9 @@ def preprocess_data(data_fpath,
         atom_hphob = np.array([[res_type_to_hphob[atom_inf[3]]] for atom_inf in atom_info])
         atom_feats = np.concatenate([atom_info[:, :5], atom_hphob, atom_info[:, 5:]], axis=1)
 
-        # atom_bt = BallTree(atom_coords)
-        # vert_nbr_dist, vert_nbr_ind = atom_bt.query(verts, k=vert_nbr_atoms)
+        atom_bt = BallTree(atom_coords)
+        vert_nbr_atoms = 16
+        vert_nbr_dist, vert_nbr_ind = atom_bt.query(verts, k=vert_nbr_atoms)
 
         ##############################  Geom feats  ##############################
         vnormals = igl.per_vertex_normals(verts, faces)
@@ -83,18 +86,23 @@ def preprocess_data(data_fpath,
         atom_coords = torch.from_numpy(atom_coords)
         frames, mass, _, evals, evecs, grad_x, grad_y = get_operators(verts=verts,
                                                                       faces=faces,
+                                                                      k_eig=eigen_vecs.shape[1],
                                                                       npz_path=operator_fpath)
         edge_index, edge_feats = atom_coords_to_edges(node_pos=atom_coords)
         np.savez(processed_fpath,
                  label=label.astype(np.int8),
+                 neig=eigen_vecs.shape[1],
                  # input
                  node_pos=atom_coords,
                  node_info=atom_feats[:, 3:].astype(np.float32),
+                 atom_feats=atom_feats.astype(np.float32),
                  edge_index=edge_index,
                  edge_feats=edge_feats,
                  verts=verts,
                  faces=faces,
-                 geom_info=geom_feats.astype(np.float32), )
+                 geom_info=geom_feats.astype(np.float32),
+                 vert_nbr_dist=vert_nbr_dist.astype(np.float32),
+                 vert_nbr_ind=vert_nbr_ind.astype(np.int32),)
         return True
     except:
         return False
@@ -111,7 +119,7 @@ def preprocess_data(data_fpath,
     # )
 
 
-def load_preprocessed_data(processed_fpath, operator_path):
+def load_preprocessed_data(processed_fpath, operator_path, self=None):
     data = np.load(processed_fpath, allow_pickle=True)
     label = data['label']
 
@@ -136,12 +144,49 @@ def load_preprocessed_data(processed_fpath, operator_path):
     faces = torch.from_numpy(faces)
     frames, mass, _, evals, evecs, grad_x, grad_y = get_operators(verts=verts,
                                                                   faces=faces,
+                                                                  k_eig=data['neig'],
                                                                   npz_path=operator_path)
     grad_x = SparseTensor.from_torch_sparse_coo_tensor(grad_x.float())
     grad_y = SparseTensor.from_torch_sparse_coo_tensor(grad_y.float())
     surface_res = mass, torch.rand(1, 3), evals, evecs, grad_x, grad_y, faces, geom_info, verts
 
-    return surface_res, graph_res, label
+    # HMR chemical features
+    atom_coords = data["atom_feats"][:, :3]
+    atom_feats = data["atom_feats"][:, 3:]
+    verts = data["geom_info"][:, :3]
+    vnormals = data["geom_info"][:, 3:6]
+    vert_nbr_dist = data["vert_nbr_dist"]
+    vert_nbr_ind = data["vert_nbr_ind"]
+    chem_feats = atom_feats[:, [2, 3]]
+    dist_flat = np.concatenate(vert_nbr_dist, axis=0)
+    ind_flat = np.concatenate(vert_nbr_ind, axis=0)
+    # vert-to-atom mapper
+    nbr_vid = np.concatenate([[i] * len(vert_nbr_ind[i]) for i in range(len(vert_nbr_ind))])
+    chem_feats = [chem_feats[ind_flat]]
+    # atom_dist
+    chem_feats.append(self.dist_gdf.expand(dist_flat))
+    # atom angular
+    nbr_vec = atom_coords[ind_flat] - verts[nbr_vid]
+    nbr_vnormals = vnormals[nbr_vid]
+    nbr_angular = np.einsum("vj,vj->v", nbr_vec / np.linalg.norm(nbr_vec, axis=-1, keepdims=True), nbr_vnormals)
+    nbr_angular_gdf = self.angular_gdf.expand(nbr_angular)
+    chem_feats.append(nbr_angular_gdf)
+    chem_feats = np.concatenate(chem_feats, axis=-1)
+    chem_feats = torch.from_numpy(chem_feats).float()
+
+    # HMR geometric features
+    geom_feats_in = data["geom_info"][:, 6:]
+    gauss_curvs = geom_feats_in[:, 0]
+    gauss_curvs_gdf = self.gauss_curv_gdf.expand(gauss_curvs)
+    mean_curvs = geom_feats_in[:, 1]
+    mean_curvs_gdf = self.mean_curv_gdf.expand(mean_curvs)
+    geom_feats = np.concatenate((gauss_curvs_gdf, mean_curvs_gdf, geom_feats_in[:, 2:]), axis=-1)
+    geom_feats = torch.from_numpy(geom_feats).float()
+
+    # misc
+    nbr_vids = torch.tensor(nbr_vid, dtype=torch.int64)
+
+    return surface_res, graph_res, label, chem_feats, geom_feats, nbr_vids
 
 
 class GaussianDistance(object):
@@ -300,7 +345,7 @@ class DatasetMasifLigand(Dataset):
             # 5C3C_ACBEDF_patch_5_ADP.npz
             print(fpath)
             return None
-        surface_res, graph_res, label = load_preprocessed_data(processed_fpath, operator_fpath)
+        surface_res, graph_res, label, chem_feats, geom_feats_, nbr_vids = load_preprocessed_data(processed_fpath, operator_fpath, self)
 
         if self.add_seq_emb and self.recompute_surf:
             compute_esm_embs(pdb=pdb_chains + '.pdb',
@@ -349,7 +394,6 @@ class DatasetMasifLigand(Dataset):
             surface = None
         else:
             mass, L, evals, evecs, grad_x, grad_y, faces, geom_info, verts = surface_res
-
             ##############################  geom feats  ##############################
             # full geom features
             #     verts   vnormal gauss_curv  mean_curv   signature
@@ -364,7 +408,8 @@ class DatasetMasifLigand(Dataset):
             geom_feats = torch.from_numpy(geom_feats)
 
             surface = SurfaceObject(features=geom_feats, confidence=None, vertices=verts, mass=mass, L=L, evals=evals,
-                                    evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False)
+                                    evecs=evecs, gradX=grad_x, gradY=grad_y, faces=faces, cat_confidence=False,
+                                    chem_feats=chem_feats, geom_feats=geom_feats_, nbr_vids=nbr_vids)
 
         item = Data(labels=label, surface=surface, graph=graph)
         return item

@@ -9,16 +9,16 @@ hydra:
 
 # logging
 run_name: default
-out_dir: ../../data/MasifLigand/out_dir
-test_freq: 10
+out_dir: ../../data/MasifLigand2/out_dir
+test_freq: 5
 seed: 2023
 auto_resume: False
 mute_tqdm: False
 
 # data args
-data_dir: ../../data/MasifLigand/dataset_MasifLigand/
-processed_dir: ../../data/MasifLigand/cache_npz
-operator_dir: ../../data/MasifLigand/cache_operator
+data_dir: ../../data/MasifLigand2/dataset_MasifLigand/
+processed_dir: ../../data/MasifLigand2/cache_npz
+operator_dir: ../../data/MasifLigand2/cache_operator
 train_split_file: splits/train-list.txt
 valid_split_file: splits/val-list.txt
 test_split_file: splits/test-list.txt
@@ -37,13 +37,16 @@ num_data_workers: 4
 num_gdf: 16
 
 # model args
+model_name: psr
 c_width: 150
 n_blocks: 6
+in_channels_surf: 54
 with_gradient_features: True
 dropout: 0.5
 use_v2: False
 batch_norm: True
 use_pesto: False
+use_gvp: False
 pesto_width: 16
 use_graph: True
 use_graph_only: False
@@ -57,7 +60,7 @@ optimizer: Adam
 epochs: 400
 warmup_epochs: 10
 lr: 0.0005
-lr_scheduler: CosineAnnealingLRWithWarmup  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup
+lr_scheduler: CosineAnnealingLRWithWarmup  # PolynomialLRWithWarmup, CosineAnnealingLRWithWarmup constant
 lr_eta_min: 1E-8
 weight_decay: 0
 clip_grad_norm: 1.0
