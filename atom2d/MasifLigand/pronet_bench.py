@@ -124,6 +124,7 @@ def train(config):
     # config.lr = 0.0005
 
     config.data_dir = "../../data/MasifLigand/dataset_MasifLigand/"
+    config.out_dir = "../../data/MasifLigand/out_dir"
     config.processed_dir = "../../data/MasifLigand/cache_npz/"
 
     data = DataLoaderMasifLigand(config, use_pronet=True)

@@ -226,7 +226,7 @@ class Trainer(ABC):
         if partition == 'train':
             self.model.train()
         else:
-            self.model.eval()
+            # self.model.eval()
             self.model.train()
             if self.use_ema:
                 self.ema.ema_model.eval()
@@ -235,6 +235,9 @@ class Trainer(ABC):
         context = contextlib.nullcontext() if partition == 'train' else torch.no_grad()
         with context:
             for i, batch in enumerate(tqdm(data_loader)):
+                if batch is None:
+                    print('Skipped a whole batch that was none, index ', i)
+                    continue
                 # send data to device and compute model output
                 batch.to(self.device)
                 if partition == 'train':
@@ -275,8 +278,8 @@ class Trainer(ABC):
                     else:  # torch.float32 default precision
                         cross_entropy_loss.backward()
                         grad_means = [param.grad.mean() for param in self.model.parameters()]
-                        if any([torch.isnan(mean) for mean in grad_means]):
-                            a = 1
+                        # if any([torch.isnan(mean) for mean in grad_means]):
+                        #     a = 1
                         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
                         if grad_norm > self.clip_grad_norm:
                             exploding_grad.append(grad_norm.item())

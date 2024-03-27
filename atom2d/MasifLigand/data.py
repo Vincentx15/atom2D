@@ -441,6 +441,8 @@ class DatasetMasifLigandPronet(Dataset):
     @staticmethod
     def collate_wrapper(unbatched_list):
         unbatched_list = [elt for elt in unbatched_list if elt is not None]
+        if len(unbatched_list) == 0:
+            return None
         return AtomBatch.from_data_list(unbatched_list)
 
     def __len__(self):
