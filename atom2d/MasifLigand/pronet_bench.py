@@ -79,7 +79,8 @@ class ProNetMasifLigand(torch.nn.Module):
         for vert, feats, graph in zip(verts, processed_feats, pronet_graph.to_data_list()):
             feats_close = self.select_close(vert, feats, graph.coords_ca)
             selected_feats.append(feats_close)
-        all_mean_embs = torch.stack([torch.mean(x, dim=-2) for x in selected_feats])
+        # all_mean_embs = torch.stack([torch.mean(x, dim=-2) for x in selected_feats])
+        all_mean_embs = torch.stack([torch.sum(x, dim=-2) for x in selected_feats])
         out = self.top_net(all_mean_embs)
         return out
 
@@ -120,6 +121,7 @@ def train(config):
     # config.num_data_workers = 0
     # config.add_seq_emb = False
     # config.c_width = 10
+    # config.lr = 0.0005
 
     config.data_dir = "../../data/MasifLigand/dataset_MasifLigand/"
     config.processed_dir = "../../data/MasifLigand/cache_npz/"

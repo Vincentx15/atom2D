@@ -460,6 +460,17 @@ class DatasetMasifLigandPronet(Dataset):
         pronet_path = os.path.join(self.pronet_dir, pdb_chains + "pronetgraph.pt")
         pronet_graph = torch.load(pronet_path)
 
+        if pronet_graph.coords_ca.isnan().any():
+            print('missing CA')
+            return None
+
+        if (pronet_graph.coords_n.isnan().any() or pronet_graph.coords_c.isnan().any()
+                or pronet_graph.bb_embs.isnan().any()
+                or pronet_graph.x.isnan().any()
+                or pronet_graph.side_chain_embs.isnan().any()):
+            print('missing something')
+            return None
+
         # Now concatenate the embeddings
         if self.add_seq_emb:
             esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)

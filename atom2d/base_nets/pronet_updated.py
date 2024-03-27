@@ -808,7 +808,7 @@ class ProNet(nn.Module):
             feature1 = self.feature1(dist, tau)
 
         # Interaction blocks.
-        for interaction_block in self.interaction_blocks:
+        for i, interaction_block in enumerate(self.interaction_blocks):
             if self.data_augment_eachlayer:
                 # add gaussian noise to features
                 gaussian_noise = torch.clip(torch.empty(x.shape).to(device).normal_(mean=0.0, std=0.025), min=-0.1,

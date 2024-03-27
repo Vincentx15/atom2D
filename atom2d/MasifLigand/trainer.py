@@ -274,10 +274,19 @@ class Trainer(ABC):
                         self.scaler.update()
                     else:  # torch.float32 default precision
                         cross_entropy_loss.backward()
+                        grad_means = [param.grad.mean() for param in self.model.parameters()]
+                        if any([torch.isnan(mean) for mean in grad_means]):
+                            a = 1
                         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
                         if grad_norm > self.clip_grad_norm:
                             exploding_grad.append(grad_norm.item())
                         self.optimizer.step()
+                        # Cheap fix
+                        # if not any([torch.isnan(mean) for mean in grad_means]):
+                        #     grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
+                        #     if grad_norm > self.clip_grad_norm:
+                        #         exploding_grad.append(grad_norm.item())
+                        #     self.optimizer.step()
 
                     # update ema model
                     if self.use_ema:
