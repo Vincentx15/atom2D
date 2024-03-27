@@ -461,24 +461,24 @@ class DatasetMasifLigandPronet(Dataset):
         pronet_graph = torch.load(pronet_path)
 
         if pronet_graph.coords_ca.isnan().any():
-            print('missing CA')
+            # print('missing CA')
             return None
 
         if (pronet_graph.coords_n.isnan().any() or pronet_graph.coords_c.isnan().any()
                 or pronet_graph.bb_embs.isnan().any()
                 or pronet_graph.x.isnan().any()
                 or pronet_graph.side_chain_embs.isnan().any()):
-            print('missing something')
+            # print('missing something')
             return None
 
         # Now concatenate the embeddings
         if self.add_seq_emb:
             esm_embs = get_esm_embs(pdb=pdb_chains, out_emb_dir=self.seq_emb_dir)
             if esm_embs is None:
-                print('Failed to load embs', pdb_chains)
+                # print('Failed to load embs', pdb_chains)
                 return None
             if len(pronet_graph.coords_ca) != len(esm_embs):
-                print('Max # res is longer than embeddings', pdb_chains)
+                # print('Max # res is longer than embeddings', pdb_chains)
                 return None
             esm_embs = torch.from_numpy(esm_embs)
             pronet_graph.seq_emb = esm_embs
