@@ -9,7 +9,7 @@ if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.append(os.path.join(script_dir, '..'))
 
-from masif_site.models import MasifSiteNet
+from masif_site.models import MasifSiteNet, MasifSiteProNet
 from pip_task.pl_module import compute_auroc, compute_accuracy
 
 
@@ -34,18 +34,24 @@ def masif_site_loss(preds, labels):
 
 class MasifSiteModule(pl.LightningModule):
 
-    def __init__(self, hparams) -> None:
+    def __init__(self, hparams, pronet=False) -> None:
         super().__init__()
         self.save_hyperparameters()
-        self.model = MasifSiteNet(**hparams.model)
+        self.pronet = pronet
+        if not pronet:
+            self.model = MasifSiteNet(**hparams.model)
+        else:
+            self.model = MasifSiteProNet(**hparams.model)
         # self.automatic_optimization = False
 
     def forward(self, x):
         return self.model(x)
 
     def step(self, batch):
-        if (not hasattr(batch, "surface") and
+        if not self.pronet and (not hasattr(batch, "surface") and
                 not hasattr(batch, "graph")):  # if no surface and no graph, then the full batch was filtered out
+            return None, None, None
+        if batch is None:
             return None, None, None
         labels = torch.concatenate(batch.labels)
         # return None, None, None
@@ -101,6 +107,7 @@ class MasifSiteModule(pl.LightningModule):
         self.log("auroc_val", auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False, batch_size=len(logits))
 
     def test_step(self, batch, batch_idx: int):
+        self.model.train()
         loss, logits, labels = self.step(batch)
         if loss is None or logits.isnan().any() or labels.isnan().any():
             self.log("acc/test", 0.5, on_epoch=True)
@@ -125,5 +132,7 @@ class MasifSiteModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if batch is None:
+            return None
         batch = batch.to(device)
         return batch

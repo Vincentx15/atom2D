@@ -122,14 +122,75 @@ class MasifSiteDataset(Dataset):
         item = Data(labels=labels, surface=surface, graph=graph)
         return item
 
+class MasifSiteProNetDataset(Dataset):
+
+    def __init__(self,
+                 systems_list=(),
+                 processed_dir='../../data/masif_site/processed',
+                 add_seq_emb=False):
+        self.processed_dir = processed_dir
+        self.pronet_dir = os.path.join(processed_dir,'..','pronet')
+        successful_processed_pdb = [file.rstrip('_processed.npz') for file in os.listdir(self.processed_dir)]
+        successful_pronet = [file.rstrip('pronetgraph.pt') for file in os.listdir(self.pronet_dir)]
+        self.all_sys = list(
+            set(systems_list).intersection(successful_pronet).intersection(successful_processed_pdb))
+
+        self.add_seq_emb = add_seq_emb
+        self.seq_emb_dir = os.path.join(processed_dir, '..', 'computed_embs')
+
+    def __len__(self):
+        return len(self.all_sys)
+
+    def __getitem__(self, idx):
+        pdb_name = self.all_sys[idx]
+        processed_path = os.path.join(self.processed_dir, pdb_name + '_processed.npz')
+
+        # GET PRONET GRAPH
+        pronet_path = os.path.join(self.pronet_dir, pdb_name + "pronetgraph.pt")
+        pronet_graph = torch.load(pronet_path)
+
+        if pronet_graph.coords_ca.isnan().any():
+            # print('missing CA')
+            return None
+
+        if (pronet_graph.coords_n.isnan().any() or pronet_graph.coords_c.isnan().any()
+                or pronet_graph.bb_embs.isnan().any()
+                or pronet_graph.x.isnan().any()
+                or pronet_graph.side_chain_embs.isnan().any()):
+            # print('missing something')
+            return None
+
+        # Now concatenate the embeddings
+        if self.add_seq_emb:
+            esm_embs = get_esm_embs(pdb=pdb_name, out_emb_dir=self.seq_emb_dir)
+            if esm_embs is None:
+                # print('Failed to load embs', pdb_name)
+                return None
+            if len(pronet_graph.coords_ca) != len(esm_embs):
+                # print('Max # res is longer than embeddings', pdb_name)
+                return None
+            esm_embs = torch.from_numpy(esm_embs)
+            pronet_graph.seq_emb = esm_embs
+
+        data = np.load(processed_path, allow_pickle=True)
+        verts = data['verts']
+        verts = torch.from_numpy(verts).float()
+        labels = data['label']
+        labels = torch.from_numpy(labels)
+        item = Data(labels=labels, verts=verts, pronet_graph=pronet_graph)
+        return item
+
 
 def collater(unbatched_list):
     unbatched_list = [elt for elt in unbatched_list if elt is not None]
+    if len(unbatched_list) == 0:
+        print('Batch fully empty')
+        return None
     return AtomBatch.from_data_list(unbatched_list)
 
 
 class MasifSiteDataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg, pronet=False):
         super().__init__()
         self.cfg = cfg
         self.data_dir = Path(cfg.dataset.data_dir)
@@ -143,9 +204,11 @@ class MasifSiteDataModule(pl.LightningDataModule):
 
         test_systems_list = self.data_dir / 'test_list.txt'
         self.test_sys = [name.strip() for name in open(test_systems_list, 'r').readlines()]
+        self.pronet = pronet
+        self.dataset_cls = MasifSiteProNetDataset if self.pronet else MasifSiteDataset
 
     def train_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.train_sys,
+        dataset = self.dataset_cls(systems_list=self.train_sys,
                                    processed_dir=self.processed_dir,
                                    add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
@@ -153,14 +216,14 @@ class MasifSiteDataModule(pl.LightningDataModule):
                           shuffle=self.cfg.loader.shuffle, collate_fn=collater)
 
     def val_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.val_sys, processed_dir=self.processed_dir,
+        dataset = self.dataset_cls(systems_list=self.val_sys, processed_dir=self.processed_dir,
                                    add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,
                           shuffle=self.cfg.loader.shuffle, collate_fn=collater)
 
     def test_dataloader(self):
-        dataset = MasifSiteDataset(systems_list=self.test_sys, processed_dir=self.processed_dir,
+        dataset = self.dataset_cls(systems_list=self.test_sys, processed_dir=self.processed_dir,
                                    add_seq_emb=self.cfg.model.add_seq_emb)
         return DataLoader(dataset, num_workers=self.cfg.loader.num_workers, batch_size=self.cfg.loader.batch_size_train,
                           pin_memory=self.cfg.loader.pin_memory, prefetch_factor=self.cfg.loader.prefetch_factor,

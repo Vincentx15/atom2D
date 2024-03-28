@@ -27,7 +27,7 @@ def main(cfg=None):
     # DEBUG
     # cfg.model.C_width = 8
     # init model
-    model = MasifSiteModule(cfg)
+    model = MasifSiteModule(cfg, pronet=cfg.pronet)
 
     # init logger
     version = TensorBoardLogger(save_dir=cfg.log_dir).version
@@ -79,7 +79,7 @@ def main(cfg=None):
     )
 
     # datamodule
-    datamodule = MasifSiteDataModule(cfg)
+    datamodule = MasifSiteDataModule(cfg, pronet=cfg.pronet)
 
     # train
     trainer.fit(model, datamodule=datamodule)

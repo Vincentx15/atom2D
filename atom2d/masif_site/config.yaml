@@ -4,6 +4,7 @@ device: 0
 seed: 2023
 log_dir: "./"
 path_model: "version_x/checkpoints/last.ckpt"
+pronet: False
 
 dataset:
   data_dir: "../../data/masif_site/"

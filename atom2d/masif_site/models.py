@@ -1,7 +1,72 @@
+import os
+import sys
+
 import torch
 import torch.nn as nn
 
 from base_nets import GraphDiffNetBipartite
+
+if __name__ == '__main__':
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(os.path.join(script_dir, '..'))
+
+from base_nets.pronet_updated import ProNet
+
+
+class MasifSiteProNet(torch.nn.Module):
+    def __init__(self,
+                 level='allatom',
+                 num_blocks=4,
+                 C_width=128,  # TODO change
+                 mid_emb=64,
+                 num_radial=6,
+                 num_spherical=2,
+                 cutoff=10.0,
+                 max_num_neighbors=32,
+                 int_emb_layers=3,
+                 # out_layers=2,
+                 num_pos_emb=16,
+                 add_seq_emb=False,
+                 **kwargs):
+        super(MasifSiteProNet, self).__init__()
+        hidden_channels = C_width
+        self.pronet = ProNet(level=level,
+                             num_blocks=num_blocks,
+                             hidden_channels=hidden_channels,
+                             mid_emb=mid_emb,
+                             num_radial=num_radial,
+                             num_spherical=num_spherical,
+                             cutoff=cutoff,
+                             max_num_neighbors=max_num_neighbors,
+                             int_emb_layers=int_emb_layers,
+                             num_pos_emb=num_pos_emb,
+                             add_seq_emb=add_seq_emb)
+
+        self.top_net = nn.Sequential(*[
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.ReLU(),
+            nn.Dropout(p=0.25),
+            nn.Linear(hidden_channels, 1)
+        ])
+
+    def select_close(self, verts, processed, graph_pos):
+        # find nearest neighbors between doing last layers
+        with torch.no_grad():
+            dists = torch.cdist(verts, graph_pos)
+            min_indices = torch.argmin(dists, dim=1)
+        selected = processed[min_indices]
+        return selected
+
+    def forward(self, batch):
+        pronet_graph = batch.pronet_graph
+        embed_graph = self.pronet(pronet_graph)
+        verts = batch.verts
+        processed_feats = embed_graph.split(pronet_graph.batch.bincount().tolist())
+        predictions = []
+        for vert, feats, graph in zip(verts, processed_feats, pronet_graph.to_data_list()):
+            feats_close = self.select_close(vert, feats, graph.coords_ca)
+            predictions.append(self.top_net(feats_close))
+        return predictions
 
 
 class MasifSiteNet(torch.nn.Module):

@@ -186,19 +186,34 @@ class PdbEmbedder:
 
         return data
 
+    def protein_to_file(self, pdb_path, file_path, recompute=False):
+        if os.path.exists(file_path) and not recompute:
+            return
+        try:
+            graph = processer.protein_to_graph(pdb_path)
+            torch.save(graph, file_path)
+        except Exception as e:
+            print(pdb_path)
+            print(e)
+
 
 if __name__ == "__main__":
     processer = PdbEmbedder()
     # process_one = processer.protein_to_graph(
     #     "/home/vmallet/projects/atom2d/data/MasifLigand/raw_data_MasifLigand/pdb/1A27_AB.pdb")
-    input_dir = '/home/vmallet/projects/atom2d/data/MasifLigand/raw_data_MasifLigand/pdb/'
-    output_dir = '/home/vmallet/projects/atom2d/data/MasifLigand/pronet/'
+
+    # input_dir = '/home/vmallet/projects/atom2d/data/MasifLigand/raw_data_MasifLigand/pdb/'
+    # output_dir = '/home/vmallet/projects/atom2d/data/MasifLigand/pronet/'
+
+    input_dir = "../../data/masif_site/01-benchmark_pdbs/"
+    output_dir = "../../data/masif_site/pronet/"
+
+
     import os
 
+    os.makedirs(output_dir, exist_ok=True)
     for pdb in os.listdir(input_dir):
         input_file = os.path.join(input_dir, pdb)
         output_file = os.path.join(output_dir, pdb.replace(".pdb", "pronetgraph.pt"))
-        if os.path.exists(output_file):
-            continue
-        graph = processer.protein_to_graph(input_file)
-        torch.save(graph, output_file)
+        processer.protein_to_file(pdb_path=input_file,
+                                  file_path=output_file)
