@@ -22,6 +22,8 @@ def main(cfg=None):
     seed = cfg.seed
     pl.seed_everything(seed, workers=True)
 
+    # DEBUG
+    # cfg.model.C_width = 8
     # init model
     model = MasifSiteModule(cfg)
 

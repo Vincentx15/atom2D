@@ -66,8 +66,6 @@ class MasifSiteDataset(Dataset):
         successful_processed_pdb = [file.rstrip('_processed.npz') for file in os.listdir(self.processed_dir)]
         self.all_sys = list(
             set(systems_list).intersection(successful_operators_pdb).intersection(successful_processed_pdb))
-        print(len(systems_list))
-        print(len(self.all_sys))
         self.skip_hydro = False
 
         self.add_seq_emb = add_seq_emb

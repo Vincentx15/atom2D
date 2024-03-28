@@ -38,6 +38,7 @@ class MasifSiteModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = MasifSiteNet(**hparams.model)
+        # self.automatic_optimization = False
 
     def forward(self, x):
         return self.model(x)
@@ -47,16 +48,37 @@ class MasifSiteModule(pl.LightningModule):
                 not hasattr(batch, "graph")):  # if no surface and no graph, then the full batch was filtered out
             return None, None, None
         labels = torch.concatenate(batch.labels)
+        # return None, None, None
         outputs = torch.concatenate(self(batch)).flatten()
         loss, preds_concat, labels_concat = masif_site_loss(outputs, labels)
         if torch.isnan(loss).any():
+            print('Nan loss')
             return None, None, None
         return loss, preds_concat, labels_concat
 
+    def on_after_backward(self):
+        valid_gradients = True
+        for name, param in self.named_parameters():
+            if param.grad is not None:
+                valid_gradients = not (torch.isnan(param.grad).any() or torch.isinf(param.grad).any())
+                if not valid_gradients:
+                    break
+
+        if not valid_gradients:
+            print(f'Detected inf or nan values in gradients. not updating model parameters')
+            self.zero_grad()
+
     def training_step(self, batch, batch_idx):
+        # if batch_idx < 157:
+        #     return None
         loss, logits, labels = self.step(batch)
         if loss is None:
             return None
+        # opt = self.optimizers()
+        # opt.zero_grad()
+        # self.manual_backward(loss)
+        # opt.step()
+
         self.log_dict({"loss/train": loss.item()},
                       on_step=True, on_epoch=True, prog_bar=False, batch_size=len(logits))
         acc = compute_accuracy(logits, labels)
