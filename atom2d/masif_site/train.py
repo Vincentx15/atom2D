@@ -15,6 +15,8 @@ from pl_module import MasifSiteModule
 from load_data import MasifSiteDataModule
 from atom2d_utils.callbacks import CommandLoggerCallback
 
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 @hydra.main(config_path="./", config_name="config")
 def main(cfg=None):
@@ -37,16 +39,16 @@ def main(cfg=None):
     lr_logger = pl.callbacks.LearningRateMonitor()
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        filename="{epoch}-{global_r_val:.2f}",
+        filename="{epoch}-{auroc_val:.2f}",
         dirpath=Path(tb_logger.log_dir) / "checkpoints",
-        monitor="global_r_val",
+        monitor="auroc_val",
         mode="max",
         save_last=True,
         save_top_k=cfg.train.save_top_k,
         verbose=False,
     )
 
-    early_stop_callback = pl.callbacks.EarlyStopping(monitor='global_r_val',
+    early_stop_callback = pl.callbacks.EarlyStopping(monitor='auroc_val',
                                                      patience=cfg.train.early_stoping_patience,
                                                      mode='max')
 

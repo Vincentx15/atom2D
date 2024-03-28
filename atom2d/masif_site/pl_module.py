@@ -87,6 +87,7 @@ class MasifSiteModule(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx: int):
+        self.model.train()
         loss, logits, labels = self.step(batch)
         if loss is None or logits.isnan().any() or labels.isnan().any():
             print("validation step skipped!")
@@ -96,8 +97,8 @@ class MasifSiteModule(pl.LightningModule):
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
         acc = compute_accuracy(logits, labels)
         auroc = compute_auroc(logits, labels)
-        self.log_dict({"acc/val": acc, "auroc/val": auroc}, on_epoch=True)
-        self.log("auroc_val", auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False)
+        self.log_dict({"acc/val": acc, "auroc/val": auroc}, on_epoch=True, batch_size=len(logits))
+        self.log("auroc_val", auroc, prog_bar=True, on_step=False, on_epoch=True, logger=False, batch_size=len(logits))
 
     def test_step(self, batch, batch_idx: int):
         loss, logits, labels = self.step(batch)
@@ -108,7 +109,7 @@ class MasifSiteModule(pl.LightningModule):
                       on_step=False, on_epoch=True, prog_bar=True, batch_size=len(logits))
         acc = compute_accuracy(logits, labels)
         auroc = compute_auroc(logits, labels)
-        self.log_dict({"acc/test": acc, "auroc/test": auroc}, on_epoch=True)
+        self.log_dict({"acc/test": acc, "auroc/test": auroc}, on_epoch=True, batch_size=len(logits))
 
     def configure_optimizers(self):
         opt_params = self.hparams.hparams.optimizer
